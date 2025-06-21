@@ -1,0 +1,327 @@
+package resilience
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net/http"
+	"sync"
+	"time"
+
+	"github.com/sony/gobreaker"
+)
+
+// CircuitBreakerConfig holds configuration for circuit breakers
+type CircuitBreakerConfig struct {
+	Enabled          bool          `yaml:"enabled" mapstructure:"enabled"`
+	MaxRequests      uint32        `yaml:"max_requests" mapstructure:"max_requests"`
+	Interval         time.Duration `yaml:"interval" mapstructure:"interval"`
+	Timeout          time.Duration `yaml:"timeout" mapstructure:"timeout"`
+	FailureThreshold uint32        `yaml:"failure_threshold" mapstructure:"failure_threshold"`
+	SuccessThreshold uint32        `yaml:"success_threshold" mapstructure:"success_threshold"`
+}
+
+// CircuitBreakerManager manages circuit breakers for different services
+type CircuitBreakerManager struct {
+	config   CircuitBreakerConfig
+	breakers map[string]*gobreaker.CircuitBreaker
+	mutex    sync.RWMutex
+}
+
+// NewCircuitBreakerManager creates a new circuit breaker manager
+func NewCircuitBreakerManager(config CircuitBreakerConfig) *CircuitBreakerManager {
+	return &CircuitBreakerManager{
+		config:   config,
+		breakers: make(map[string]*gobreaker.CircuitBreaker),
+	}
+}
+
+// GetBreaker returns or creates a circuit breaker for the given service
+func (cbm *CircuitBreakerManager) GetBreaker(serviceName string) *gobreaker.CircuitBreaker {
+	if !cbm.config.Enabled {
+		return nil
+	}
+
+	cbm.mutex.RLock()
+	breaker, exists := cbm.breakers[serviceName]
+	cbm.mutex.RUnlock()
+
+	if exists {
+		return breaker
+	}
+
+	cbm.mutex.Lock()
+	defer cbm.mutex.Unlock()
+
+	// Double-check in case another goroutine created it
+	if breaker, exists := cbm.breakers[serviceName]; exists {
+		return breaker
+	}
+
+	// Create new circuit breaker with service-specific settings
+	settings := gobreaker.Settings{
+		Name:        serviceName,
+		MaxRequests: cbm.config.MaxRequests,
+		Interval:    cbm.config.Interval,
+		Timeout:     cbm.config.Timeout,
+		ReadyToTrip: func(counts gobreaker.Counts) bool {
+			return counts.ConsecutiveFailures >= cbm.config.FailureThreshold
+		},
+		OnStateChange: func(name string, from gobreaker.State, to gobreaker.State) {
+			// Log state changes for monitoring
+			fmt.Printf("Circuit breaker %s changed from %s to %s\n", name, from, to)
+		},
+		IsSuccessful: func(err error) bool {
+			// Define what constitutes a successful request
+			return err == nil
+		},
+	}
+
+	breaker = gobreaker.NewCircuitBreaker(settings)
+	cbm.breakers[serviceName] = breaker
+
+	return breaker
+}
+
+// Execute executes a function with circuit breaker protection
+func (cbm *CircuitBreakerManager) Execute(serviceName string, fn func() (interface{}, error)) (interface{}, error) {
+	if !cbm.config.Enabled {
+		return fn()
+	}
+
+	breaker := cbm.GetBreaker(serviceName)
+	if breaker == nil {
+		return fn()
+	}
+
+	return breaker.Execute(fn)
+}
+
+// ExecuteWithContext executes a function with circuit breaker protection and context
+func (cbm *CircuitBreakerManager) ExecuteWithContext(ctx context.Context, serviceName string, fn func(context.Context) (interface{}, error)) (interface{}, error) {
+	if !cbm.config.Enabled {
+		return fn(ctx)
+	}
+
+	breaker := cbm.GetBreaker(serviceName)
+	if breaker == nil {
+		return fn(ctx)
+	}
+
+	// Check context cancellation before execution
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+
+	return breaker.Execute(func() (interface{}, error) {
+		return fn(ctx)
+	})
+}
+
+// GetState returns the current state of a circuit breaker
+func (cbm *CircuitBreakerManager) GetState(serviceName string) gobreaker.State {
+	cbm.mutex.RLock()
+	defer cbm.mutex.RUnlock()
+
+	if breaker, exists := cbm.breakers[serviceName]; exists {
+		return breaker.State()
+	}
+
+	return gobreaker.StateClosed
+}
+
+// GetCounts returns the current counts for a circuit breaker
+func (cbm *CircuitBreakerManager) GetCounts(serviceName string) gobreaker.Counts {
+	cbm.mutex.RLock()
+	defer cbm.mutex.RUnlock()
+
+	if breaker, exists := cbm.breakers[serviceName]; exists {
+		return breaker.Counts()
+	}
+
+	return gobreaker.Counts{}
+}
+
+// IsEnabled returns whether circuit breakers are enabled
+func (cbm *CircuitBreakerManager) IsEnabled() bool {
+	return cbm.config.Enabled
+}
+
+// Service-specific circuit breaker wrappers
+
+// DatabaseCircuitBreaker wraps database operations with circuit breaker
+type DatabaseCircuitBreaker struct {
+	manager *CircuitBreakerManager
+}
+
+// NewDatabaseCircuitBreaker creates a new database circuit breaker
+func NewDatabaseCircuitBreaker(manager *CircuitBreakerManager) *DatabaseCircuitBreaker {
+	return &DatabaseCircuitBreaker{
+		manager: manager,
+	}
+}
+
+// Execute executes a database operation with circuit breaker protection
+func (dcb *DatabaseCircuitBreaker) Execute(ctx context.Context, operation string, fn func(context.Context) (interface{}, error)) (interface{}, error) {
+	serviceName := fmt.Sprintf("database-%s", operation)
+	return dcb.manager.ExecuteWithContext(ctx, serviceName, fn)
+}
+
+// SearchCircuitBreaker wraps search operations with circuit breaker
+type SearchCircuitBreaker struct {
+	manager *CircuitBreakerManager
+}
+
+// NewSearchCircuitBreaker creates a new search circuit breaker
+func NewSearchCircuitBreaker(manager *CircuitBreakerManager) *SearchCircuitBreaker {
+	return &SearchCircuitBreaker{
+		manager: manager,
+	}
+}
+
+// Execute executes a search operation with circuit breaker protection
+func (scb *SearchCircuitBreaker) Execute(ctx context.Context, searchType string, fn func(context.Context) (interface{}, error)) (interface{}, error) {
+	serviceName := fmt.Sprintf("search-%s", searchType)
+	return scb.manager.ExecuteWithContext(ctx, serviceName, fn)
+}
+
+// CacheCircuitBreaker wraps cache operations with circuit breaker
+type CacheCircuitBreaker struct {
+	manager *CircuitBreakerManager
+}
+
+// NewCacheCircuitBreaker creates a new cache circuit breaker
+func NewCacheCircuitBreaker(manager *CircuitBreakerManager) *CacheCircuitBreaker {
+	return &CacheCircuitBreaker{
+		manager: manager,
+	}
+}
+
+// Execute executes a cache operation with circuit breaker protection
+func (ccb *CacheCircuitBreaker) Execute(ctx context.Context, operation string, fn func(context.Context) (interface{}, error)) (interface{}, error) {
+	serviceName := fmt.Sprintf("cache-%s", operation)
+	return ccb.manager.ExecuteWithContext(ctx, serviceName, fn)
+}
+
+// ExternalServiceCircuitBreaker wraps external service calls with circuit breaker
+type ExternalServiceCircuitBreaker struct {
+	manager *CircuitBreakerManager
+}
+
+// NewExternalServiceCircuitBreaker creates a new external service circuit breaker
+func NewExternalServiceCircuitBreaker(manager *CircuitBreakerManager) *ExternalServiceCircuitBreaker {
+	return &ExternalServiceCircuitBreaker{
+		manager: manager,
+	}
+}
+
+// Execute executes an external service call with circuit breaker protection
+func (escb *ExternalServiceCircuitBreaker) Execute(ctx context.Context, serviceName string, fn func(context.Context) (interface{}, error)) (interface{}, error) {
+	return escb.manager.ExecuteWithContext(ctx, serviceName, fn)
+}
+
+// Common error types for circuit breaker failures
+var (
+	ErrCircuitBreakerOpen     = errors.New("circuit breaker is open")
+	ErrCircuitBreakerHalfOpen = errors.New("circuit breaker is half-open and rejecting requests")
+	ErrServiceUnavailable     = errors.New("service temporarily unavailable")
+)
+
+// IsCircuitBreakerError checks if an error is related to circuit breaker state
+func IsCircuitBreakerError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	switch err {
+	case gobreaker.ErrOpenState, gobreaker.ErrTooManyRequests:
+		return true
+	default:
+		return false
+	}
+}
+
+// CircuitBreakerMiddleware creates HTTP middleware for circuit breaker protection
+func (cbm *CircuitBreakerManager) CircuitBreakerMiddleware(serviceName string) func(next http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if !cbm.config.Enabled {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			_, err := cbm.ExecuteWithContext(r.Context(), serviceName, func(ctx context.Context) (interface{}, error) {
+				// Use a custom response writer to capture errors
+				recorder := &responseRecorder{
+					ResponseWriter: w,
+					statusCode:     200,
+				}
+				
+				next.ServeHTTP(recorder, r.WithContext(ctx))
+				
+				// Consider 5xx status codes as failures
+				if recorder.statusCode >= 500 {
+					return nil, fmt.Errorf("HTTP %d", recorder.statusCode)
+				}
+				
+				return nil, nil
+			})
+
+			if err != nil && IsCircuitBreakerError(err) {
+				http.Error(w, "Service temporarily unavailable", http.StatusServiceUnavailable)
+				return
+			}
+		})
+	}
+}
+
+type responseRecorder struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (rr *responseRecorder) WriteHeader(statusCode int) {
+	rr.statusCode = statusCode
+	rr.ResponseWriter.WriteHeader(statusCode)
+}
+
+// HealthCheck provides circuit breaker health information
+type CircuitBreakerHealthCheck struct {
+	manager *CircuitBreakerManager
+}
+
+// NewCircuitBreakerHealthCheck creates a new circuit breaker health check
+func NewCircuitBreakerHealthCheck(manager *CircuitBreakerManager) *CircuitBreakerHealthCheck {
+	return &CircuitBreakerHealthCheck{
+		manager: manager,
+	}
+}
+
+// Check returns the health status of all circuit breakers
+func (cbhc *CircuitBreakerHealthCheck) Check(ctx context.Context) map[string]interface{} {
+	cbhc.manager.mutex.RLock()
+	defer cbhc.manager.mutex.RUnlock()
+
+	status := make(map[string]interface{})
+	
+	for name, breaker := range cbhc.manager.breakers {
+		state := breaker.State()
+		counts := breaker.Counts()
+		
+		status[name] = map[string]interface{}{
+			"state":               state.String(),
+			"requests":            counts.Requests,
+			"total_successes":     counts.TotalSuccesses,
+			"total_failures":      counts.TotalFailures,
+			"consecutive_successes": counts.ConsecutiveSuccesses,
+			"consecutive_failures":  counts.ConsecutiveFailures,
+		}
+	}
+
+	return map[string]interface{}{
+		"circuit_breakers": status,
+		"enabled":          cbhc.manager.config.Enabled,
+	}
+}

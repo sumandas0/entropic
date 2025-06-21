@@ -1,0 +1,69 @@
+# Git
+.git
+.gitignore
+
+# Documentation
+README.md
+docs/
+*.md
+
+# Development files
+.env
+.env.*
+*.example.yaml
+*.example.yml
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+bin/
+tmp/
+dist/
+build/
+
+# Test files
+coverage.out
+coverage.html
+*.test
+
+# Logs
+logs/
+*.log
+
+# Data directories
+data/
+
+# Backup files
+backups/
+
+# Node modules (if any)
+node_modules/
+
+# Docker files (except main Dockerfile)
+docker-compose*.yml
+Dockerfile.*
+
+# Scripts
+scripts/
+
+# Secrets
+secrets/
+
+# SSL certificates
+ssl/
+
+# Nginx config
+nginx*.conf
+
+# Temporary files
+*.tmp
+*.temp

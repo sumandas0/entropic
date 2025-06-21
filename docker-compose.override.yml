@@ -1,0 +1,103 @@
+# Docker Compose override for development
+# This file is automatically applied when running docker-compose up
+version: '3.8'
+
+services:
+  # Development overrides for PostgreSQL
+  postgres:
+    environment:
+      # Enable more verbose logging for development
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    ports:
+      - "5432:5432"
+    volumes:
+      # Mount development SQL scripts
+      - ./dev-scripts:/docker-entrypoint-initdb.d/dev:ro
+
+  # Development overrides for Typesense
+  typesense:
+    environment:
+      # Enable development features
+      TYPESENSE_ENABLE_CORS: true
+      TYPESENSE_LOG_LEVEL: DEBUG
+    volumes:
+      # Mount configuration for development
+      - ./typesense-dev.json:/etc/typesense/typesense-server.ini:ro
+
+  # Development overrides for Entropic
+  entropic:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    environment:
+      # Development environment variables
+      ENTROPIC_LOGGING_LEVEL: debug
+      ENTROPIC_LOGGING_FORMAT: console
+      ENTROPIC_DATABASE_MIGRATE_ON_START: true
+      ENTROPIC_METRICS_ENABLED: true
+      GO_ENV: development
+    volumes:
+      # Mount source code for hot reload (if using air or similar)
+      - ./:/app:delegated
+      - go_mod_cache:/go/pkg/mod
+    command: ["go", "run", "./cmd/server", "--config", "/app/entropic.yaml"]
+    # Override health check for development
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # Development tools container
+  dev-tools:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    container_name: entropic-dev-tools
+    volumes:
+      - ./:/app
+      - go_mod_cache:/go/pkg/mod
+    working_dir: /app
+    networks:
+      - entropic-network
+    profiles:
+      - dev-tools
+    command: ["tail", "-f", "/dev/null"]
+
+  # Hot reload development server (optional)
+  dev-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: entropic-dev-server
+    environment:
+      ENTROPIC_DATABASE_HOST: postgres
+      ENTROPIC_DATABASE_PORT: 5432
+      ENTROPIC_DATABASE_DATABASE: entropic
+      ENTROPIC_DATABASE_USERNAME: postgres
+      ENTROPIC_DATABASE_PASSWORD: postgres
+      ENTROPIC_SEARCH_URL: http://typesense:8108
+      ENTROPIC_SEARCH_API_KEY: xyz
+      ENTROPIC_LOGGING_LEVEL: debug
+      ENTROPIC_LOGGING_FORMAT: console
+    ports:
+      - "8080:8080"
+      - "2345:2345" # Delve debugger port
+    volumes:
+      - ./:/app:delegated
+      - go_mod_cache:/go/pkg/mod
+    networks:
+      - entropic-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      typesense:
+        condition: service_healthy
+    profiles:
+      - dev
+
+volumes:
+  go_mod_cache:
+    driver: local

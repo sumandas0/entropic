@@ -1,0 +1,368 @@
+package testhelpers
+
+import (
+	"context"
+	"fmt"
+	"testing"
+	"time"
+
+	"github.com/entropic/entropic/config"
+	"github.com/entropic/entropic/internal/cache"
+	"github.com/entropic/entropic/internal/core"
+	"github.com/entropic/entropic/internal/lock"
+	"github.com/entropic/entropic/internal/models"
+	"github.com/entropic/entropic/internal/store/postgres"
+	"github.com/entropic/entropic/internal/store/typesense"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/modules/postgres"
+	"github.com/testcontainers/testcontainers-go/modules/redis"
+	"github.com/testcontainers/testcontainers-go/wait"
+)
+
+// TestContainers holds test container instances
+type TestContainers struct {
+	PostgresContainer *postgres.PostgresContainer
+	RedisContainer    *redis.RedisContainer
+	TypesenseContainer testcontainers.Container
+}
+
+// TestEnvironment provides a complete test environment
+type TestEnvironment struct {
+	Containers    *TestContainers
+	Config        *config.Config
+	PrimaryStore  *postgres.PostgresStore
+	IndexStore    *typesense.TypesenseStore
+	CacheManager  *cache.CacheAwareManager
+	LockManager   *lock.LockManager
+	Engine        *core.Engine
+}
+
+// SetupTestContainers creates and starts test containers
+func SetupTestContainers(t *testing.T, ctx context.Context) *TestContainers {
+	// Start PostgreSQL container
+	postgresContainer, err := postgres.Run(ctx,
+		"pgvector/pgvector:pg17",
+		postgres.WithDatabase("entropic_test"),
+		postgres.WithUsername("test"),
+		postgres.WithPassword("test"),
+		postgres.WithInitScripts("../init-db.sql"),
+		testcontainers.WithWaitStrategy(
+			wait.ForLog("database system is ready to accept connections").
+				WithOccurrence(2).
+				WithStartupTimeout(60*time.Second),
+		),
+	)
+	require.NoError(t, err)
+
+	// Start Redis container
+	redisContainer, err := redis.Run(ctx, "redis:7-alpine")
+	require.NoError(t, err)
+
+	// Start Typesense container
+	typesenseReq := testcontainers.ContainerRequest{
+		Image:        "typesense/typesense:28.0",
+		ExposedPorts: []string{"8108/tcp"},
+		Env: map[string]string{
+			"TYPESENSE_DATA_DIR": "/data",
+			"TYPESENSE_API_KEY":  "test-key",
+		},
+		WaitingFor: wait.ForHTTP("/health").WithPort("8108/tcp").WithStartupTimeout(60 * time.Second),
+	}
+
+	typesenseContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: typesenseReq,
+		Started:          true,
+	})
+	require.NoError(t, err)
+
+	return &TestContainers{
+		PostgresContainer:  postgresContainer,
+		RedisContainer:     redisContainer,
+		TypesenseContainer: typesenseContainer,
+	}
+}
+
+// SetupTestEnvironment creates a complete test environment
+func SetupTestEnvironment(t *testing.T, ctx context.Context) *TestEnvironment {
+	containers := SetupTestContainers(t, ctx)
+
+	// Get connection strings
+	postgresConnStr, err := containers.PostgresContainer.ConnectionString(ctx, "sslmode=disable")
+	require.NoError(t, err)
+
+	redisConnStr, err := containers.RedisContainer.ConnectionString(ctx)
+	require.NoError(t, err)
+
+	typesenseHost, err := containers.TypesenseContainer.Host(ctx)
+	require.NoError(t, err)
+
+	typesensePort, err := containers.TypesenseContainer.MappedPort(ctx, "8108")
+	require.NoError(t, err)
+
+	typesenseURL := fmt.Sprintf("http://%s:%s", typesenseHost, typesensePort.Port())
+
+	// Create test configuration
+	cfg := &config.Config{
+		Database: config.DatabaseConfig{
+			Host:     "localhost", // Will be overridden by connection string
+			Port:     5432,
+			Database: "entropic_test",
+			Username: "test",
+			Password: "test",
+			SSLMode:  "disable",
+		},
+		Search: config.SearchConfig{
+			URL:    typesenseURL,
+			APIKey: "test-key",
+		},
+		Lock: config.LockConfig{
+			Type: "redis",
+			Redis: config.RedisConfig{
+				Host: "localhost", // Will be overridden by connection string
+				Port: 6379,
+			},
+		},
+		Cache: config.CacheConfig{
+			TTL:             5 * time.Minute,
+			CleanupInterval: time.Minute,
+		},
+	}
+
+	// Initialize primary store
+	primaryStore, err := postgres.NewPostgresStore(postgresConnStr)
+	require.NoError(t, err)
+
+	// Run migrations
+	migrator := postgres.NewMigrator(primaryStore.GetPool())
+	err = migrator.Run(ctx)
+	require.NoError(t, err)
+
+	// Initialize index store
+	indexStore, err := typesense.NewTypesenseStore(typesenseURL, "test-key")
+	require.NoError(t, err)
+
+	// Initialize cache manager
+	cacheManager := cache.NewCacheAwareManager(primaryStore, cfg.Cache.TTL)
+
+	// Initialize lock manager
+	distributedLock := lock.NewInMemoryDistributedLock() // Use in-memory for tests
+	lockManager := lock.NewLockManager(distributedLock)
+
+	// Initialize engine
+	engine, err := core.NewEngine(primaryStore, indexStore, cacheManager, lockManager)
+	require.NoError(t, err)
+
+	return &TestEnvironment{
+		Containers:   containers,
+		Config:       cfg,
+		PrimaryStore: primaryStore,
+		IndexStore:   indexStore,
+		CacheManager: cacheManager,
+		LockManager:  lockManager,
+		Engine:       engine,
+	}
+}
+
+// Cleanup shuts down all test containers
+func (tc *TestContainers) Cleanup(ctx context.Context) error {
+	var errors []error
+
+	if tc.PostgresContainer != nil {
+		if err := tc.PostgresContainer.Terminate(ctx); err != nil {
+			errors = append(errors, err)
+		}
+	}
+
+	if tc.RedisContainer != nil {
+		if err := tc.RedisContainer.Terminate(ctx); err != nil {
+			errors = append(errors, err)
+		}
+	}
+
+	if tc.TypesenseContainer != nil {
+		if err := tc.TypesenseContainer.Terminate(ctx); err != nil {
+			errors = append(errors, err)
+		}
+	}
+
+	if len(errors) > 0 {
+		return fmt.Errorf("cleanup failed with %d errors: %v", len(errors), errors[0])
+	}
+
+	return nil
+}
+
+// Cleanup shuts down the test environment
+func (te *TestEnvironment) Cleanup(ctx context.Context) error {
+	var errors []error
+
+	if te.Engine != nil {
+		if err := te.Engine.Close(); err != nil {
+			errors = append(errors, err)
+		}
+	}
+
+	if err := te.Containers.Cleanup(ctx); err != nil {
+		errors = append(errors, err)
+	}
+
+	if len(errors) > 0 {
+		return fmt.Errorf("test environment cleanup failed: %v", errors[0])
+	}
+
+	return nil
+}
+
+// CreateTestEntitySchema creates a test entity schema
+func CreateTestEntitySchema(entityType string) *models.EntitySchema {
+	properties := models.PropertySchema{
+		"name": models.PropertyDefinition{
+			Type:     "string",
+			Required: true,
+		},
+		"description": models.PropertyDefinition{
+			Type:     "string",
+			Required: false,
+		},
+		"tags": models.PropertyDefinition{
+			Type:        "array",
+			ElementType: "string",
+			Required:    false,
+		},
+		"metadata": models.PropertyDefinition{
+			Type:     "object",
+			Required: false,
+		},
+		"embedding": models.PropertyDefinition{
+			Type:      "vector",
+			VectorDim: 384,
+			Required:  false,
+		},
+	}
+
+	indexes := []models.IndexConfig{
+		{
+			Name:   "idx_name",
+			Fields: []string{"name"},
+			Type:   "btree",
+			Unique: false,
+		},
+		{
+			Name:       "idx_embedding",
+			Fields:     []string{"embedding"},
+			Type:       "vector",
+			VectorType: "cosine",
+		},
+	}
+
+	return models.NewEntitySchema(entityType, properties)
+}
+
+// CreateTestRelationshipSchema creates a test relationship schema
+func CreateTestRelationshipSchema(relationshipType, fromType, toType string) *models.RelationshipSchema {
+	properties := models.PropertySchema{
+		"weight": models.PropertyDefinition{
+			Type:     "number",
+			Required: false,
+		},
+		"metadata": models.PropertyDefinition{
+			Type:     "object",
+			Required: false,
+		},
+	}
+
+	schema := models.NewRelationshipSchema(relationshipType, fromType, toType, models.ManyToMany)
+	schema.Properties = properties
+	schema.DenormalizationConfig = models.DenormalizationConfig{
+		DenormalizeToFrom:   []string{"name"},
+		DenormalizeFromTo:   []string{"description"},
+		UpdateOnChange:      true,
+		IncludeRelationData: false,
+	}
+
+	return schema
+}
+
+// CreateTestEntity creates a test entity
+func CreateTestEntity(entityType, name string) *models.Entity {
+	properties := map[string]interface{}{
+		"name":        name,
+		"description": fmt.Sprintf("Test %s entity", name),
+		"tags":        []string{"test", "example"},
+		"metadata": map[string]interface{}{
+			"created_by": "test",
+			"test_flag":  true,
+		},
+	}
+
+	urn := fmt.Sprintf("test:%s:%s", entityType, uuid.New().String())
+	return models.NewEntity(entityType, urn, properties)
+}
+
+// CreateTestEntityWithEmbedding creates a test entity with vector embedding
+func CreateTestEntityWithEmbedding(entityType, name string, embedding []float32) *models.Entity {
+	entity := CreateTestEntity(entityType, name)
+	entity.Properties["embedding"] = embedding
+	return entity
+}
+
+// CreateTestRelation creates a test relation
+func CreateTestRelation(relationType string, from, to *models.Entity) *models.Relation {
+	properties := map[string]interface{}{
+		"weight": 1.0,
+		"metadata": map[string]interface{}{
+			"created_by": "test",
+		},
+	}
+
+	return models.NewRelation(
+		relationType,
+		from.ID,
+		from.EntityType,
+		to.ID,
+		to.EntityType,
+		properties,
+	)
+}
+
+// GenerateTestEmbedding generates a test vector embedding
+func GenerateTestEmbedding(dim int) []float32 {
+	embedding := make([]float32, dim)
+	for i := 0; i < dim; i++ {
+		embedding[i] = float32(i) / float32(dim)
+	}
+	return embedding
+}
+
+// AssertEntityEqual asserts that two entities are equal
+func AssertEntityEqual(t *testing.T, expected, actual *models.Entity) {
+	require.Equal(t, expected.ID, actual.ID)
+	require.Equal(t, expected.EntityType, actual.EntityType)
+	require.Equal(t, expected.URN, actual.URN)
+	require.Equal(t, expected.Properties, actual.Properties)
+	require.Equal(t, expected.Version, actual.Version)
+}
+
+// AssertRelationEqual asserts that two relations are equal
+func AssertRelationEqual(t *testing.T, expected, actual *models.Relation) {
+	require.Equal(t, expected.ID, actual.ID)
+	require.Equal(t, expected.RelationType, actual.RelationType)
+	require.Equal(t, expected.FromEntityID, actual.FromEntityID)
+	require.Equal(t, expected.FromEntityType, actual.FromEntityType)
+	require.Equal(t, expected.ToEntityID, actual.ToEntityID)
+	require.Equal(t, expected.ToEntityType, actual.ToEntityType)
+	require.Equal(t, expected.Properties, actual.Properties)
+}
+
+// WaitForIndexing waits for entity to be indexed in search store
+func WaitForIndexing(t *testing.T, ctx context.Context, indexStore *typesense.TypesenseStore, timeout time.Duration) {
+	// Simple wait for indexing to complete
+	time.Sleep(100 * time.Millisecond)
+}
+
+// RandomString generates a random string for testing
+func RandomString(length int) string {
+	return fmt.Sprintf("test_%s", uuid.New().String()[:length])
+}

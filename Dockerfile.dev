@@ -1,0 +1,56 @@
+# Development Dockerfile with hot reload
+FROM golang:1.24.3-alpine
+
+# Install development dependencies
+RUN apk add --no-cache \
+    git \
+    make \
+    curl \
+    bash \
+    ca-certificates
+
+# Install air for hot reload
+RUN go install github.com/air-verse/air@latest
+
+# Install delve for debugging
+RUN go install github.com/go-delve/delve/cmd/dlv@latest
+
+# Set working directory
+WORKDIR /app
+
+# Copy go mod and sum files
+COPY go.mod go.sum ./
+
+# Download dependencies
+RUN go mod download
+
+# Create air configuration
+RUN echo '[build]' > .air.toml && \
+    echo '  cmd = "go build -o ./tmp/main ./cmd/server"' >> .air.toml && \
+    echo '  bin = "tmp/main"' >> .air.toml && \
+    echo '  full_bin = "dlv exec ./tmp/main --headless --listen=:2345 --api-version=2 --accept-multiclient"' >> .air.toml && \
+    echo '  include_ext = ["go", "tpl", "tmpl", "html", "yaml", "yml"]' >> .air.toml && \
+    echo '  exclude_dir = ["assets", "tmp", "vendor", "frontend/node_modules"]' >> .air.toml && \
+    echo '  include_dir = []' >> .air.toml && \
+    echo '  exclude_file = []' >> .air.toml && \
+    echo '  exclude_regex = ["_test.go"]' >> .air.toml && \
+    echo '  exclude_unchanged = false' >> .air.toml && \
+    echo '  follow_symlink = false' >> .air.toml && \
+    echo '  log = "build-errors.log"' >> .air.toml && \
+    echo '  delay = 1000' >> .air.toml && \
+    echo '  stop_on_error = true' >> .air.toml && \
+    echo '  send_interrupt = false' >> .air.toml && \
+    echo '  kill_delay = "0s"' >> .air.toml && \
+    echo '[log]' >> .air.toml && \
+    echo '  time = false' >> .air.toml && \
+    echo '[color]' >> .air.toml && \
+    echo '  main = "magenta"' >> .air.toml && \
+    echo '  watcher = "cyan"' >> .air.toml && \
+    echo '  build = "yellow"' >> .air.toml && \
+    echo '  runner = "green"' >> .air.toml
+
+# Expose ports
+EXPOSE 8080 2345
+
+# Default command
+CMD ["air", "-c", ".air.toml"]
