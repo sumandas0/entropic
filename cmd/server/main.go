@@ -9,14 +9,14 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/entropic/entropic/config"
-	"github.com/entropic/entropic/internal/api"
-	"github.com/entropic/entropic/internal/cache"
-	"github.com/entropic/entropic/internal/core"
-	"github.com/entropic/entropic/internal/health"
-	"github.com/entropic/entropic/internal/lock"
-	"github.com/entropic/entropic/internal/store/postgres"
-	"github.com/entropic/entropic/internal/store/typesense"
+	"github.com/sumandas0/entropic/config"
+	"github.com/sumandas0/entropic/internal/api"
+	"github.com/sumandas0/entropic/internal/cache"
+	"github.com/sumandas0/entropic/internal/core"
+	"github.com/sumandas0/entropic/internal/health"
+	"github.com/sumandas0/entropic/internal/lock"
+	"github.com/sumandas0/entropic/internal/store/postgres"
+	"github.com/sumandas0/entropic/internal/store/typesense"
 	"github.com/spf13/cobra"
 )
 

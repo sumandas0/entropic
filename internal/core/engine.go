@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/entropic/entropic/internal/cache"
-	"github.com/entropic/entropic/internal/lock"
-	"github.com/entropic/entropic/internal/models"
-	"github.com/entropic/entropic/internal/store"
-	"github.com/entropic/entropic/pkg/utils"
+	"github.com/sumandas0/entropic/internal/cache"
+	"github.com/sumandas0/entropic/internal/lock"
+	"github.com/sumandas0/entropic/internal/models"
+	"github.com/sumandas0/entropic/internal/store"
+	"github.com/sumandas0/entropic/pkg/utils"
 	"github.com/google/uuid"
 )
 

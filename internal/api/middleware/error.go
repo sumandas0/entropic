@@ -7,7 +7,7 @@ import (
 	"runtime/debug"
 	"time"
 
-	"github.com/entropic/entropic/pkg/utils"
+	"github.com/sumandas0/entropic/pkg/utils"
 )
 
 // ErrorResponse represents a standardized API error response

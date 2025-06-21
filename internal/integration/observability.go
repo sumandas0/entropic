@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/entropic/entropic/internal/observability"
-	"github.com/entropic/entropic/internal/resilience"
-	"github.com/entropic/entropic/internal/security"
+	"github.com/sumandas0/entropic/internal/observability"
+	"github.com/sumandas0/entropic/internal/resilience"
+	"github.com/sumandas0/entropic/internal/security"
 )
 
 // ObservabilityManager integrates all observability components

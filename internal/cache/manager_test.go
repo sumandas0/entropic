@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/entropic/entropic/internal/models"
-	"github.com/entropic/entropic/internal/store"
+	"github.com/sumandas0/entropic/internal/models"
+	"github.com/sumandas0/entropic/internal/store"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

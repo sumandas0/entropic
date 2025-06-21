@@ -6,9 +6,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/entropic/entropic/internal/api/middleware"
-	"github.com/entropic/entropic/internal/core"
-	"github.com/entropic/entropic/internal/models"
+	"github.com/sumandas0/entropic/internal/api/middleware"
+	"github.com/sumandas0/entropic/internal/core"
+	"github.com/sumandas0/entropic/internal/models"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )

@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/entropic/entropic/internal/models"
-	"github.com/entropic/entropic/tests/testhelpers"
+	"github.com/sumandas0/entropic/internal/models"
+	"github.com/sumandas0/entropic/tests/testhelpers"
 )
 
 func BenchmarkEntityCreation(b *testing.B) {

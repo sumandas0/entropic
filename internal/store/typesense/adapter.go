@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/entropic/entropic/internal/models"
-	"github.com/entropic/entropic/internal/store"
-	"github.com/entropic/entropic/pkg/utils"
+	"github.com/sumandas0/entropic/internal/models"
+	"github.com/sumandas0/entropic/internal/store"
+	"github.com/sumandas0/entropic/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/typesense/typesense-go/typesense"
 	"github.com/typesense/typesense-go/typesense/api"

@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/entropic/entropic/internal/core"
-	"github.com/entropic/entropic/internal/models"
-	"github.com/entropic/entropic/tests/testhelpers"
+	"github.com/sumandas0/entropic/internal/core"
+	"github.com/sumandas0/entropic/internal/models"
+	"github.com/sumandas0/entropic/tests/testhelpers"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

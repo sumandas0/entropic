@@ -1,4 +1,4 @@
-module github.com/entropic/entropic
+module github.com/sumandas0/entropic
 
 go 1.24.3
 

@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/entropic/entropic/internal/models"
-	"github.com/entropic/entropic/internal/store"
+	"github.com/sumandas0/entropic/internal/models"
+	"github.com/sumandas0/entropic/internal/store"
 )
 
 // Manager provides thread-safe caching for schemas and other frequently accessed data

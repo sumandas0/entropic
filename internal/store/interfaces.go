@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/entropic/entropic/internal/models"
+	"github.com/sumandas0/entropic/internal/models"
 	"github.com/google/uuid"
 )
 

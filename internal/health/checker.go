@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/entropic/entropic/internal/store"
+	"github.com/sumandas0/entropic/internal/store"
 )
 
 // Status represents the health status of a component
