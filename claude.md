@@ -30,7 +30,9 @@ entropic/
 │   ├── core/
 │   │   ├── engine.go
 │   │   ├── validator.go
-│   │   └── transaction.go
+│   │   ├── transaction.go
+│   │   ├── transaction_manager.go
+│   │   └── denormalization_manager.go
 │   ├── cache/
 │   │   └── manager.go
 │   ├── lock/
@@ -51,6 +53,13 @@ entropic/
 ├── pkg/
 │   └── utils/
 │       └── errors.go
+├── tests/
+│   ├── integration/
+│   │   └── full_workflow_test.go
+│   ├── benchmark/
+│   │   └── performance_test.go
+│   └── testhelpers/
+│       └── helpers.go
 ├── config/
 │   └── config.go
 ├── docker-compose.yml
@@ -126,6 +135,7 @@ Requirements:
    - Lazy loading from PostgreSQL
    - Cache invalidation on schema updates
    - Interface for future Redis integration
+   - CacheAwareManager wrapper for notifier integration
 2. Create internal/lock/manager.go with:
    - In-memory mutex map for resource locking
    - Methods: Lock(resource string), Unlock(resource string)
@@ -145,12 +155,15 @@ Requirements:
    - Entity creation with relationship denormalization
    - Update and delete operations
    - Proper error handling and rollback
+   - Search and VectorSearch methods
 2. Create internal/core/validator.go with:
    - Schema-based validation for entities
    - Property type validation
    - URN uniqueness validation
    - Relationship cardinality validation
 3. Create internal/core/transaction.go for transaction coordination
+4. Create internal/core/transaction_manager.go for managing transactions with timeouts
+5. Create internal/core/denormalization_manager.go for handling denormalization logic
 ```
 
 ### Phase 6: API Layer
@@ -256,6 +269,94 @@ Requirements:
    - Input sanitization
 ```
 
+## API Method Reference
+
+### Core Engine Methods
+
+The `Engine` struct provides the following methods:
+
+#### Entity Operations
+- `CreateEntity(ctx, entity) error` - Creates a new entity
+- `GetEntity(ctx, entityType, id) (*Entity, error)` - Retrieves an entity
+- `UpdateEntity(ctx, entity) error` - Updates an existing entity
+- `DeleteEntity(ctx, entityType, id) error` - Deletes an entity
+- `ListEntities(ctx, entityType, limit, offset) ([]*Entity, error)` - Lists entities with pagination
+
+#### Relation Operations
+- `CreateRelation(ctx, relation) error` - Creates a new relation
+- `GetRelation(ctx, id) (*Relation, error)` - Retrieves a relation
+- `DeleteRelation(ctx, id) error` - Deletes a relation
+- `GetRelationsByEntity(ctx, entityID, relationTypes) ([]*Relation, error)` - Gets relations for an entity
+
+#### Schema Operations
+- `CreateEntitySchema(ctx, schema) error` - Creates an entity schema
+- `GetEntitySchema(ctx, entityType) (*EntitySchema, error)` - Retrieves an entity schema
+- `UpdateEntitySchema(ctx, schema) error` - Updates an entity schema
+- `DeleteEntitySchema(ctx, entityType) error` - Deletes an entity schema
+- `ListEntitySchemas(ctx) ([]*EntitySchema, error)` - Lists all entity schemas
+- `CreateRelationshipSchema(ctx, schema) error` - Creates a relationship schema
+- `GetRelationshipSchema(ctx, relationshipType) (*RelationshipSchema, error)` - Retrieves a relationship schema
+- `UpdateRelationshipSchema(ctx, schema) error` - Updates a relationship schema
+- `DeleteRelationshipSchema(ctx, relationshipType) error` - Deletes a relationship schema
+- `ListRelationshipSchemas(ctx) ([]*RelationshipSchema, error)` - Lists all relationship schemas
+
+#### Search Operations
+- `Search(ctx, query) (*SearchResult, error)` - Performs text search
+- `VectorSearch(ctx, query) (*SearchResult, error)` - Performs vector similarity search
+
+### Model Structures
+
+#### SearchQuery
+```go
+type SearchQuery struct {
+    EntityTypes []string               // Required: entity types to search
+    Query       string                 // Search query string
+    Filters     map[string]interface{} // Optional filters
+    Facets      []string               // Fields to facet on
+    Sort        []SortOption           // Sort options
+    Limit       int                    // Max results (1-1000)
+    Offset      int                    // Pagination offset
+    IncludeURN  bool                   // Include URN in results
+}
+```
+
+#### VectorQuery
+```go
+type VectorQuery struct {
+    EntityTypes    []string               // Required: entity types to search
+    Vector         []float32              // Required: query vector
+    VectorField    string                 // Required: field containing vectors
+    TopK           int                    // Required: number of results (1-1000)
+    Filters        map[string]interface{} // Optional filters
+    MinScore       float32                // Minimum similarity score
+    IncludeVectors bool                   // Include vectors in results
+}
+```
+
+#### SearchResult
+```go
+type SearchResult struct {
+    Hits       []SearchHit              // Search results
+    TotalHits  int64                    // Total number of matches
+    Facets     map[string][]FacetValue  // Facet results
+    SearchTime time.Duration            // Search execution time
+    Query      interface{}              // Original query
+}
+```
+
+#### SearchHit
+```go
+type SearchHit struct {
+    ID         uuid.UUID              // Entity ID
+    EntityType string                 // Entity type
+    URN        string                 // Entity URN (optional)
+    Score      float32                // Relevance/similarity score
+    Properties map[string]interface{} // Entity properties
+    Highlights map[string][]string    // Search highlights
+    Vector     []float32              // Vector (if requested)
+}
+```
+
 ## Testing Strategy
 
 ### Unit Testing
@@ -268,6 +369,7 @@ go test -cover ./internal/...
 
 # Run specific package tests
 go test ./internal/store/postgres
+go test ./internal/cache
 ```
 
 ### Integration Testing
@@ -286,6 +388,32 @@ docker-compose -f docker-compose.test.yml down -v
 ```bash
 # Use k6 for load testing
 k6 run tests/load/entity_creation.js
+```
+
+## Common Issues and Solutions
+
+### Test Compilation Errors
+
+When working with tests, ensure:
+1. Use `Search()` instead of `SearchEntities()` on the Engine
+2. Use `GetRelationsByEntity()` instead of `GetEntityRelations()`
+3. Access search results via `SearchResult.Hits` not `SearchResult.Entities`
+4. Use `TopK` field instead of `Limit` in VectorQuery
+5. Always include `VectorField` when creating a VectorQuery
+
+### Error Handling
+
+The `pkg/utils/errors.go` package provides:
+- `AppError` type for structured errors
+- Helper functions: `IsNotFound()`, `IsAlreadyExists()`, `IsValidation()`
+- Proper usage of `errors.As()` with pointer variables
+
+Example:
+```go
+var appErr *AppError
+if errors.As(err, &appErr) {
+    // Handle AppError
+}
 ```
 
 ## Deployment Considerations

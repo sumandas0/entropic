@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -139,7 +138,7 @@ func (s *PostgresStore) UpdateEntity(ctx context.Context, entity *models.Entity)
 	}
 
 	if result.RowsAffected() == 0 {
-		return utils.NewAppError(utils.CodeConcurrentModification, 
+		return utils.NewAppError(utils.CodeConcurrentModification,
 			"entity was modified by another process or does not exist", nil).
 			WithDetail("entity_type", entity.EntityType).
 			WithDetail("id", entity.ID.String())
@@ -332,7 +331,7 @@ func (s *PostgresStore) GetRelationsByEntity(ctx context.Context, entityID uuid.
 	`
 
 	args := []interface{}{entityID}
-	
+
 	if len(relationTypes) > 0 {
 		query += " AND relation_type = ANY($2)"
 		args = append(args, relationTypes)

@@ -11,7 +11,7 @@ import (
 	"github.com/entropic/entropic/internal/core"
 	"github.com/entropic/entropic/internal/lock"
 	"github.com/entropic/entropic/internal/models"
-	"github.com/entropic/entropic/internal/store/postgres"
+	postgresstore "github.com/entropic/entropic/internal/store/postgres"
 	"github.com/entropic/entropic/internal/store/typesense"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -32,7 +32,7 @@ type TestContainers struct {
 type TestEnvironment struct {
 	Containers    *TestContainers
 	Config        *config.Config
-	PrimaryStore  *postgres.PostgresStore
+	PrimaryStore  *postgresstore.PostgresStore
 	IndexStore    *typesense.TypesenseStore
 	CacheManager  *cache.CacheAwareManager
 	LockManager   *lock.LockManager
@@ -47,7 +47,6 @@ func SetupTestContainers(t *testing.T, ctx context.Context) *TestContainers {
 		postgres.WithDatabase("entropic_test"),
 		postgres.WithUsername("test"),
 		postgres.WithPassword("test"),
-		postgres.WithInitScripts("../init-db.sql"),
 		testcontainers.WithWaitStrategy(
 			wait.ForLog("database system is ready to accept connections").
 				WithOccurrence(2).
@@ -92,7 +91,7 @@ func SetupTestEnvironment(t *testing.T, ctx context.Context) *TestEnvironment {
 	postgresConnStr, err := containers.PostgresContainer.ConnectionString(ctx, "sslmode=disable")
 	require.NoError(t, err)
 
-	redisConnStr, err := containers.RedisContainer.ConnectionString(ctx)
+	_, err = containers.RedisContainer.ConnectionString(ctx)
 	require.NoError(t, err)
 
 	typesenseHost, err := containers.TypesenseContainer.Host(ctx)
@@ -131,11 +130,11 @@ func SetupTestEnvironment(t *testing.T, ctx context.Context) *TestEnvironment {
 	}
 
 	// Initialize primary store
-	primaryStore, err := postgres.NewPostgresStore(postgresConnStr)
+	primaryStore, err := postgresstore.NewPostgresStore(postgresConnStr)
 	require.NoError(t, err)
 
 	// Run migrations
-	migrator := postgres.NewMigrator(primaryStore.GetPool())
+	migrator := postgresstore.NewMigrator(primaryStore.GetPool())
 	err = migrator.Run(ctx)
 	require.NoError(t, err)
 
@@ -239,21 +238,6 @@ func CreateTestEntitySchema(entityType string) *models.EntitySchema {
 			Type:      "vector",
 			VectorDim: 384,
 			Required:  false,
-		},
-	}
-
-	indexes := []models.IndexConfig{
-		{
-			Name:   "idx_name",
-			Fields: []string{"name"},
-			Type:   "btree",
-			Unique: false,
-		},
-		{
-			Name:       "idx_embedding",
-			Fields:     []string{"embedding"},
-			Type:       "vector",
-			VectorType: "cosine",
 		},
 	}
 

@@ -1,4 +1,4 @@
-package core
+package core_test
 
 import (
 	"context"
@@ -188,9 +188,9 @@ func TestEngine_CreateRelationshipSchema(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify schema was stored
-	retrieved, err := env.Engine.GetRelationshipSchema(ctx, relationSchema.RelationType)
+	retrieved, err := env.Engine.GetRelationshipSchema(ctx, relationSchema.RelationshipType)
 	require.NoError(t, err)
-	assert.Equal(t, relationSchema.RelationType, retrieved.RelationType)
+	assert.Equal(t, relationSchema.RelationshipType, retrieved.RelationshipType)
 	assert.Equal(t, relationSchema.FromEntityType, retrieved.FromEntityType)
 	assert.Equal(t, relationSchema.ToEntityType, retrieved.ToEntityType)
 }
@@ -265,14 +265,14 @@ func TestEngine_SearchEntities(t *testing.T) {
 		Limit:       10,
 	}
 
-	results, err := env.Engine.SearchEntities(ctx, query)
+	results, err := env.Engine.Search(ctx, query)
 	require.NoError(t, err)
-	assert.Greater(t, len(results.Entities), 0)
+	assert.Greater(t, len(results.Hits), 0)
 
 	// Verify search result contains expected entity
 	found := false
-	for _, result := range results.Entities {
-		if result.Properties["name"] == "john-doe" {
+	for _, hit := range results.Hits {
+		if hit.Properties["name"] == "john-doe" {
 			found = true
 			break
 		}
@@ -309,16 +309,16 @@ func TestEngine_VectorSearch(t *testing.T) {
 	query := &models.VectorQuery{
 		EntityTypes: []string{"user"},
 		Vector:      embedding1,
-		Limit:       5,
+		TopK:        5,
 	}
 
 	results, err := env.Engine.VectorSearch(ctx, query)
 	require.NoError(t, err)
-	assert.Greater(t, len(results.Entities), 0)
+	assert.Greater(t, len(results.Hits), 0)
 
 	// The first result should be the exact match
-	if len(results.Entities) > 0 {
-		assert.Equal(t, entity1.ID, results.Entities[0].ID)
+	if len(results.Hits) > 0 {
+		assert.Equal(t, entity1.ID, results.Hits[0].ID)
 	}
 }
 
@@ -353,9 +353,9 @@ func TestEngine_TwoPhaseCommit(t *testing.T) {
 		Limit:       1,
 	}
 
-	results, err := env.Engine.SearchEntities(ctx, query)
+	results, err := env.Engine.Search(ctx, query)
 	require.NoError(t, err)
-	assert.Equal(t, 1, len(results.Entities))
+	assert.Equal(t, 1, len(results.Hits))
 }
 
 func TestEngine_ConcurrentOperations(t *testing.T) {
@@ -436,6 +436,6 @@ func BenchmarkEngine_SearchEntities(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		env.Engine.SearchEntities(ctx, query)
+		env.Engine.Search(ctx, query)
 	}
 }

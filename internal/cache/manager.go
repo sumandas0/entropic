@@ -15,13 +15,13 @@ type Manager struct {
 	// Schema caches
 	entitySchemas       sync.Map // entity_type -> *models.EntitySchema
 	relationshipSchemas sync.Map // relationship_type -> *models.RelationshipSchema
-	
+
 	// TTL configuration
 	schemaTTL time.Duration
-	
+
 	// Lazy loading
 	primaryStore store.PrimaryStore
-	
+
 	// Statistics
 	hits   uint64
 	misses uint64
@@ -33,7 +33,7 @@ func NewManager(primaryStore store.PrimaryStore, schemaTTL time.Duration) *Manag
 	if schemaTTL <= 0 {
 		schemaTTL = 5 * time.Minute // Default TTL
 	}
-	
+
 	return &Manager{
 		primaryStore: primaryStore,
 		schemaTTL:    schemaTTL,
@@ -63,18 +63,18 @@ func (m *Manager) GetEntitySchema(ctx context.Context, entityType string) (*mode
 		// Remove expired entry
 		m.entitySchemas.Delete(entityType)
 	}
-	
+
 	m.recordMiss()
-	
+
 	// Load from store
 	schema, err := m.primaryStore.GetEntitySchema(ctx, entityType)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Cache the result
 	m.SetEntitySchema(entityType, schema)
-	
+
 	return schema, nil
 }
 
@@ -104,18 +104,18 @@ func (m *Manager) GetRelationshipSchema(ctx context.Context, relationshipType st
 		// Remove expired entry
 		m.relationshipSchemas.Delete(relationshipType)
 	}
-	
+
 	m.recordMiss()
-	
+
 	// Load from store
 	schema, err := m.primaryStore.GetRelationshipSchema(ctx, relationshipType)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Cache the result
 	m.SetRelationshipSchema(relationshipType, schema)
-	
+
 	return schema, nil
 }
 
@@ -140,21 +140,21 @@ func (m *Manager) PreloadSchemas(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to preload entity schemas: %w", err)
 	}
-	
+
 	for _, schema := range entitySchemas {
 		m.SetEntitySchema(schema.EntityType, schema)
 	}
-	
+
 	// Load relationship schemas
 	relationshipSchemas, err := m.primaryStore.ListRelationshipSchemas(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to preload relationship schemas: %w", err)
 	}
-	
+
 	for _, schema := range relationshipSchemas {
 		m.SetRelationshipSchema(schema.RelationshipType, schema)
 	}
-	
+
 	return nil
 }
 
@@ -164,12 +164,12 @@ func (m *Manager) Clear() {
 		m.entitySchemas.Delete(key)
 		return true
 	})
-	
+
 	m.relationshipSchemas.Range(func(key, value interface{}) bool {
 		m.relationshipSchemas.Delete(key)
 		return true
 	})
-	
+
 	m.mu.Lock()
 	m.hits = 0
 	m.misses = 0
@@ -179,7 +179,7 @@ func (m *Manager) Clear() {
 // CleanupExpired removes all expired entries from the cache
 func (m *Manager) CleanupExpired() {
 	now := time.Now()
-	
+
 	// Clean entity schemas
 	m.entitySchemas.Range(func(key, value interface{}) bool {
 		entry := value.(*cacheEntry)
@@ -188,7 +188,7 @@ func (m *Manager) CleanupExpired() {
 		}
 		return true
 	})
-	
+
 	// Clean relationship schemas
 	m.relationshipSchemas.Range(func(key, value interface{}) bool {
 		entry := value.(*cacheEntry)
@@ -204,7 +204,7 @@ func (m *Manager) StartCleanupRoutine(ctx context.Context, interval time.Duratio
 	if interval <= 0 {
 		interval = time.Minute
 	}
-	
+
 	ticker := time.NewTicker(interval)
 	go func() {
 		defer ticker.Stop()
@@ -223,25 +223,25 @@ func (m *Manager) StartCleanupRoutine(ctx context.Context, interval time.Duratio
 func (m *Manager) Stats() CacheStats {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	entityCount := 0
 	m.entitySchemas.Range(func(_, _ interface{}) bool {
 		entityCount++
 		return true
 	})
-	
+
 	relationshipCount := 0
 	m.relationshipSchemas.Range(func(_, _ interface{}) bool {
 		relationshipCount++
 		return true
 	})
-	
+
 	total := m.hits + m.misses
 	hitRate := float64(0)
 	if total > 0 {
 		hitRate = float64(m.hits) / float64(total)
 	}
-	
+
 	return CacheStats{
 		Hits:                    m.hits,
 		Misses:                  m.misses,
@@ -304,7 +304,7 @@ func (n *SchemaChangeNotifier) AddListener(listener SchemaChangeListener) {
 func (n *SchemaChangeNotifier) NotifyEntitySchemaChange(entityType string, action string) {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
-	
+
 	for _, listener := range n.listeners {
 		go listener.OnEntitySchemaChange(entityType, action)
 	}
@@ -314,7 +314,7 @@ func (n *SchemaChangeNotifier) NotifyEntitySchemaChange(entityType string, actio
 func (n *SchemaChangeNotifier) NotifyRelationshipSchemaChange(relationshipType string, action string) {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
-	
+
 	for _, listener := range n.listeners {
 		go listener.OnRelationshipSchemaChange(relationshipType, action)
 	}
@@ -330,15 +330,15 @@ type CacheAwareManager struct {
 func NewCacheAwareManager(primaryStore store.PrimaryStore, schemaTTL time.Duration) *CacheAwareManager {
 	manager := NewManager(primaryStore, schemaTTL)
 	notifier := NewSchemaChangeNotifier()
-	
+
 	cam := &CacheAwareManager{
 		Manager:  manager,
 		notifier: notifier,
 	}
-	
+
 	// Register itself as a listener
 	notifier.AddListener(cam)
-	
+
 	return cam
 }
 
@@ -361,4 +361,32 @@ func (cam *CacheAwareManager) OnRelationshipSchemaChange(relationshipType string
 // GetNotifier returns the schema change notifier
 func (cam *CacheAwareManager) GetNotifier() *SchemaChangeNotifier {
 	return cam.notifier
+}
+
+// HasEntitySchema checks if an entity schema is in the cache (not expired)
+func (cam *CacheAwareManager) HasEntitySchema(entityType string) bool {
+	if cached, ok := cam.entitySchemas.Load(entityType); ok {
+		entry := cached.(*cacheEntry)
+		return !entry.isExpired()
+	}
+	return false
+}
+
+// HasRelationshipSchema checks if a relationship schema is in the cache (not expired)
+func (cam *CacheAwareManager) HasRelationshipSchema(relationshipType string) bool {
+	if cached, ok := cam.relationshipSchemas.Load(relationshipType); ok {
+		entry := cached.(*cacheEntry)
+		return !entry.isExpired()
+	}
+	return false
+}
+
+// InvalidateAll removes all entries from the cache
+func (cam *CacheAwareManager) InvalidateAll() {
+	cam.Clear()
+}
+
+// cleanup is an alias for CleanupExpired for test compatibility
+func (cam *CacheAwareManager) cleanup() {
+	cam.CleanupExpired()
 }

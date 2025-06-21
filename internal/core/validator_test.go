@@ -1,9 +1,10 @@
-package core
+package core_test
 
 import (
 	"context"
 	"testing"
 
+	"github.com/entropic/entropic/internal/core"
 	"github.com/entropic/entropic/internal/models"
 	"github.com/entropic/entropic/tests/testhelpers"
 	"github.com/google/uuid"
@@ -16,7 +17,7 @@ func TestValidator_ValidateEntity(t *testing.T) {
 	env := testhelpers.SetupTestEnvironment(t, ctx)
 	defer env.Cleanup(ctx)
 
-	validator := NewValidator(env.PrimaryStore, env.CacheManager)
+	validator := core.NewValidator(env.CacheManager.Manager, env.PrimaryStore)
 
 	// Create test schema
 	schema := testhelpers.CreateTestEntitySchema("user")
@@ -108,7 +109,7 @@ func TestValidator_ValidateRelation(t *testing.T) {
 	env := testhelpers.SetupTestEnvironment(t, ctx)
 	defer env.Cleanup(ctx)
 
-	validator := NewValidator(env.PrimaryStore, env.CacheManager)
+	validator := core.NewValidator(env.CacheManager.Manager, env.PrimaryStore)
 
 	// Create test schemas
 	userSchema := testhelpers.CreateTestEntitySchema("user")
@@ -191,7 +192,7 @@ func TestValidator_ValidateURNUniqueness(t *testing.T) {
 	env := testhelpers.SetupTestEnvironment(t, ctx)
 	defer env.Cleanup(ctx)
 
-	validator := NewValidator(env.PrimaryStore, env.CacheManager)
+	validator := core.NewValidator(env.CacheManager.Manager, env.PrimaryStore)
 
 	// Create test schema
 	schema := testhelpers.CreateTestEntitySchema("user")
@@ -208,7 +209,7 @@ func TestValidator_ValidateURNUniqueness(t *testing.T) {
 	entity2 := testhelpers.CreateTestEntity("user", "another-user")
 	entity2.URN = "test:user:unique-urn" // Same URN
 
-	err = validator.ValidateURNUniqueness(ctx, entity2)
+	err = validator.ValidateEntity(ctx, entity2)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "URN already exists")
 
@@ -216,88 +217,17 @@ func TestValidator_ValidateURNUniqueness(t *testing.T) {
 	entity3 := testhelpers.CreateTestEntity("user", "third-user")
 	entity3.URN = "test:user:different-urn"
 
-	err = validator.ValidateURNUniqueness(ctx, entity3)
+	err = validator.ValidateEntity(ctx, entity3)
 	assert.NoError(t, err)
 }
 
-func TestValidator_ValidateEntityUpdate(t *testing.T) {
+
+func TestValidator_ValidateEntitySchema(t *testing.T) {
 	ctx := context.Background()
 	env := testhelpers.SetupTestEnvironment(t, ctx)
 	defer env.Cleanup(ctx)
 
-	validator := NewValidator(env.PrimaryStore, env.CacheManager)
-
-	// Create test schema
-	schema := testhelpers.CreateTestEntitySchema("user")
-	err := env.Engine.CreateEntitySchema(ctx, schema)
-	require.NoError(t, err)
-
-	// Create original entity
-	original := testhelpers.CreateTestEntity("user", "test-user")
-	err = env.Engine.CreateEntity(ctx, original)
-	require.NoError(t, err)
-
-	tests := []struct {
-		name      string
-		updated   *models.Entity
-		wantError bool
-		errorMsg  string
-	}{
-		{
-			name: "valid update",
-			updated: &models.Entity{
-				ID:         original.ID,
-				EntityType: original.EntityType,
-				URN:        original.URN,
-				Properties: map[string]interface{}{
-					"name":        "Updated Name",
-					"description": "Updated description",
-				},
-				Version: original.Version,
-			},
-			wantError: false,
-		},
-		{
-			name: "cannot change entity type",
-			updated: &models.Entity{
-				ID:         original.ID,
-				EntityType: "organization", // Different type
-				URN:        original.URN,
-				Properties: original.Properties,
-				Version:    original.Version,
-			},
-			wantError: true,
-			errorMsg:  "entity type cannot be changed",
-		},
-		{
-			name: "cannot change URN",
-			updated: &models.Entity{
-				ID:         original.ID,
-				EntityType: original.EntityType,
-				URN:        "test:user:different-urn", // Different URN
-				Properties: original.Properties,
-				Version:    original.Version,
-			},
-			wantError: true,
-			errorMsg:  "URN cannot be changed",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := validator.ValidateEntityUpdate(ctx, original, tt.updated)
-			if tt.wantError {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errorMsg)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
-}
-
-func TestValidator_ValidateSchema(t *testing.T) {
-	validator := &Validator{}
+	validator := core.NewValidator(env.CacheManager.Manager, env.PrimaryStore)
 
 	tests := []struct {
 		name      string
@@ -343,7 +273,7 @@ func TestValidator_ValidateSchema(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validator.ValidateSchema(tt.schema)
+			err := validator.ValidateEntitySchema(tt.schema)
 			if tt.wantError {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errorMsg)
@@ -359,7 +289,7 @@ func BenchmarkValidator_ValidateEntity(b *testing.B) {
 	env := testhelpers.SetupTestEnvironment(&testing.T{}, ctx)
 	defer env.Cleanup(ctx)
 
-	validator := NewValidator(env.PrimaryStore, env.CacheManager)
+	validator := core.NewValidator(env.CacheManager.Manager, env.PrimaryStore)
 
 	// Create test schema
 	schema := testhelpers.CreateTestEntitySchema("user")

@@ -231,8 +231,8 @@ func (tm *TracingManager) TraceMiddleware() func(next http.Handler) http.Handler
 				trace.WithAttributes(
 					semconv.HTTPMethod(r.Method),
 					semconv.HTTPRoute(r.URL.Path),
-					semconv.HTTPUserAgent(r.UserAgent()),
-					semconv.HTTPClientIP(r.RemoteAddr),
+					attribute.String("http.user_agent", r.UserAgent()),
+					attribute.String("http.client_ip", r.RemoteAddr),
 				),
 			)
 			defer span.End()

@@ -10,8 +10,6 @@ import (
 
 	"github.com/entropic/entropic/internal/models"
 	"github.com/entropic/entropic/tests/testhelpers"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
 )
 
 func BenchmarkEntityCreation(b *testing.B) {
@@ -94,7 +92,7 @@ func BenchmarkEntityUpdate(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		// Get current entity
 		current, _ := env.Engine.GetEntity(ctx, entity.EntityType, entity.ID)
-		
+
 		// Update properties
 		updated := &models.Entity{
 			ID:         current.ID,
@@ -110,7 +108,7 @@ func BenchmarkEntityUpdate(b *testing.B) {
 			},
 			Version: current.Version,
 		}
-		
+
 		env.Engine.UpdateEntity(ctx, updated)
 	}
 }
@@ -145,7 +143,7 @@ func BenchmarkTextSearch(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		env.Engine.SearchEntities(ctx, query)
+		env.Engine.Search(ctx, query)
 	}
 }
 
@@ -173,7 +171,8 @@ func BenchmarkVectorSearch(b *testing.B) {
 	vectorQuery := &models.VectorQuery{
 		EntityTypes: []string{"document"},
 		Vector:      queryEmbedding,
-		Limit:       5,
+		VectorField: "embedding",
+		TopK:        5,
 	}
 
 	b.ResetTimer()
@@ -219,7 +218,7 @@ func BenchmarkRelationCreation(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		user := users[rand.Intn(len(users))]
 		org := orgs[rand.Intn(len(orgs))]
-		
+
 		relation := testhelpers.CreateTestRelation("member_of", user, org)
 		env.Engine.CreateRelation(ctx, relation)
 	}
@@ -262,7 +261,7 @@ func BenchmarkLockContention(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			resource := resources[rand.Intn(len(resources))]
-			
+
 			err := env.LockManager.Lock(ctx, resource, 100*time.Millisecond)
 			if err == nil {
 				// Simulate some work
@@ -286,7 +285,7 @@ func BenchmarkTwoPhaseCommit(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		entity := testhelpers.CreateTestEntity("user", fmt.Sprintf("user-%d", i))
 		entity.URN = fmt.Sprintf("benchmark:2pc:user:%d", i)
-		
+
 		// This tests the full two-phase commit flow
 		env.Engine.CreateEntity(ctx, entity)
 	}
@@ -303,7 +302,7 @@ func BenchmarkHighVolumeOperations(b *testing.B) {
 
 	// Test high-volume concurrent operations
 	b.ResetTimer()
-	
+
 	var wg sync.WaitGroup
 	numWorkers := 10
 	operationsPerWorker := b.N / numWorkers
@@ -312,19 +311,19 @@ func BenchmarkHighVolumeOperations(b *testing.B) {
 		wg.Add(1)
 		go func(workerID int) {
 			defer wg.Done()
-			
+
 			for i := 0; i < operationsPerWorker; i++ {
 				entity := testhelpers.CreateTestEntity("event", fmt.Sprintf("event-%d-%d", workerID, i))
 				entity.URN = fmt.Sprintf("benchmark:volume:event:%d:%d", workerID, i)
 				entity.Properties["timestamp"] = time.Now().Unix()
 				entity.Properties["worker_id"] = workerID
 				entity.Properties["sequence"] = i
-				
+
 				env.Engine.CreateEntity(ctx, entity)
 			}
 		}(w)
 	}
-	
+
 	wg.Wait()
 }
 
@@ -342,14 +341,14 @@ func BenchmarkMemoryUsage(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		entity := testhelpers.CreateTestEntity("large_entity", fmt.Sprintf("large-%d", i))
 		entity.URN = fmt.Sprintf("benchmark:memory:large:%d", i)
-		
+
 		// Add large properties to test memory usage
 		largeData := make(map[string]interface{})
 		for j := 0; j < 100; j++ {
 			largeData[fmt.Sprintf("field_%d", j)] = fmt.Sprintf("value_%d_%s", j, testhelpers.RandomString(50))
 		}
 		entity.Properties["large_data"] = largeData
-		
+
 		env.Engine.CreateEntity(ctx, entity)
 	}
 }
@@ -389,7 +388,7 @@ func BenchmarkRealisticLoad(b *testing.B) {
 		operationCount := 0
 		for pb.Next() {
 			operation := operationCount % 10
-			
+
 			switch operation {
 			case 0, 1, 2: // 30% reads
 				entityTypes := []string{"user", "product"}
@@ -398,30 +397,30 @@ func BenchmarkRealisticLoad(b *testing.B) {
 					Query:       fmt.Sprintf("user-%d", rand.Intn(50)),
 					Limit:       5,
 				}
-				env.Engine.SearchEntities(ctx, query)
-				
+				env.Engine.Search(ctx, query)
+
 			case 3, 4: // 20% writes
 				entity := testhelpers.CreateTestEntity("order", fmt.Sprintf("order-%d", operationCount))
 				entity.URN = fmt.Sprintf("load:order:%d:%d", time.Now().UnixNano(), operationCount)
 				env.Engine.CreateEntity(ctx, entity)
-				
+
 			case 5: // 10% updates
 				// Update existing entity (simplified)
 				entity := testhelpers.CreateTestEntity("user", fmt.Sprintf("updated-user-%d", operationCount))
 				entity.URN = fmt.Sprintf("load:user:update:%d", operationCount)
 				env.Engine.CreateEntity(ctx, entity)
-				
+
 			case 6, 7: // 20% cache operations
 				env.CacheManager.GetEntitySchema(ctx, "user")
 				env.CacheManager.GetEntitySchema(ctx, "product")
-				
+
 			case 8, 9: // 20% vector operations (if supported)
 				embedding := testhelpers.GenerateTestEmbedding(384)
 				entity := testhelpers.CreateTestEntityWithEmbedding("product", fmt.Sprintf("vector-product-%d", operationCount), embedding)
 				entity.URN = fmt.Sprintf("load:product:vector:%d", operationCount)
 				env.Engine.CreateEntity(ctx, entity)
 			}
-			
+
 			operationCount++
 		}
 	})
@@ -434,7 +433,7 @@ func measureThroughput(b *testing.B, operation func()) {
 		operation()
 	}
 	duration := time.Since(start)
-	
+
 	opsPerSecond := float64(b.N) / duration.Seconds()
 	b.ReportMetric(opsPerSecond, "ops/sec")
 }

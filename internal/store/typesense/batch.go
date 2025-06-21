@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/entropic/entropic/internal/models"
-	"github.com/typesense/typesense-go/typesense"
+	"github.com/typesense/typesense-go/typesense/api"
 )
 
 // BatchIndexer provides batch indexing capabilities
@@ -118,15 +118,18 @@ func (b *BatchIndexer) flushBatch(ctx context.Context, collectionName string, do
 		return
 	}
 	
-	// Convert to the format expected by Typesense
-	action := "upsert"
-	importParams := &typesense.ImportDocumentsParams{
-		Action:    &action,
-		BatchSize: &b.batchSize,
+	// Convert documents to []interface{} as expected by Typesense
+	interfaceDocs := make([]interface{}, len(documents))
+	for i, doc := range documents {
+		interfaceDocs[i] = doc
 	}
 	
-	// Import documents
-	_, err := b.store.client.Collection(collectionName).Documents().Import(ctx, documents, importParams)
+	// Import documents with action parameter
+	action := "upsert"
+	params := &api.ImportDocumentsParams{
+		Action: &action,
+	}
+	_, err := b.store.client.Collection(collectionName).Documents().Import(ctx, interfaceDocs, params)
 	if err != nil {
 		// Log error (you would use your logging framework here)
 		fmt.Printf("Failed to batch index %d documents to collection %s: %v\n", 
@@ -222,14 +225,18 @@ func (r *BulkReindexer) reindexEntityType(ctx context.Context, entityType string
 			documents[j] = r.store.flattenEntity(entity)
 		}
 		
-		// Import batch
-		action := "upsert"
-		importParams := &typesense.ImportDocumentsParams{
-			Action:    &action,
-			BatchSize: &r.batchSize,
+		// Convert documents to []interface{} as expected by Typesense
+		interfaceDocs := make([]interface{}, len(documents))
+		for j, doc := range documents {
+			interfaceDocs[j] = doc
 		}
 		
-		_, err := r.store.client.Collection(collectionName).Documents().Import(ctx, documents, importParams)
+		// Import batch
+		action := "upsert"
+		params := &api.ImportDocumentsParams{
+			Action: &action,
+		}
+		_, err := r.store.client.Collection(collectionName).Documents().Import(ctx, interfaceDocs, params)
 		if err != nil {
 			return fmt.Errorf("failed to import batch %d-%d: %w", i, end, err)
 		}
@@ -269,14 +276,18 @@ func (r *BulkReindexer) ReindexWithProgress(ctx context.Context, entities []*mod
 				documents[j] = r.store.flattenEntity(entity)
 			}
 			
-			// Import batch
-			action := "upsert"
-			importParams := &typesense.ImportDocumentsParams{
-				Action:    &action,
-				BatchSize: &r.batchSize,
+			// Convert documents to []interface{} as expected by Typesense
+			interfaceDocs := make([]interface{}, len(documents))
+			for j, doc := range documents {
+				interfaceDocs[j] = doc
 			}
 			
-			_, err := r.store.client.Collection(collectionName).Documents().Import(ctx, documents, importParams)
+			// Import batch
+			action := "upsert"
+			params := &api.ImportDocumentsParams{
+				Action: &action,
+			}
+			_, err := r.store.client.Collection(collectionName).Documents().Import(ctx, interfaceDocs, params)
 			if err != nil {
 				return fmt.Errorf("failed to import batch for %s: %w", entityType, err)
 			}

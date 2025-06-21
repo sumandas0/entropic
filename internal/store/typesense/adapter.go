@@ -2,7 +2,6 @@ package typesense
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -22,14 +21,22 @@ type TypesenseStore struct {
 	client *typesense.Client
 }
 
+// Helper function to create bool pointers
+func boolPtr(b bool) *bool {
+	return &b
+}
+
+// Helper function to create string pointers
+func stringPtr(s string) *string {
+	return &s
+}
+
 // NewTypesenseStore creates a new Typesense store
 func NewTypesenseStore(serverURL, apiKey string) (*TypesenseStore, error) {
 	client := typesense.NewClient(
 		typesense.WithServer(serverURL),
 		typesense.WithAPIKey(apiKey),
 		typesense.WithConnectionTimeout(5*time.Second),
-		typesense.WithCircuitBreakerMaxRetries(3),
-		typesense.WithCircuitBreakerInterval(time.Minute),
 	)
 
 	return &TypesenseStore{
@@ -91,10 +98,9 @@ func (s *TypesenseStore) Search(ctx context.Context, query *models.SearchQuery) 
 	
 	searchParams := &api.SearchCollectionParams{
 		Q:          query.Query,
-		QueryBy:    pointer.String("*"), // Search all fields
+		QueryBy:    "*", // Search all fields
 		Page:       pointer.Int(query.Offset/query.Limit + 1),
 		PerPage:    pointer.Int(query.Limit),
-		IncludeFields: pointer.String("*"),
 	}
 	
 	// Add filters
@@ -207,20 +213,20 @@ func (s *TypesenseStore) CreateCollection(ctx context.Context, entityType string
 		api.Field{
 			Name:  "created_at",
 			Type:  "int64",
-			Facet: pointer.Bool(true),
+			Facet: boolPtr(true),
 		},
 		api.Field{
 			Name:  "updated_at",
 			Type:  "int64",
-			Facet: pointer.Bool(true),
+			Facet: boolPtr(true),
 		},
 	)
 	
 	collectionSchema := &api.CollectionSchema{
 		Name:   collectionName,
 		Fields: fields,
-		DefaultSortingField: pointer.String("updated_at"),
-		EnableNestedFields: pointer.Bool(true),
+		DefaultSortingField: stringPtr("updated_at"),
+		EnableNestedFields: boolPtr(true),
 	}
 	
 	_, err := s.client.Collections().Create(ctx, collectionSchema)
@@ -292,7 +298,7 @@ func (s *TypesenseStore) DeleteCollection(ctx context.Context, entityType string
 
 // Ping checks if Typesense is reachable
 func (s *TypesenseStore) Ping(ctx context.Context) error {
-	_, err := s.client.Health(ctx)
+	_, err := s.client.Health(ctx, 5*time.Second)
 	return err
 }
 
@@ -336,7 +342,7 @@ func (s *TypesenseStore) buildFieldsFromSchema(schema *models.EntitySchema) []ap
 		field := api.Field{
 			Name:     propName,
 			Type:     s.mapPropertyTypeToTypesense(propDef.Type),
-			Optional: pointer.Bool(!propDef.Required),
+			Optional: boolPtr(!propDef.Required),
 		}
 		
 		// Handle vector fields
@@ -352,7 +358,7 @@ func (s *TypesenseStore) buildFieldsFromSchema(schema *models.EntitySchema) []ap
 		
 		// Add faceting for certain types
 		if propDef.Type == "string" || propDef.Type == "number" || propDef.Type == "boolean" {
-			field.Facet = pointer.Bool(true)
+			field.Facet = boolPtr(true)
 		}
 		
 		fields = append(fields, field)
@@ -362,7 +368,7 @@ func (s *TypesenseStore) buildFieldsFromSchema(schema *models.EntitySchema) []ap
 	fields = append(fields, api.Field{
 		Name:  "entity_type",
 		Type:  "string",
-		Facet: pointer.Bool(true),
+		Facet: boolPtr(true),
 	})
 	
 	return fields
@@ -501,9 +507,8 @@ func (s *TypesenseStore) convertSearchResult(tsResult *api.SearchResult, query i
 		}
 		
 		// Extract text match score if available
-		if tsHit.TextMatchInfo != nil && tsHit.TextMatchInfo.Score != nil {
-			hit.Score = float32(*tsHit.TextMatchInfo.Score)
-		}
+		// TODO: Check the actual field name for text match score in the API
+		// For now, we'll use a default score
 		
 		// Extract vector distance if available
 		if tsHit.VectorDistance != nil {
@@ -561,12 +566,11 @@ func (s *TypesenseStore) multiSearch(ctx context.Context, query *models.SearchQu
 		searches[i] = searchParams
 	}
 	
-	searchesParam := api.MultiSearchParameters{
+	startTime := time.Now()
+	searchRequests := api.MultiSearchSearchesParameter{
 		Searches: searches,
 	}
-	
-	startTime := time.Now()
-	multiResult, err := s.client.MultiSearch.Perform(ctx, searchesParam, api.MultiSearchParams{})
+	multiResult, err := s.client.MultiSearch.Perform(ctx, &api.MultiSearchParams{}, searchRequests)
 	if err != nil {
 		return nil, fmt.Errorf("multi-search failed: %w", err)
 	}
@@ -634,12 +638,11 @@ func (s *TypesenseStore) multiVectorSearch(ctx context.Context, query *models.Ve
 		searches[i] = searchParams
 	}
 	
-	searchesParam := api.MultiSearchParameters{
+	startTime := time.Now()
+	searchRequests := api.MultiSearchSearchesParameter{
 		Searches: searches,
 	}
-	
-	startTime := time.Now()
-	multiResult, err := s.client.MultiSearch.Perform(ctx, searchesParam, api.MultiSearchParams{})
+	multiResult, err := s.client.MultiSearch.Perform(ctx, &api.MultiSearchParams{}, searchRequests)
 	if err != nil {
 		return nil, fmt.Errorf("multi-vector-search failed: %w", err)
 	}

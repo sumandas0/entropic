@@ -42,13 +42,13 @@ func TestFullWorkflow_EntityLifecycle(t *testing.T) {
 		Limit:       10,
 	}
 
-	searchResults, err := env.Engine.SearchEntities(ctx, searchQuery)
+	searchResults, err := env.Engine.Search(ctx, searchQuery)
 	require.NoError(t, err, "Failed to search entities")
-	assert.Greater(t, len(searchResults.Entities), 0, "Entity should be found in search")
+	assert.Greater(t, len(searchResults.Hits), 0, "Entity should be found in search")
 
 	// Verify the searched entity matches
 	found := false
-	for _, result := range searchResults.Entities {
+	for _, result := range searchResults.Hits {
 		if result.ID == entity.ID {
 			found = true
 			assert.Equal(t, entity.Properties["name"], result.Properties["name"])
@@ -94,9 +94,9 @@ func TestFullWorkflow_EntityLifecycle(t *testing.T) {
 		Limit:       10,
 	}
 
-	searchResultsUpdated, err := env.Engine.SearchEntities(ctx, searchQueryUpdated)
+	searchResultsUpdated, err := env.Engine.Search(ctx, searchQueryUpdated)
 	require.NoError(t, err, "Failed to search updated entities")
-	assert.Greater(t, len(searchResultsUpdated.Entities), 0, "Updated entity should be found in search")
+	assert.Greater(t, len(searchResultsUpdated.Hits), 0, "Updated entity should be found in search")
 
 	// Step 8: Delete entity
 	err = env.Engine.DeleteEntity(ctx, entity.EntityType, entity.ID)
@@ -116,12 +116,12 @@ func TestFullWorkflow_EntityLifecycle(t *testing.T) {
 		Limit:       10,
 	}
 
-	searchResultsDeleted, err := env.Engine.SearchEntities(ctx, searchQueryDeleted)
+	searchResultsDeleted, err := env.Engine.Search(ctx, searchQueryDeleted)
 	require.NoError(t, err, "Search should succeed even if no results")
 	
 	// Entity should not be found in search results
 	foundDeleted := false
-	for _, result := range searchResultsDeleted.Entities {
+	for _, result := range searchResultsDeleted.Hits {
 		if result.ID == entity.ID {
 			foundDeleted = true
 			break
@@ -179,7 +179,7 @@ func TestFullWorkflow_RelationshipLifecycle(t *testing.T) {
 	}
 
 	// Step 7: Query relationships
-	userRelations, err := env.Engine.GetEntityRelations(ctx, user.EntityType, user.ID)
+	userRelations, err := env.Engine.GetRelationsByEntity(ctx, user.ID, nil)
 	require.NoError(t, err)
 	assert.Greater(t, len(userRelations), 0, "User should have relations")
 
@@ -245,16 +245,17 @@ func TestFullWorkflow_VectorSearchLifecycle(t *testing.T) {
 	vectorQuery := &models.VectorQuery{
 		EntityTypes: []string{"document"},
 		Vector:      embedding1, // Search for similar to doc1
-		Limit:       5,
+		VectorField: "embedding",
+		TopK:        5,
 	}
 
 	vectorResults, err := env.Engine.VectorSearch(ctx, vectorQuery)
 	require.NoError(t, err)
-	assert.Greater(t, len(vectorResults.Entities), 0, "Vector search should return results")
+	assert.Greater(t, len(vectorResults.Hits), 0, "Vector search should return results")
 
 	// Step 5: Verify the exact match is first
-	if len(vectorResults.Entities) > 0 {
-		assert.Equal(t, doc1.ID, vectorResults.Entities[0].ID, "Exact match should be first result")
+	if len(vectorResults.Hits) > 0 {
+		assert.Equal(t, doc1.ID, vectorResults.Hits[0].ID, "Exact match should be first result")
 	}
 
 	// Step 6: Update embedding and verify search updates
@@ -281,15 +282,16 @@ func TestFullWorkflow_VectorSearchLifecycle(t *testing.T) {
 	newVectorQuery := &models.VectorQuery{
 		EntityTypes: []string{"document"},
 		Vector:      newEmbedding,
-		Limit:       5,
+		VectorField: "embedding",
+		TopK:        5,
 	}
 
 	newVectorResults, err := env.Engine.VectorSearch(ctx, newVectorQuery)
 	require.NoError(t, err)
-	assert.Greater(t, len(newVectorResults.Entities), 0)
+	assert.Greater(t, len(newVectorResults.Hits), 0)
 
-	if len(newVectorResults.Entities) > 0 {
-		assert.Equal(t, doc1.ID, newVectorResults.Entities[0].ID, "Updated document should be found with new embedding")
+	if len(newVectorResults.Hits) > 0 {
+		assert.Equal(t, doc1.ID, newVectorResults.Hits[0].ID, "Updated document should be found with new embedding")
 	}
 }
 
@@ -352,9 +354,9 @@ func TestFullWorkflow_ConcurrentOperations(t *testing.T) {
 		Limit:       numEntities + 10,
 	}
 
-	searchResults, err := env.Engine.SearchEntities(ctx, searchQuery)
+	searchResults, err := env.Engine.Search(ctx, searchQuery)
 	require.NoError(t, err)
-	assert.GreaterOrEqual(t, len(searchResults.Entities), numEntities, "All entities should be searchable")
+	assert.GreaterOrEqual(t, len(searchResults.Hits), numEntities, "All entities should be searchable")
 }
 
 func TestFullWorkflow_TransactionRollback(t *testing.T) {
@@ -395,12 +397,12 @@ func TestFullWorkflow_TransactionRollback(t *testing.T) {
 		Limit:       10,
 	}
 
-	searchResults, err := env.Engine.SearchEntities(ctx, searchQuery)
+	searchResults, err := env.Engine.Search(ctx, searchQuery)
 	require.NoError(t, err)
 	
 	// Entity should not be found
 	foundInvalid := false
-	for _, result := range searchResults.Entities {
+	for _, result := range searchResults.Hits {
 		if result.ID == invalidEntity.ID {
 			foundInvalid = true
 			break

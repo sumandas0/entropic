@@ -100,20 +100,23 @@ func (e *AppError) WithDetail(key string, value interface{}) *AppError {
 
 // IsNotFound checks if error is a not found error
 func IsNotFound(err error) bool {
+	var appErr *AppError
 	return errors.Is(err, ErrNotFound) || 
-		(err != nil && errors.As(err, &AppError{}) && err.(*AppError).Code == CodeNotFound)
+		(err != nil && errors.As(err, &appErr) && appErr.Code == CodeNotFound)
 }
 
 // IsAlreadyExists checks if error is an already exists error
 func IsAlreadyExists(err error) bool {
+	var appErr *AppError
 	return errors.Is(err, ErrAlreadyExists) || 
-		(err != nil && errors.As(err, &AppError{}) && err.(*AppError).Code == CodeAlreadyExists)
+		(err != nil && errors.As(err, &appErr) && appErr.Code == CodeAlreadyExists)
 }
 
 // IsValidation checks if error is a validation error
 func IsValidation(err error) bool {
+	var appErr *AppError
 	return errors.Is(err, ErrValidation) || 
-		(err != nil && errors.As(err, &AppError{}) && err.(*AppError).Code == CodeValidation)
+		(err != nil && errors.As(err, &appErr) && appErr.Code == CodeValidation)
 }
 
 // WrapError wraps an error with context

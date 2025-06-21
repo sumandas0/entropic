@@ -9,7 +9,6 @@ import (
 	"github.com/entropic/entropic/internal/api/middleware"
 	"github.com/entropic/entropic/internal/core"
 	"github.com/entropic/entropic/internal/models"
-	"github.com/entropic/entropic/pkg/utils"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
@@ -445,7 +444,7 @@ func parseCommaSeparated(s string) []string {
 	if s == "" {
 		return result
 	}
-	
+
 	parts := splitByComma(s)
 	for _, part := range parts {
 		trimmed := trimSpace(part)
@@ -460,7 +459,7 @@ func parseCommaSeparated(s string) []string {
 func splitByComma(s string) []string {
 	var result []string
 	var current string
-	
+
 	for _, char := range s {
 		if char == ',' {
 			result = append(result, current)
@@ -469,11 +468,11 @@ func splitByComma(s string) []string {
 			current += string(char)
 		}
 	}
-	
+
 	if current != "" {
 		result = append(result, current)
 	}
-	
+
 	return result
 }
 
@@ -481,16 +480,16 @@ func splitByComma(s string) []string {
 func trimSpace(s string) string {
 	start := 0
 	end := len(s)
-	
+
 	// Trim leading spaces
 	for start < end && (s[start] == ' ' || s[start] == '\t' || s[start] == '\n') {
 		start++
 	}
-	
+
 	// Trim trailing spaces
 	for end > start && (s[end-1] == ' ' || s[end-1] == '\t' || s[end-1] == '\n') {
 		end--
 	}
-	
+
 	return s[start:end]
 }

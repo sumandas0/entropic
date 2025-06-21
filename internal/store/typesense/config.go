@@ -58,8 +58,6 @@ func NewClient(config *Config) (*typesense.Client, error) {
 		typesense.WithServer(config.ServerURL),
 		typesense.WithAPIKey(config.APIKey),
 		typesense.WithConnectionTimeout(config.ConnectionTimeout),
-		typesense.WithCircuitBreakerMaxRetries(config.NumRetries),
-		typesense.WithCircuitBreakerInterval(config.RetryInterval),
 	)
 
 	return client, nil
@@ -108,12 +106,12 @@ func (h *HealthChecker) Stop() {
 
 // check performs a single health check
 func (h *HealthChecker) check(ctx context.Context) error {
-	health, err := h.client.Health(ctx)
+	healthy, err := h.client.Health(ctx, 5*time.Second)
 	if err != nil {
 		return fmt.Errorf("health check failed: %w", err)
 	}
 
-	if !health.Ok {
+	if !healthy {
 		return fmt.Errorf("typesense is not healthy")
 	}
 

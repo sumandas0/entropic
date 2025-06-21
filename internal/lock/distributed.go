@@ -2,6 +2,7 @@ package lock
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -140,6 +141,11 @@ func (imdl *InMemoryDistributedLock) Close() error {
 	return nil
 }
 
+// IsHeld checks if a resource is currently locked (convenience method for tests)
+func (imdl *InMemoryDistributedLock) IsHeld(resource string) bool {
+	return imdl.Manager.IsLocked(resource)
+}
+
 // LockManager provides high-level locking functionality with distributed support
 type LockManager struct {
 	distributedLock DistributedLock
@@ -219,6 +225,52 @@ func (lm *LockManager) WithGlobalLock(ctx context.Context, operation string, ttl
 // Close closes the lock manager
 func (lm *LockManager) Close() error {
 	return lm.distributedLock.Close()
+}
+
+// Lock acquires a generic lock with context and timeout
+func (lm *LockManager) Lock(ctx context.Context, resource string, timeout time.Duration) error {
+	_, err := lm.distributedLock.Acquire(ctx, resource, timeout)
+	return err
+}
+
+// Unlock releases a generic lock
+func (lm *LockManager) Unlock(ctx context.Context, resource string) error {
+	// Since we don't have the handle, we need to check if the resource is locked
+	// and release it directly through the underlying implementation
+	if imdl, ok := lm.distributedLock.(*InMemoryDistributedLock); ok {
+		return imdl.Unlock(resource)
+	}
+	return fmt.Errorf("unlock not supported for this distributed lock implementation")
+}
+
+// IsLocked checks if a resource is currently locked
+func (lm *LockManager) IsLocked(resource string) bool {
+	locked, _ := lm.distributedLock.IsLocked(context.Background(), resource)
+	return locked
+}
+
+// LockEntity acquires a lock on an entity with context and timeout
+func (lm *LockManager) LockEntity(ctx context.Context, entityType, entityID string, timeout time.Duration) error {
+	resource := entityType + ":" + entityID
+	return lm.Lock(ctx, resource, timeout)
+}
+
+// UnlockEntity releases a lock on an entity
+func (lm *LockManager) UnlockEntity(ctx context.Context, entityType, entityID string) error {
+	resource := entityType + ":" + entityID
+	return lm.Unlock(ctx, resource)
+}
+
+// LockSchema acquires a lock on a schema with context and timeout
+func (lm *LockManager) LockSchema(ctx context.Context, entityType string, timeout time.Duration) error {
+	resource := "schema:" + entityType
+	return lm.Lock(ctx, resource, timeout)
+}
+
+// UnlockSchema releases a lock on a schema
+func (lm *LockManager) UnlockSchema(ctx context.Context, entityType string) error {
+	resource := "schema:" + entityType
+	return lm.Unlock(ctx, resource)
 }
 
 // Helper functions for building lock keys

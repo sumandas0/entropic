@@ -267,7 +267,12 @@ func (l *Logger) LoggingMiddleware() func(next http.Handler) http.Handler {
 			
 			// Log request start
 			logger := l.WithContext(r.Context()).
-				WithRequest(r.Method, r.URL.Path, r.UserAgent(), r.RemoteAddr)
+				With().
+				Str("method", r.Method).
+				Str("path", r.URL.Path).
+				Str("user_agent", r.UserAgent()).
+				Str("remote_addr", r.RemoteAddr).
+				Logger()
 			
 			logger.Info().Msg("HTTP request started")
 			

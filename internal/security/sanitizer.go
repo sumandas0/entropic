@@ -16,23 +16,23 @@ import (
 
 // SanitizerConfig holds configuration for input sanitization
 type SanitizerConfig struct {
-	Enabled           bool `yaml:"enabled" mapstructure:"enabled"`
-	MaxStringLength   int  `yaml:"max_string_length" mapstructure:"max_string_length"`
-	MaxArrayLength    int  `yaml:"max_array_length" mapstructure:"max_array_length"`
-	MaxObjectDepth    int  `yaml:"max_object_depth" mapstructure:"max_object_depth"`
-	StrictMode        bool `yaml:"strict_mode" mapstructure:"strict_mode"`
-	AllowHTML         bool `yaml:"allow_html" mapstructure:"allow_html"`
-	AllowJavaScript   bool `yaml:"allow_javascript" mapstructure:"allow_javascript"`
-	AllowSQLKeywords  bool `yaml:"allow_sql_keywords" mapstructure:"allow_sql_keywords"`
+	Enabled          bool `yaml:"enabled" mapstructure:"enabled"`
+	MaxStringLength  int  `yaml:"max_string_length" mapstructure:"max_string_length"`
+	MaxArrayLength   int  `yaml:"max_array_length" mapstructure:"max_array_length"`
+	MaxObjectDepth   int  `yaml:"max_object_depth" mapstructure:"max_object_depth"`
+	StrictMode       bool `yaml:"strict_mode" mapstructure:"strict_mode"`
+	AllowHTML        bool `yaml:"allow_html" mapstructure:"allow_html"`
+	AllowJavaScript  bool `yaml:"allow_javascript" mapstructure:"allow_javascript"`
+	AllowSQLKeywords bool `yaml:"allow_sql_keywords" mapstructure:"allow_sql_keywords"`
 }
 
 // InputSanitizer provides comprehensive input sanitization
 type InputSanitizer struct {
-	config      SanitizerConfig
-	htmlPolicy  *bluemonday.Policy
-	sqlPattern  *regexp.Regexp
-	jsPattern   *regexp.Regexp
-	xssPattern  *regexp.Regexp
+	config     SanitizerConfig
+	htmlPolicy *bluemonday.Policy
+	sqlPattern *regexp.Regexp
+	jsPattern  *regexp.Regexp
+	xssPattern *regexp.Regexp
 }
 
 // NewInputSanitizer creates a new input sanitizer with the given configuration
@@ -273,7 +273,7 @@ func (is *InputSanitizer) SanitizeURL(rawURL string) (string, error) {
 	if parsedURL.RawQuery != "" {
 		query := parsedURL.Query()
 		sanitizedQuery := url.Values{}
-		
+
 		for key, values := range query {
 			sanitizedKey, err := is.SanitizeString(key)
 			if err != nil {
@@ -282,7 +282,7 @@ func (is *InputSanitizer) SanitizeURL(rawURL string) (string, error) {
 				}
 				continue
 			}
-			
+
 			for _, value := range values {
 				sanitizedValue, err := is.SanitizeString(value)
 				if err != nil {
@@ -294,7 +294,7 @@ func (is *InputSanitizer) SanitizeURL(rawURL string) (string, error) {
 				sanitizedQuery.Add(sanitizedKey, sanitizedValue)
 			}
 		}
-		
+
 		parsedURL.RawQuery = sanitizedQuery.Encode()
 	}
 
@@ -353,7 +353,7 @@ func (is *InputSanitizer) ValidateEmail(email string) (string, error) {
 
 	// Basic email regex (simplified)
 	emailRegex := regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
-	
+
 	// Sanitize first
 	sanitized, err := is.SanitizeString(email)
 	if err != nil {
@@ -413,14 +413,14 @@ func (is *InputSanitizer) SanitizeMiddleware() func(next http.Handler) http.Hand
 			// Sanitize query parameters
 			query := r.URL.Query()
 			sanitizedQuery := url.Values{}
-			
+
 			for key, values := range query {
 				sanitizedKey, err := is.SanitizeString(key)
 				if err != nil {
 					http.Error(w, fmt.Sprintf("Invalid query parameter key: %s", key), http.StatusBadRequest)
 					return
 				}
-				
+
 				for _, value := range values {
 					sanitizedValue, err := is.SanitizeString(value)
 					if err != nil {
@@ -430,7 +430,7 @@ func (is *InputSanitizer) SanitizeMiddleware() func(next http.Handler) http.Hand
 					sanitizedQuery.Add(sanitizedKey, sanitizedValue)
 				}
 			}
-			
+
 			r.URL.RawQuery = sanitizedQuery.Encode()
 
 			// Sanitize headers (optional - be careful not to break authentication)
@@ -439,7 +439,7 @@ func (is *InputSanitizer) SanitizeMiddleware() func(next http.Handler) http.Hand
 				if isStandardHeader(key) {
 					continue
 				}
-				
+
 				for i, value := range values {
 					sanitized, err := is.SanitizeString(value)
 					if err != nil {
@@ -472,7 +472,7 @@ func isStandardHeader(header string) bool {
 		"Accept-Language", "Cache-Control", "Connection", "Cookie", "Host", "Referer",
 		"User-Agent", "X-Requested-With", "X-Forwarded-For", "X-Real-IP",
 	}
-	
+
 	return contains(standardHeaders, header)
 }
 
@@ -494,11 +494,11 @@ func (es *EntitySanitizer) SanitizeEntityProperties(properties map[string]interf
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if sanitizedMap, ok := sanitized.(map[string]interface{}); ok {
 		return sanitizedMap, nil
 	}
-	
+
 	return nil, fmt.Errorf("sanitized value is not a map")
 }
 
@@ -509,18 +509,18 @@ func (es *EntitySanitizer) SanitizeEntityType(entityType string) (string, error)
 	if err != nil {
 		return "", err
 	}
-	
+
 	// Additional validation for entity types
 	if len(sanitized) == 0 || len(sanitized) > 100 {
 		return "", fmt.Errorf("entity type length must be between 1 and 100 characters")
 	}
-	
+
 	// Entity types should only contain alphanumeric characters and underscores
 	validPattern := regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_]*$`)
 	if !validPattern.MatchString(sanitized) {
 		return "", fmt.Errorf("entity type contains invalid characters")
 	}
-	
+
 	return sanitized, nil
 }
 
@@ -530,12 +530,12 @@ func (es *EntitySanitizer) SanitizeURN(urn string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	
+
 	// URNs should follow a specific format
 	if len(sanitized) == 0 || len(sanitized) > 500 {
 		return "", fmt.Errorf("URN length must be between 1 and 500 characters")
 	}
-	
+
 	return sanitized, nil
 }
 
@@ -557,16 +557,25 @@ func (ss *SearchSanitizer) SanitizeSearchQuery(query string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	
+
 	// Additional search-specific validation
 	if len(sanitized) > 1000 {
 		return "", fmt.Errorf("search query too long")
 	}
-	
+
 	return sanitized, nil
 }
 
 // SanitizeSearchFilters sanitizes search filter parameters
 func (ss *SearchSanitizer) SanitizeSearchFilters(filters map[string]interface{}) (map[string]interface{}, error) {
-	return ss.sanitizer.SanitizeValue(filters)
+	sanitized, err := ss.sanitizer.SanitizeValue(filters)
+	if err != nil {
+		return nil, err
+	}
+
+	if sanitizedMap, ok := sanitized.(map[string]interface{}); ok {
+		return sanitizedMap, nil
+	}
+
+	return nil, fmt.Errorf("sanitized value is not a map")
 }

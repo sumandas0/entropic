@@ -6,7 +6,6 @@ import (
 	"reflect"
 	"regexp"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/entropic/entropic/internal/cache"

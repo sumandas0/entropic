@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 // RedisDistributedLock provides a Redis-based distributed lock implementation
@@ -21,7 +19,7 @@ func NewRedisDistributedLock(redisURL, keyPrefix string) (*RedisDistributedLock,
 	if keyPrefix == "" {
 		keyPrefix = "entropic:lock:"
 	}
-	
+
 	// TODO: Initialize Redis client
 	return &RedisDistributedLock{
 		keyPrefix: keyPrefix,
@@ -141,23 +139,23 @@ end
 
 // RedisLockConfig holds Redis lock configuration
 type RedisLockConfig struct {
-	RedisURL          string
-	KeyPrefix         string
-	DefaultTTL        time.Duration
-	MaxRetries        int
-	RetryDelay        time.Duration
-	CleanupInterval   time.Duration
+	RedisURL        string
+	KeyPrefix       string
+	DefaultTTL      time.Duration
+	MaxRetries      int
+	RetryDelay      time.Duration
+	CleanupInterval time.Duration
 }
 
 // DefaultRedisLockConfig returns default Redis lock configuration
 func DefaultRedisLockConfig() *RedisLockConfig {
 	return &RedisLockConfig{
-		RedisURL:          "redis://localhost:6379",
-		KeyPrefix:         "entropic:lock:",
-		DefaultTTL:        30 * time.Second,
-		MaxRetries:        3,
-		RetryDelay:        100 * time.Millisecond,
-		CleanupInterval:   time.Minute,
+		RedisURL:        "redis://localhost:6379",
+		KeyPrefix:       "entropic:lock:",
+		DefaultTTL:      30 * time.Second,
+		MaxRetries:      3,
+		RetryDelay:      100 * time.Millisecond,
+		CleanupInterval: time.Minute,
 	}
 }
 
@@ -184,8 +182,8 @@ func (c *RedisLockConfig) Validate() error {
 // ConsistentHashingLock provides distributed locking with consistent hashing
 // This can be used to distribute locks across multiple Redis instances
 type ConsistentHashingLock struct {
-	locks     []DistributedLock
-	hashRing  *HashRing
+	locks    []DistributedLock
+	hashRing *HashRing
 }
 
 // HashRing represents a consistent hash ring
@@ -200,7 +198,7 @@ func NewConsistentHashingLock(locks []DistributedLock) *ConsistentHashingLock {
 		nodes: make(map[uint32]int),
 		keys:  make([]uint32, 0),
 	}
-	
+
 	// Add nodes to hash ring
 	for i := range locks {
 		for j := 0; j < 150; j++ { // 150 virtual nodes per physical node
@@ -209,10 +207,10 @@ func NewConsistentHashingLock(locks []DistributedLock) *ConsistentHashingLock {
 			hashRing.keys = append(hashRing.keys, hash)
 		}
 	}
-	
+
 	// Sort keys
 	sortUint32Slice(hashRing.keys)
-	
+
 	return &ConsistentHashingLock{
 		locks:    locks,
 		hashRing: hashRing,
@@ -230,7 +228,7 @@ func (chl *ConsistentHashingLock) getLockForResource(resource string) Distribute
 func (hr *HashRing) getNode(hash uint32) int {
 	// Binary search for the first node >= hash
 	left, right := 0, len(hr.keys)-1
-	
+
 	for left <= right {
 		mid := (left + right) / 2
 		if hr.keys[mid] >= hash {
@@ -239,12 +237,12 @@ func (hr *HashRing) getNode(hash uint32) int {
 			left = mid + 1
 		}
 	}
-	
+
 	// Wrap around if necessary
 	if left >= len(hr.keys) {
 		left = 0
 	}
-	
+
 	return hr.nodes[hr.keys[left]]
 }
 

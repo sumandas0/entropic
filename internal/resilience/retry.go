@@ -53,7 +53,7 @@ func DefaultRetryableErrors(err error) bool {
 
 	// Add common retryable error patterns
 	errorStr := err.Error()
-	
+
 	// Network-related errors
 	if contains(errorStr, "connection refused") ||
 		contains(errorStr, "connection reset") ||
@@ -80,7 +80,7 @@ func DatabaseRetryableErrors(err error) bool {
 	}
 
 	errorStr := err.Error()
-	
+
 	// PostgreSQL specific errors
 	if contains(errorStr, "connection lost") ||
 		contains(errorStr, "connection reset") ||
@@ -101,7 +101,7 @@ func SearchRetryableErrors(err error) bool {
 	}
 
 	errorStr := err.Error()
-	
+
 	// Typesense/Elasticsearch specific errors
 	if contains(errorStr, "search request failed") ||
 		contains(errorStr, "cluster not ready") ||
@@ -120,7 +120,7 @@ func (rm *RetryManager) Execute(ctx context.Context, fn func() error, isRetryabl
 	}
 
 	var lastErr error
-	
+
 	for attempt := 1; attempt <= rm.config.MaxAttempts; attempt++ {
 		// Check context cancellation before each attempt
 		select {
@@ -148,7 +148,7 @@ func (rm *RetryManager) Execute(ctx context.Context, fn func() error, isRetryabl
 
 		// Calculate delay for next attempt
 		delay := rm.calculateDelay(attempt)
-		
+
 		// Wait before next attempt, respecting context cancellation
 		select {
 		case <-ctx.Done():
@@ -168,8 +168,7 @@ func (rm *RetryManager) ExecuteWithResult(ctx context.Context, fn func() (interf
 	}
 
 	var lastErr error
-	var result interface{}
-	
+
 	for attempt := 1; attempt <= rm.config.MaxAttempts; attempt++ {
 		// Check context cancellation before each attempt
 		select {
@@ -197,7 +196,7 @@ func (rm *RetryManager) ExecuteWithResult(ctx context.Context, fn func() (interf
 
 		// Calculate delay for next attempt
 		delay := rm.calculateDelay(attempt)
-		
+
 		// Wait before next attempt, respecting context cancellation
 		select {
 		case <-ctx.Done():
@@ -258,8 +257,8 @@ func (rm *RetryManager) applyJitter(delay time.Duration) time.Duration {
 	}
 
 	jitter := rm.config.JitterFactor * float64(delay)
-	randomJitter := (rand.Float64() * 2 - 1) * jitter // Random value between -jitter and +jitter
-	
+	randomJitter := (rand.Float64()*2 - 1) * jitter // Random value between -jitter and +jitter
+
 	finalDelay := time.Duration(float64(delay) + randomJitter)
 	if finalDelay < 0 {
 		finalDelay = time.Duration(float64(delay) * 0.1) // Minimum delay
@@ -343,11 +342,11 @@ func (esrw *ExternalServiceRetryWrapper) ExecuteWithResult(ctx context.Context, 
 
 // RetryMetrics holds metrics for retry operations
 type RetryMetrics struct {
-	TotalAttempts    int64         `json:"total_attempts"`
+	TotalAttempts     int64         `json:"total_attempts"`
 	SuccessfulRetries int64         `json:"successful_retries"`
-	FailedRetries    int64         `json:"failed_retries"`
-	AverageDelay     time.Duration `json:"average_delay"`
-	MaxDelay         time.Duration `json:"max_delay"`
+	FailedRetries     int64         `json:"failed_retries"`
+	AverageDelay      time.Duration `json:"average_delay"`
+	MaxDelay          time.Duration `json:"max_delay"`
 }
 
 // RetryObserver observes retry operations for metrics collection
@@ -363,7 +362,7 @@ func NewRetryObserver() *RetryObserver {
 // ObserveAttempt records a retry attempt
 func (ro *RetryObserver) ObserveAttempt(attempt int, delay time.Duration, success bool) {
 	ro.metrics.TotalAttempts++
-	
+
 	if success && attempt > 1 {
 		ro.metrics.SuccessfulRetries++
 	} else if !success {
@@ -390,16 +389,16 @@ func (ro *RetryObserver) GetMetrics() RetryMetrics {
 // Helper functions
 
 func contains(s, substr string) bool {
-	return len(s) >= len(substr) && s[len(s)-len(substr):] == substr || 
-		   len(s) >= len(substr) && s[:len(substr)] == substr ||
-		   (len(s) > len(substr) && func() bool {
-			   for i := 0; i <= len(s)-len(substr); i++ {
-				   if s[i:i+len(substr)] == substr {
-					   return true
-				   }
-			   }
-			   return false
-		   }())
+	return len(s) >= len(substr) && s[len(s)-len(substr):] == substr ||
+		len(s) >= len(substr) && s[:len(substr)] == substr ||
+		(len(s) > len(substr) && func() bool {
+			for i := 0; i <= len(s)-len(substr); i++ {
+				if s[i:i+len(substr)] == substr {
+					return true
+				}
+			}
+			return false
+		}())
 }
 
 // BackoffStrategies provides common backoff strategy configurations

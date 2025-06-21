@@ -69,65 +69,65 @@ func (r *Router) SetupRoutes() http.Handler {
 	router.Get("/metrics", r.metrics)
 
 	// API version prefix
-	router.Route("/api/v1", func(r chi.Router) {
+	router.Route("/api/v1", func(apiRouter chi.Router) {
 		// Entity routes
-		r.Route("/entities", func(r chi.Router) {
-			r.Route("/{entityType}", func(r chi.Router) {
-				r.Post("/", r.entityHandler.CreateEntity)
-				r.Get("/", r.entityHandler.ListEntities)
+		apiRouter.Route("/entities", func(entityRouter chi.Router) {
+			entityRouter.Route("/{entityType}", func(typeRouter chi.Router) {
+				typeRouter.Post("/", r.entityHandler.CreateEntity)
+				typeRouter.Get("/", r.entityHandler.ListEntities)
 				
-				r.Route("/{entityID}", func(r chi.Router) {
-					r.Get("/", r.entityHandler.GetEntity)
-					r.Patch("/", r.entityHandler.UpdateEntity)
-					r.Delete("/", r.entityHandler.DeleteEntity)
+				typeRouter.Route("/{entityID}", func(idRouter chi.Router) {
+					idRouter.Get("/", r.entityHandler.GetEntity)
+					idRouter.Patch("/", r.entityHandler.UpdateEntity)
+					idRouter.Delete("/", r.entityHandler.DeleteEntity)
 					
 					// Entity relations
-					r.Get("/relations", r.entityHandler.GetEntityRelations)
+					idRouter.Get("/relations", r.entityHandler.GetEntityRelations)
 				})
 			})
 		})
 
 		// Relation routes
-		r.Route("/relations", func(r chi.Router) {
-			r.Post("/", r.relationHandler.CreateRelation)
+		apiRouter.Route("/relations", func(relationRouter chi.Router) {
+			relationRouter.Post("/", r.relationHandler.CreateRelation)
 			
-			r.Route("/{relationID}", func(r chi.Router) {
-				r.Get("/", r.relationHandler.GetRelation)
-				r.Delete("/", r.relationHandler.DeleteRelation)
+			relationRouter.Route("/{relationID}", func(idRouter chi.Router) {
+				idRouter.Get("/", r.relationHandler.GetRelation)
+				idRouter.Delete("/", r.relationHandler.DeleteRelation)
 			})
 		})
 
 		// Schema routes
-		r.Route("/schemas", func(r chi.Router) {
+		apiRouter.Route("/schemas", func(schemaRouter chi.Router) {
 			// Entity schemas
-			r.Route("/entities", func(r chi.Router) {
-				r.Post("/", r.schemaHandler.CreateEntitySchema)
-				r.Get("/", r.schemaHandler.ListEntitySchemas)
+			schemaRouter.Route("/entities", func(entitySchemaRouter chi.Router) {
+				entitySchemaRouter.Post("/", r.schemaHandler.CreateEntitySchema)
+				entitySchemaRouter.Get("/", r.schemaHandler.ListEntitySchemas)
 				
-				r.Route("/{entityType}", func(r chi.Router) {
-					r.Get("/", r.schemaHandler.GetEntitySchema)
-					r.Put("/", r.schemaHandler.UpdateEntitySchema)
-					r.Delete("/", r.schemaHandler.DeleteEntitySchema)
+				entitySchemaRouter.Route("/{entityType}", func(typeRouter chi.Router) {
+					typeRouter.Get("/", r.schemaHandler.GetEntitySchema)
+					typeRouter.Put("/", r.schemaHandler.UpdateEntitySchema)
+					typeRouter.Delete("/", r.schemaHandler.DeleteEntitySchema)
 				})
 			})
 
 			// Relationship schemas
-			r.Route("/relationships", func(r chi.Router) {
-				r.Post("/", r.schemaHandler.CreateRelationshipSchema)
-				r.Get("/", r.schemaHandler.ListRelationshipSchemas)
+			schemaRouter.Route("/relationships", func(relSchemaRouter chi.Router) {
+				relSchemaRouter.Post("/", r.schemaHandler.CreateRelationshipSchema)
+				relSchemaRouter.Get("/", r.schemaHandler.ListRelationshipSchemas)
 				
-				r.Route("/{relationshipType}", func(r chi.Router) {
-					r.Get("/", r.schemaHandler.GetRelationshipSchema)
-					r.Put("/", r.schemaHandler.UpdateRelationshipSchema)
-					r.Delete("/", r.schemaHandler.DeleteRelationshipSchema)
+				relSchemaRouter.Route("/{relationshipType}", func(typeRouter chi.Router) {
+					typeRouter.Get("/", r.schemaHandler.GetRelationshipSchema)
+					typeRouter.Put("/", r.schemaHandler.UpdateRelationshipSchema)
+					typeRouter.Delete("/", r.schemaHandler.DeleteRelationshipSchema)
 				})
 			})
 		})
 
 		// Search routes
-		r.Route("/search", func(r chi.Router) {
-			r.Post("/", r.entityHandler.Search)
-			r.Post("/vector", r.entityHandler.VectorSearch)
+		apiRouter.Route("/search", func(searchRouter chi.Router) {
+			searchRouter.Post("/", r.entityHandler.Search)
+			searchRouter.Post("/vector", r.entityHandler.VectorSearch)
 		})
 	})
 
