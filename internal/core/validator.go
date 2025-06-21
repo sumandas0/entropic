@@ -8,12 +8,12 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 	"github.com/sumandas0/entropic/internal/cache"
 	"github.com/sumandas0/entropic/internal/models"
 	"github.com/sumandas0/entropic/internal/store"
 	"github.com/sumandas0/entropic/pkg/utils"
-	"github.com/go-playground/validator/v10"
-	"github.com/google/uuid"
 )
 
 type Validator struct {
@@ -24,15 +24,15 @@ type Validator struct {
 
 func NewValidator(cacheManager *cache.Manager, primaryStore store.PrimaryStore) *Validator {
 	validate := validator.New()
-	
+
 	v := &Validator{
 		validate:     validate,
 		cacheManager: cacheManager,
 		primaryStore: primaryStore,
 	}
-	
+
 	v.registerCustomValidators()
-	
+
 	return v
 }
 
@@ -42,20 +42,20 @@ func (v *Validator) ValidateEntity(ctx context.Context, entity *models.Entity) e
 		return utils.NewAppError(utils.CodeValidation, "entity schema not found", err).
 			WithDetail("entity_type", entity.EntityType)
 	}
-	
+
 	if err := v.validate.Struct(entity); err != nil {
 		return utils.NewAppError(utils.CodeValidation, "entity structure validation failed", err)
 	}
-	
+
 	if err := v.validateURNUniqueness(ctx, entity); err != nil {
 		return err
 	}
-	
+
 	if err := v.validateProperties(entity.Properties, schema.Properties); err != nil {
 		return utils.NewAppError(utils.CodeValidation, "property validation failed", err).
 			WithDetail("entity_type", entity.EntityType)
 	}
-	
+
 	return nil
 }
 
@@ -65,38 +65,38 @@ func (v *Validator) ValidateRelation(ctx context.Context, relation *models.Relat
 		return utils.NewAppError(utils.CodeValidation, "relationship schema not found", err).
 			WithDetail("relation_type", relation.RelationType)
 	}
-	
+
 	if err := v.validate.Struct(relation); err != nil {
 		return utils.NewAppError(utils.CodeValidation, "relation structure validation failed", err)
 	}
-	
+
 	if relation.FromEntityType != schema.FromEntityType {
 		return utils.NewAppError(utils.CodeValidation, "from entity type mismatch", nil).
 			WithDetail("expected", schema.FromEntityType).
 			WithDetail("actual", relation.FromEntityType)
 	}
-	
+
 	if relation.ToEntityType != schema.ToEntityType {
 		return utils.NewAppError(utils.CodeValidation, "to entity type mismatch", nil).
 			WithDetail("expected", schema.ToEntityType).
 			WithDetail("actual", relation.ToEntityType)
 	}
-	
+
 	if err := v.validateEntityReferences(ctx, relation); err != nil {
 		return err
 	}
-	
+
 	if err := v.validateCardinality(ctx, relation, schema); err != nil {
 		return err
 	}
-	
-	if relation.Properties != nil && len(relation.Properties) > 0 {
+
+	if len(relation.Properties) > 0 {
 		if err := v.validateProperties(relation.Properties, schema.Properties); err != nil {
 			return utils.NewAppError(utils.CodeValidation, "relation property validation failed", err).
 				WithDetail("relation_type", relation.RelationType)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -104,21 +104,21 @@ func (v *Validator) ValidateEntitySchema(schema *models.EntitySchema) error {
 	if err := v.validate.Struct(schema); err != nil {
 		return utils.NewAppError(utils.CodeValidation, "entity schema structure validation failed", err)
 	}
-	
+
 	for propName, propDef := range schema.Properties {
 		if err := v.validatePropertyDefinition(propName, propDef); err != nil {
 			return utils.NewAppError(utils.CodeValidation, "property definition validation failed", err).
 				WithDetail("property", propName)
 		}
 	}
-	
+
 	for _, index := range schema.Indexes {
 		if err := v.validateIndexConfig(index, schema.Properties); err != nil {
 			return utils.NewAppError(utils.CodeValidation, "index configuration validation failed", err).
 				WithDetail("index", index.Name)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -126,14 +126,14 @@ func (v *Validator) ValidateRelationshipSchema(schema *models.RelationshipSchema
 	if err := v.validate.Struct(schema); err != nil {
 		return utils.NewAppError(utils.CodeValidation, "relationship schema structure validation failed", err)
 	}
-	
+
 	for propName, propDef := range schema.Properties {
 		if err := v.validatePropertyDefinition(propName, propDef); err != nil {
 			return utils.NewAppError(utils.CodeValidation, "property definition validation failed", err).
 				WithDetail("property", propName)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -142,12 +142,12 @@ func (v *Validator) validateURNUniqueness(ctx context.Context, entity *models.En
 	if err != nil {
 		return utils.NewAppError(utils.CodeInternal, "failed to check URN uniqueness", err)
 	}
-	
+
 	if exists {
 		return utils.NewAppError(utils.CodeAlreadyExists, "URN already exists", nil).
 			WithDetail("urn", entity.URN)
 	}
-	
+
 	return nil
 }
 
@@ -159,18 +159,18 @@ func (v *Validator) validateProperties(properties map[string]interface{}, schema
 			}
 		}
 	}
-	
+
 	for propName, value := range properties {
 		propDef, exists := schema[propName]
 		if !exists {
 			continue
 		}
-		
+
 		if err := v.validatePropertyValue(propName, value, propDef); err != nil {
 			return err
 		}
 	}
-	
+
 	return nil
 }
 
@@ -181,15 +181,15 @@ func (v *Validator) validatePropertyValue(propName string, value interface{}, pr
 		}
 		return nil
 	}
-	
+
 	if err := v.validatePropertyType(propName, value, propDef); err != nil {
 		return err
 	}
-	
+
 	if err := v.validatePropertyConstraints(propName, value, propDef.Constraints); err != nil {
 		return err
 	}
-	
+
 	return nil
 }
 
@@ -235,7 +235,7 @@ func (v *Validator) validatePropertyType(propName string, value interface{}, pro
 	default:
 		return fmt.Errorf("unknown property type '%s' for property '%s'", propDef.Type, propName)
 	}
-	
+
 	return nil
 }
 
@@ -257,18 +257,18 @@ func (v *Validator) validateVectorProperty(propName string, value interface{}, e
 	if arrayValue.Kind() != reflect.Slice {
 		return fmt.Errorf("property '%s' must be a vector (array of numbers)", propName)
 	}
-	
+
 	if expectedDim > 0 && arrayValue.Len() != expectedDim {
 		return fmt.Errorf("property '%s' must have %d dimensions, got %d", propName, expectedDim, arrayValue.Len())
 	}
-	
+
 	for i := 0; i < arrayValue.Len(); i++ {
 		element := arrayValue.Index(i).Interface()
 		if !isNumeric(element) {
 			return fmt.Errorf("property '%s' element at index %d must be a number", propName, i)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -276,13 +276,13 @@ func (v *Validator) validatePropertyConstraints(propName string, value interface
 	if constraints == nil {
 		return nil
 	}
-	
+
 	for constraintType, constraintValue := range constraints {
 		if err := v.validateConstraint(propName, value, constraintType, constraintValue); err != nil {
 			return err
 		}
 	}
-	
+
 	return nil
 }
 
@@ -313,7 +313,7 @@ func (v *Validator) validateConstraint(propName string, value interface{}, const
 			return err
 		}
 	}
-	
+
 	return nil
 }
 
@@ -321,14 +321,14 @@ func (v *Validator) validateMinConstraint(propName string, value interface{}, mi
 	if !isNumeric(value) || !isNumeric(minValue) {
 		return nil
 	}
-	
+
 	val := toFloat64(value)
 	min := toFloat64(minValue)
-	
+
 	if val < min {
 		return fmt.Errorf("property '%s' must be >= %v", propName, min)
 	}
-	
+
 	return nil
 }
 
@@ -336,14 +336,14 @@ func (v *Validator) validateMaxConstraint(propName string, value interface{}, ma
 	if !isNumeric(value) || !isNumeric(maxValue) {
 		return nil
 	}
-	
+
 	val := toFloat64(value)
 	max := toFloat64(maxValue)
-	
+
 	if val > max {
 		return fmt.Errorf("property '%s' must be <= %v", propName, max)
 	}
-	
+
 	return nil
 }
 
@@ -352,7 +352,7 @@ func (v *Validator) validateMinLengthConstraint(propName string, value interface
 	if length == -1 {
 		return nil
 	}
-	
+
 	min, ok := minLength.(int)
 	if !ok {
 		if minFloat, ok := minLength.(float64); ok {
@@ -361,11 +361,11 @@ func (v *Validator) validateMinLengthConstraint(propName string, value interface
 			return nil
 		}
 	}
-	
+
 	if length < min {
 		return fmt.Errorf("property '%s' must have at least %d characters/elements", propName, min)
 	}
-	
+
 	return nil
 }
 
@@ -374,7 +374,7 @@ func (v *Validator) validateMaxLengthConstraint(propName string, value interface
 	if length == -1 {
 		return nil
 	}
-	
+
 	max, ok := maxLength.(int)
 	if !ok {
 		if maxFloat, ok := maxLength.(float64); ok {
@@ -383,11 +383,11 @@ func (v *Validator) validateMaxLengthConstraint(propName string, value interface
 			return nil
 		}
 	}
-	
+
 	if length > max {
 		return fmt.Errorf("property '%s' must have at most %d characters/elements", propName, max)
 	}
-	
+
 	return nil
 }
 
@@ -397,21 +397,21 @@ func (v *Validator) validatePatternConstraint(propName string, value interface{}
 	if !ok {
 		return nil // Only apply to strings
 	}
-	
+
 	patternStr, ok := pattern.(string)
 	if !ok {
 		return nil
 	}
-	
+
 	regex, err := regexp.Compile(patternStr)
 	if err != nil {
 		return fmt.Errorf("invalid pattern for property '%s': %v", propName, err)
 	}
-	
+
 	if !regex.MatchString(strValue) {
 		return fmt.Errorf("property '%s' does not match pattern '%s'", propName, patternStr)
 	}
-	
+
 	return nil
 }
 
@@ -421,13 +421,13 @@ func (v *Validator) validateEnumConstraint(propName string, value interface{}, e
 	if !ok {
 		return nil
 	}
-	
+
 	for _, enumValue := range enumSlice {
 		if reflect.DeepEqual(value, enumValue) {
 			return nil
 		}
 	}
-	
+
 	return fmt.Errorf("property '%s' must be one of %v", propName, enumValues)
 }
 
@@ -443,7 +443,7 @@ func (v *Validator) validateEntityReferences(ctx context.Context, relation *mode
 		}
 		return err
 	}
-	
+
 	// Check to entity exists
 	_, err = v.primaryStore.GetEntity(ctx, relation.ToEntityType, relation.ToEntityID)
 	if err != nil {
@@ -454,7 +454,7 @@ func (v *Validator) validateEntityReferences(ctx context.Context, relation *mode
 		}
 		return err
 	}
-	
+
 	return nil
 }
 
@@ -462,11 +462,11 @@ func (v *Validator) validateEntityReferences(ctx context.Context, relation *mode
 func (v *Validator) validateCardinality(ctx context.Context, relation *models.Relation, schema *models.RelationshipSchema) error {
 	switch schema.Cardinality {
 	case models.OneToOne:
-		return v.validateOneToOneCardinality(ctx, relation, schema)
+		return v.validateOneToOneCardinality(ctx, relation)
 	case models.OneToMany:
-		return v.validateOneToManyCardinality(ctx, relation, schema)
+		return v.validateOneToManyCardinality(ctx, relation)
 	case models.ManyToOne:
-		return v.validateManyToOneCardinality(ctx, relation, schema)
+		return v.validateManyToOneCardinality(ctx, relation)
 	case models.ManyToMany:
 		// No additional constraints for many-to-many
 		return nil
@@ -476,13 +476,13 @@ func (v *Validator) validateCardinality(ctx context.Context, relation *models.Re
 }
 
 // validateOneToOneCardinality validates one-to-one cardinality
-func (v *Validator) validateOneToOneCardinality(ctx context.Context, relation *models.Relation, schema *models.RelationshipSchema) error {
+func (v *Validator) validateOneToOneCardinality(ctx context.Context, relation *models.Relation) error {
 	// Check if from entity already has a relation of this type
 	fromRelations, err := v.primaryStore.GetRelationsByEntity(ctx, relation.FromEntityID, []string{relation.RelationType})
 	if err != nil {
 		return err
 	}
-	
+
 	for _, rel := range fromRelations {
 		if rel.ID != relation.ID && rel.FromEntityID == relation.FromEntityID {
 			return utils.NewAppError(utils.CodeValidation, "one-to-one cardinality violation: from entity already has this relation type", nil).
@@ -490,13 +490,13 @@ func (v *Validator) validateOneToOneCardinality(ctx context.Context, relation *m
 				WithDetail("relation_type", relation.RelationType)
 		}
 	}
-	
+
 	// Check if to entity already has a relation of this type
 	toRelations, err := v.primaryStore.GetRelationsByEntity(ctx, relation.ToEntityID, []string{relation.RelationType})
 	if err != nil {
 		return err
 	}
-	
+
 	for _, rel := range toRelations {
 		if rel.ID != relation.ID && rel.ToEntityID == relation.ToEntityID {
 			return utils.NewAppError(utils.CodeValidation, "one-to-one cardinality violation: to entity already has this relation type", nil).
@@ -504,18 +504,18 @@ func (v *Validator) validateOneToOneCardinality(ctx context.Context, relation *m
 				WithDetail("relation_type", relation.RelationType)
 		}
 	}
-	
+
 	return nil
 }
 
 // validateOneToManyCardinality validates one-to-many cardinality
-func (v *Validator) validateOneToManyCardinality(ctx context.Context, relation *models.Relation, schema *models.RelationshipSchema) error {
+func (v *Validator) validateOneToManyCardinality(ctx context.Context, relation *models.Relation) error {
 	// Check if to entity already has a relation of this type (to entity can only have one)
 	toRelations, err := v.primaryStore.GetRelationsByEntity(ctx, relation.ToEntityID, []string{relation.RelationType})
 	if err != nil {
 		return err
 	}
-	
+
 	for _, rel := range toRelations {
 		if rel.ID != relation.ID && rel.ToEntityID == relation.ToEntityID {
 			return utils.NewAppError(utils.CodeValidation, "one-to-many cardinality violation: to entity already has this relation type", nil).
@@ -523,18 +523,18 @@ func (v *Validator) validateOneToManyCardinality(ctx context.Context, relation *
 				WithDetail("relation_type", relation.RelationType)
 		}
 	}
-	
+
 	return nil
 }
 
 // validateManyToOneCardinality validates many-to-one cardinality
-func (v *Validator) validateManyToOneCardinality(ctx context.Context, relation *models.Relation, schema *models.RelationshipSchema) error {
+func (v *Validator) validateManyToOneCardinality(ctx context.Context, relation *models.Relation) error {
 	// Check if from entity already has a relation of this type (from entity can only have one)
 	fromRelations, err := v.primaryStore.GetRelationsByEntity(ctx, relation.FromEntityID, []string{relation.RelationType})
 	if err != nil {
 		return err
 	}
-	
+
 	for _, rel := range fromRelations {
 		if rel.ID != relation.ID && rel.FromEntityID == relation.FromEntityID {
 			return utils.NewAppError(utils.CodeValidation, "many-to-one cardinality violation: from entity already has this relation type", nil).
@@ -542,7 +542,7 @@ func (v *Validator) validateManyToOneCardinality(ctx context.Context, relation *
 				WithDetail("relation_type", relation.RelationType)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -560,12 +560,12 @@ func (v *Validator) validatePropertyDefinition(propName string, propDef models.P
 	if !isValidType {
 		return fmt.Errorf("invalid property type '%s' for property '%s'", propDef.Type, propName)
 	}
-	
+
 	// Validate vector dimension
 	if propDef.Type == "vector" && propDef.VectorDim <= 0 {
 		return fmt.Errorf("vector property '%s' must have a positive dimension", propName)
 	}
-	
+
 	// Validate array element type
 	if propDef.Type == "array" && propDef.ElementType != "" {
 		elementPropDef := models.PropertyDefinition{Type: propDef.ElementType}
@@ -573,7 +573,7 @@ func (v *Validator) validatePropertyDefinition(propName string, propDef models.P
 			return err
 		}
 	}
-	
+
 	// Validate nested object schema
 	if propDef.Type == "object" && propDef.ObjectSchema != nil {
 		for nestedPropName, nestedPropDef := range propDef.ObjectSchema {
@@ -582,7 +582,7 @@ func (v *Validator) validatePropertyDefinition(propName string, propDef models.P
 			}
 		}
 	}
-	
+
 	return nil
 }
 
@@ -600,26 +600,26 @@ func (v *Validator) validateIndexConfig(index models.IndexConfig, properties mod
 	if !isValidType {
 		return fmt.Errorf("invalid index type '%s' for index '%s'", index.Type, index.Name)
 	}
-	
+
 	// Validate that indexed fields exist in schema
 	for _, field := range index.Fields {
 		if _, exists := properties[field]; !exists {
 			return fmt.Errorf("indexed field '%s' does not exist in schema", field)
 		}
 	}
-	
+
 	// Validate vector index configuration
 	if index.Type == "vector" {
 		if len(index.Fields) != 1 {
 			return fmt.Errorf("vector index '%s' must index exactly one field", index.Name)
 		}
-		
+
 		field := index.Fields[0]
 		propDef := properties[field]
 		if propDef.Type != "vector" {
 			return fmt.Errorf("vector index '%s' can only be applied to vector properties", index.Name)
 		}
-		
+
 		validVectorTypes := []string{"cosine", "l2", "ip"}
 		if index.VectorType != "" {
 			isValidVectorType := false
@@ -634,7 +634,7 @@ func (v *Validator) validateIndexConfig(index models.IndexConfig, properties mod
 			}
 		}
 	}
-	
+
 	return nil
 }
 

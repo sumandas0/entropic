@@ -425,15 +425,3 @@ func BenchmarkRealisticLoad(b *testing.B) {
 		}
 	})
 }
-
-// Helper to measure throughput
-func measureThroughput(b *testing.B, operation func()) {
-	start := time.Now()
-	for i := 0; i < b.N; i++ {
-		operation()
-	}
-	duration := time.Since(start)
-
-	opsPerSecond := float64(b.N) / duration.Seconds()
-	b.ReportMetric(opsPerSecond, "ops/sec")
-}

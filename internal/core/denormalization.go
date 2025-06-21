@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/sumandas0/entropic/internal/cache"
 	"github.com/sumandas0/entropic/internal/models"
 	"github.com/sumandas0/entropic/internal/store"
-	"github.com/google/uuid"
 )
 
 // DenormalizationManager handles denormalization of relationship data into entities
@@ -32,25 +32,25 @@ func (dm *DenormalizationManager) HandleRelationCreation(ctx context.Context, re
 		// If schema doesn't exist or doesn't require denormalization, skip
 		return nil
 	}
-	
+
 	if !schema.DenormalizationConfig.UpdateOnChange {
 		return nil // Denormalization is disabled
 	}
-	
+
 	// Denormalize from 'to' entity to 'from' entity
 	if len(schema.DenormalizationConfig.DenormalizeToFrom) > 0 {
 		if err := dm.denormalizeToFrom(ctx, relation, schema); err != nil {
 			return fmt.Errorf("failed to denormalize to->from: %w", err)
 		}
 	}
-	
+
 	// Denormalize from 'from' entity to 'to' entity
 	if len(schema.DenormalizationConfig.DenormalizeFromTo) > 0 {
 		if err := dm.denormalizeFromTo(ctx, relation, schema); err != nil {
 			return fmt.Errorf("failed to denormalize from->to: %w", err)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -62,24 +62,24 @@ func (dm *DenormalizationManager) HandleRelationDeletion(ctx context.Context, re
 		// If schema doesn't exist, skip cleanup
 		return nil
 	}
-	
+
 	if !schema.DenormalizationConfig.UpdateOnChange {
 		return nil // Denormalization is disabled
 	}
-	
+
 	// Clean up denormalized data
 	if len(schema.DenormalizationConfig.DenormalizeToFrom) > 0 {
 		if err := dm.cleanupDenormalizedData(ctx, relation.FromEntityType, relation.FromEntityID, schema.DenormalizationConfig.DenormalizeToFrom); err != nil {
 			return fmt.Errorf("failed to cleanup denormalized data in from entity: %w", err)
 		}
 	}
-	
+
 	if len(schema.DenormalizationConfig.DenormalizeFromTo) > 0 {
 		if err := dm.cleanupDenormalizedData(ctx, relation.ToEntityType, relation.ToEntityID, schema.DenormalizationConfig.DenormalizeFromTo); err != nil {
 			return fmt.Errorf("failed to cleanup denormalized data in to entity: %w", err)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -90,7 +90,7 @@ func (dm *DenormalizationManager) UpdateDenormalizedData(ctx context.Context, en
 	if err != nil {
 		return fmt.Errorf("failed to get relations for entity: %w", err)
 	}
-	
+
 	// Update denormalized data for each relation
 	for _, relation := range relations {
 		if err := dm.updateRelationDenormalization(ctx, relation, entity); err != nil {
@@ -98,7 +98,7 @@ func (dm *DenormalizationManager) UpdateDenormalizedData(ctx context.Context, en
 			fmt.Printf("Warning: failed to update denormalization for relation %s: %v\n", relation.ID, err)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -109,13 +109,13 @@ func (dm *DenormalizationManager) denormalizeToFrom(ctx context.Context, relatio
 	if err != nil {
 		return fmt.Errorf("failed to get to entity: %w", err)
 	}
-	
+
 	// Get the 'from' entity
 	fromEntity, err := dm.primaryStore.GetEntity(ctx, relation.FromEntityType, relation.FromEntityID)
 	if err != nil {
 		return fmt.Errorf("failed to get from entity: %w", err)
 	}
-	
+
 	// Copy specified properties
 	updated := false
 	for _, propName := range schema.DenormalizationConfig.DenormalizeToFrom {
@@ -125,19 +125,19 @@ func (dm *DenormalizationManager) denormalizeToFrom(ctx context.Context, relatio
 			updated = true
 		}
 	}
-	
+
 	// Include relation data if configured
 	if schema.DenormalizationConfig.IncludeRelationData && relation.Properties != nil {
 		relationKey := dm.buildRelationDataKey(relation.RelationType)
 		fromEntity.Properties[relationKey] = relation.Properties
 		updated = true
 	}
-	
+
 	// Update the entity if changes were made
 	if updated {
 		return dm.primaryStore.UpdateEntity(ctx, fromEntity)
 	}
-	
+
 	return nil
 }
 
@@ -148,13 +148,13 @@ func (dm *DenormalizationManager) denormalizeFromTo(ctx context.Context, relatio
 	if err != nil {
 		return fmt.Errorf("failed to get from entity: %w", err)
 	}
-	
+
 	// Get the 'to' entity
 	toEntity, err := dm.primaryStore.GetEntity(ctx, relation.ToEntityType, relation.ToEntityID)
 	if err != nil {
 		return fmt.Errorf("failed to get to entity: %w", err)
 	}
-	
+
 	// Copy specified properties
 	updated := false
 	for _, propName := range schema.DenormalizationConfig.DenormalizeFromTo {
@@ -164,19 +164,19 @@ func (dm *DenormalizationManager) denormalizeFromTo(ctx context.Context, relatio
 			updated = true
 		}
 	}
-	
+
 	// Include relation data if configured
 	if schema.DenormalizationConfig.IncludeRelationData && relation.Properties != nil {
 		relationKey := dm.buildRelationDataKey(relation.RelationType)
 		toEntity.Properties[relationKey] = relation.Properties
 		updated = true
 	}
-	
+
 	// Update the entity if changes were made
 	if updated {
 		return dm.primaryStore.UpdateEntity(ctx, toEntity)
 	}
-	
+
 	return nil
 }
 
@@ -187,24 +187,25 @@ func (dm *DenormalizationManager) updateRelationDenormalization(ctx context.Cont
 	if err != nil {
 		return nil // Skip if schema doesn't exist
 	}
-	
+
 	if !schema.DenormalizationConfig.UpdateOnChange {
 		return nil // Denormalization is disabled
 	}
-	
+
 	// Determine which direction to update based on which entity changed
-	if changedEntity.ID == relation.FromEntityID {
+	switch changedEntity.ID {
+	case relation.FromEntityID:
 		// From entity changed, update denormalized data in to entity
 		if len(schema.DenormalizationConfig.DenormalizeFromTo) > 0 {
 			return dm.updateDenormalizedDataInTarget(ctx, relation.ToEntityType, relation.ToEntityID, changedEntity, relation.RelationType, schema.DenormalizationConfig.DenormalizeFromTo)
 		}
-	} else if changedEntity.ID == relation.ToEntityID {
+	case relation.ToEntityID:
 		// To entity changed, update denormalized data in from entity
 		if len(schema.DenormalizationConfig.DenormalizeToFrom) > 0 {
 			return dm.updateDenormalizedDataInTarget(ctx, relation.FromEntityType, relation.FromEntityID, changedEntity, relation.RelationType, schema.DenormalizationConfig.DenormalizeToFrom)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -215,7 +216,7 @@ func (dm *DenormalizationManager) updateDenormalizedDataInTarget(ctx context.Con
 	if err != nil {
 		return fmt.Errorf("failed to get target entity: %w", err)
 	}
-	
+
 	// Update denormalized properties
 	updated := false
 	for _, propName := range propertiesToCopy {
@@ -231,12 +232,12 @@ func (dm *DenormalizationManager) updateDenormalizedDataInTarget(ctx context.Con
 			}
 		}
 	}
-	
+
 	// Update the target entity if changes were made
 	if updated {
 		return dm.primaryStore.UpdateEntity(ctx, targetEntity)
 	}
-	
+
 	return nil
 }
 
@@ -247,16 +248,16 @@ func (dm *DenormalizationManager) cleanupDenormalizedData(ctx context.Context, e
 	if err != nil {
 		return fmt.Errorf("failed to get entity for cleanup: %w", err)
 	}
-	
+
 	// Remove denormalized properties
 	updated := false
 	for _, propName := range propertiesToCleanup {
 		// Try different possible denormalization keys
 		keysToTry := []string{
 			dm.buildDenormalizationKey("", propName), // Generic key
-			propName, // Direct property name
+			propName,                                 // Direct property name
 		}
-		
+
 		for _, key := range keysToTry {
 			if _, exists := entity.Properties[key]; exists {
 				delete(entity.Properties, key)
@@ -264,12 +265,12 @@ func (dm *DenormalizationManager) cleanupDenormalizedData(ctx context.Context, e
 			}
 		}
 	}
-	
+
 	// Update the entity if changes were made
 	if updated {
 		return dm.primaryStore.UpdateEntity(ctx, entity)
 	}
-	
+
 	return nil
 }
 
@@ -293,13 +294,11 @@ func (dm *DenormalizationManager) RebuildDenormalization(ctx context.Context, re
 	if err != nil {
 		return fmt.Errorf("failed to get relationship schema: %w", err)
 	}
-	
+
 	if !schema.DenormalizationConfig.UpdateOnChange {
 		return nil // Denormalization is disabled
 	}
-	
-	// This would require implementing a way to iterate through all relations of a type
-	// For now, we'll return a placeholder error
+
 	return fmt.Errorf("rebuild denormalization not yet implemented - would require relation iteration support")
 }
 
@@ -310,11 +309,11 @@ func (dm *DenormalizationManager) ValidateDenormalization(ctx context.Context, r
 	if err != nil {
 		return fmt.Errorf("failed to get relationship schema: %w", err)
 	}
-	
+
 	if !schema.DenormalizationConfig.UpdateOnChange {
 		return nil // Denormalization is disabled
 	}
-	
+
 	// This would require implementing validation logic to check consistency
 	// For now, we'll return a placeholder error
 	return fmt.Errorf("validate denormalization not yet implemented - would require relation iteration support")
@@ -322,7 +321,7 @@ func (dm *DenormalizationManager) ValidateDenormalization(ctx context.Context, r
 
 // DenormalizationStats holds statistics about denormalization operations
 type DenormalizationStats struct {
-	TotalDenormalizations uint64
+	TotalDenormalizations  uint64
 	FailedDenormalizations uint64
 	AverageProcessingTime  float64
 }
