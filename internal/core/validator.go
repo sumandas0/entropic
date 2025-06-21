@@ -16,14 +16,12 @@ import (
 	"github.com/google/uuid"
 )
 
-// Validator provides schema-based validation for entities and relationships
 type Validator struct {
 	validate     *validator.Validate
 	cacheManager *cache.Manager
 	primaryStore store.PrimaryStore
 }
 
-// NewValidator creates a new validator instance
 func NewValidator(cacheManager *cache.Manager, primaryStore store.PrimaryStore) *Validator {
 	validate := validator.New()
 	
@@ -33,32 +31,26 @@ func NewValidator(cacheManager *cache.Manager, primaryStore store.PrimaryStore) 
 		primaryStore: primaryStore,
 	}
 	
-	// Register custom validation functions
 	v.registerCustomValidators()
 	
 	return v
 }
 
-// ValidateEntity validates an entity against its schema
 func (v *Validator) ValidateEntity(ctx context.Context, entity *models.Entity) error {
-	// Get entity schema
 	schema, err := v.cacheManager.GetEntitySchema(ctx, entity.EntityType)
 	if err != nil {
 		return utils.NewAppError(utils.CodeValidation, "entity schema not found", err).
 			WithDetail("entity_type", entity.EntityType)
 	}
 	
-	// Validate basic entity structure
 	if err := v.validate.Struct(entity); err != nil {
 		return utils.NewAppError(utils.CodeValidation, "entity structure validation failed", err)
 	}
 	
-	// Validate URN uniqueness
 	if err := v.validateURNUniqueness(ctx, entity); err != nil {
 		return err
 	}
 	
-	// Validate properties against schema
 	if err := v.validateProperties(entity.Properties, schema.Properties); err != nil {
 		return utils.NewAppError(utils.CodeValidation, "property validation failed", err).
 			WithDetail("entity_type", entity.EntityType)
@@ -67,21 +59,17 @@ func (v *Validator) ValidateEntity(ctx context.Context, entity *models.Entity) e
 	return nil
 }
 
-// ValidateRelation validates a relation against its schema
 func (v *Validator) ValidateRelation(ctx context.Context, relation *models.Relation) error {
-	// Get relationship schema
 	schema, err := v.cacheManager.GetRelationshipSchema(ctx, relation.RelationType)
 	if err != nil {
 		return utils.NewAppError(utils.CodeValidation, "relationship schema not found", err).
 			WithDetail("relation_type", relation.RelationType)
 	}
 	
-	// Validate basic relation structure
 	if err := v.validate.Struct(relation); err != nil {
 		return utils.NewAppError(utils.CodeValidation, "relation structure validation failed", err)
 	}
 	
-	// Validate entity types match schema
 	if relation.FromEntityType != schema.FromEntityType {
 		return utils.NewAppError(utils.CodeValidation, "from entity type mismatch", nil).
 			WithDetail("expected", schema.FromEntityType).
@@ -94,17 +82,14 @@ func (v *Validator) ValidateRelation(ctx context.Context, relation *models.Relat
 			WithDetail("actual", relation.ToEntityType)
 	}
 	
-	// Validate referenced entities exist
 	if err := v.validateEntityReferences(ctx, relation); err != nil {
 		return err
 	}
 	
-	// Validate cardinality constraints
 	if err := v.validateCardinality(ctx, relation, schema); err != nil {
 		return err
 	}
 	
-	// Validate relation properties against schema
 	if relation.Properties != nil && len(relation.Properties) > 0 {
 		if err := v.validateProperties(relation.Properties, schema.Properties); err != nil {
 			return utils.NewAppError(utils.CodeValidation, "relation property validation failed", err).
@@ -115,13 +100,11 @@ func (v *Validator) ValidateRelation(ctx context.Context, relation *models.Relat
 	return nil
 }
 
-// ValidateEntitySchema validates an entity schema
 func (v *Validator) ValidateEntitySchema(schema *models.EntitySchema) error {
 	if err := v.validate.Struct(schema); err != nil {
 		return utils.NewAppError(utils.CodeValidation, "entity schema structure validation failed", err)
 	}
 	
-	// Validate property definitions
 	for propName, propDef := range schema.Properties {
 		if err := v.validatePropertyDefinition(propName, propDef); err != nil {
 			return utils.NewAppError(utils.CodeValidation, "property definition validation failed", err).
@@ -129,7 +112,6 @@ func (v *Validator) ValidateEntitySchema(schema *models.EntitySchema) error {
 		}
 	}
 	
-	// Validate indexes
 	for _, index := range schema.Indexes {
 		if err := v.validateIndexConfig(index, schema.Properties); err != nil {
 			return utils.NewAppError(utils.CodeValidation, "index configuration validation failed", err).
@@ -140,13 +122,11 @@ func (v *Validator) ValidateEntitySchema(schema *models.EntitySchema) error {
 	return nil
 }
 
-// ValidateRelationshipSchema validates a relationship schema
 func (v *Validator) ValidateRelationshipSchema(schema *models.RelationshipSchema) error {
 	if err := v.validate.Struct(schema); err != nil {
 		return utils.NewAppError(utils.CodeValidation, "relationship schema structure validation failed", err)
 	}
 	
-	// Validate property definitions
 	for propName, propDef := range schema.Properties {
 		if err := v.validatePropertyDefinition(propName, propDef); err != nil {
 			return utils.NewAppError(utils.CodeValidation, "property definition validation failed", err).
@@ -157,7 +137,6 @@ func (v *Validator) ValidateRelationshipSchema(schema *models.RelationshipSchema
 	return nil
 }
 
-// validateURNUniqueness checks if the URN is unique
 func (v *Validator) validateURNUniqueness(ctx context.Context, entity *models.Entity) error {
 	exists, err := v.primaryStore.CheckURNExists(ctx, entity.URN)
 	if err != nil {
@@ -172,9 +151,7 @@ func (v *Validator) validateURNUniqueness(ctx context.Context, entity *models.En
 	return nil
 }
 
-// validateProperties validates properties against their schema definitions
 func (v *Validator) validateProperties(properties map[string]interface{}, schema models.PropertySchema) error {
-	// Check required properties
 	for propName, propDef := range schema {
 		if propDef.Required {
 			if _, exists := properties[propName]; !exists {
@@ -183,11 +160,9 @@ func (v *Validator) validateProperties(properties map[string]interface{}, schema
 		}
 	}
 	
-	// Validate each property
 	for propName, value := range properties {
 		propDef, exists := schema[propName]
 		if !exists {
-			// Allow extra properties by default - could be configurable
 			continue
 		}
 		
@@ -199,7 +174,6 @@ func (v *Validator) validateProperties(properties map[string]interface{}, schema
 	return nil
 }
 
-// validatePropertyValue validates a single property value
 func (v *Validator) validatePropertyValue(propName string, value interface{}, propDef models.PropertyDefinition) error {
 	if value == nil {
 		if propDef.Required {
@@ -208,12 +182,10 @@ func (v *Validator) validatePropertyValue(propName string, value interface{}, pr
 		return nil
 	}
 	
-	// Type validation
 	if err := v.validatePropertyType(propName, value, propDef); err != nil {
 		return err
 	}
 	
-	// Constraint validation
 	if err := v.validatePropertyConstraints(propName, value, propDef.Constraints); err != nil {
 		return err
 	}
@@ -221,7 +193,6 @@ func (v *Validator) validatePropertyValue(propName string, value interface{}, pr
 	return nil
 }
 
-// validatePropertyType validates the type of a property value
 func (v *Validator) validatePropertyType(propName string, value interface{}, propDef models.PropertyDefinition) error {
 	switch propDef.Type {
 	case "string":
@@ -244,7 +215,6 @@ func (v *Validator) validatePropertyType(propName string, value interface{}, pro
 		if reflect.TypeOf(value).Kind() != reflect.Map {
 			return fmt.Errorf("property '%s' must be an object", propName)
 		}
-		// Validate nested object if schema is provided
 		if propDef.ObjectSchema != nil {
 			if objMap, ok := value.(map[string]interface{}); ok {
 				return v.validateProperties(objMap, propDef.ObjectSchema)
@@ -282,20 +252,16 @@ func (v *Validator) validateArrayElements(propName string, value interface{}, el
 	return nil
 }
 
-// validateVectorProperty validates vector properties
 func (v *Validator) validateVectorProperty(propName string, value interface{}, expectedDim int) error {
-	// Check if it's a slice of numbers
 	arrayValue := reflect.ValueOf(value)
 	if arrayValue.Kind() != reflect.Slice {
 		return fmt.Errorf("property '%s' must be a vector (array of numbers)", propName)
 	}
 	
-	// Check dimensions
 	if expectedDim > 0 && arrayValue.Len() != expectedDim {
 		return fmt.Errorf("property '%s' must have %d dimensions, got %d", propName, expectedDim, arrayValue.Len())
 	}
 	
-	// Check that all elements are numbers
 	for i := 0; i < arrayValue.Len(); i++ {
 		element := arrayValue.Index(i).Interface()
 		if !isNumeric(element) {
@@ -306,7 +272,6 @@ func (v *Validator) validateVectorProperty(propName string, value interface{}, e
 	return nil
 }
 
-// validatePropertyConstraints validates property constraints
 func (v *Validator) validatePropertyConstraints(propName string, value interface{}, constraints map[string]interface{}) error {
 	if constraints == nil {
 		return nil
@@ -321,7 +286,6 @@ func (v *Validator) validatePropertyConstraints(propName string, value interface
 	return nil
 }
 
-// validateConstraint validates a specific constraint
 func (v *Validator) validateConstraint(propName string, value interface{}, constraintType string, constraintValue interface{}) error {
 	switch constraintType {
 	case "min":
@@ -353,10 +317,9 @@ func (v *Validator) validateConstraint(propName string, value interface{}, const
 	return nil
 }
 
-// validateMinConstraint validates minimum value constraint
 func (v *Validator) validateMinConstraint(propName string, value interface{}, minValue interface{}) error {
 	if !isNumeric(value) || !isNumeric(minValue) {
-		return nil // Only apply to numeric values
+		return nil
 	}
 	
 	val := toFloat64(value)
@@ -369,10 +332,9 @@ func (v *Validator) validateMinConstraint(propName string, value interface{}, mi
 	return nil
 }
 
-// validateMaxConstraint validates maximum value constraint
 func (v *Validator) validateMaxConstraint(propName string, value interface{}, maxValue interface{}) error {
 	if !isNumeric(value) || !isNumeric(maxValue) {
-		return nil // Only apply to numeric values
+		return nil
 	}
 	
 	val := toFloat64(value)
@@ -385,11 +347,10 @@ func (v *Validator) validateMaxConstraint(propName string, value interface{}, ma
 	return nil
 }
 
-// validateMinLengthConstraint validates minimum length constraint
 func (v *Validator) validateMinLengthConstraint(propName string, value interface{}, minLength interface{}) error {
 	length := getLength(value)
 	if length == -1 {
-		return nil // Only apply to strings and arrays
+		return nil
 	}
 	
 	min, ok := minLength.(int)
@@ -408,11 +369,10 @@ func (v *Validator) validateMinLengthConstraint(propName string, value interface
 	return nil
 }
 
-// validateMaxLengthConstraint validates maximum length constraint
 func (v *Validator) validateMaxLengthConstraint(propName string, value interface{}, maxLength interface{}) error {
 	length := getLength(value)
 	if length == -1 {
-		return nil // Only apply to strings and arrays
+		return nil
 	}
 	
 	max, ok := maxLength.(int)

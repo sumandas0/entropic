@@ -12,19 +12,16 @@ import (
 	"github.com/google/uuid"
 )
 
-// RelationHandler handles relation-related HTTP requests
 type RelationHandler struct {
 	engine *core.Engine
 }
 
-// NewRelationHandler creates a new relation handler
 func NewRelationHandler(engine *core.Engine) *RelationHandler {
 	return &RelationHandler{
 		engine: engine,
 	}
 }
 
-// RelationRequest represents the request body for creating relations
 type RelationRequest struct {
 	RelationType     string                 `json:"relation_type" validate:"required"`
 	FromEntityID     uuid.UUID              `json:"from_entity_id" validate:"required"`
@@ -34,7 +31,6 @@ type RelationRequest struct {
 	Properties       map[string]interface{} `json:"properties,omitempty"`
 }
 
-// RelationResponse represents the response body for relation operations
 type RelationResponse struct {
 	ID             uuid.UUID              `json:"id"`
 	RelationType   string                 `json:"relation_type"`
@@ -69,7 +65,6 @@ func (h *RelationHandler) CreateRelation(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Validate required fields
 	if req.RelationType == "" {
 		middleware.SendValidationError(w, r, "relation_type is required", nil)
 		return
@@ -83,7 +78,6 @@ func (h *RelationHandler) CreateRelation(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Create relation model
 	relation := models.NewRelation(
 		req.RelationType,
 		req.FromEntityID,
@@ -93,14 +87,12 @@ func (h *RelationHandler) CreateRelation(w http.ResponseWriter, r *http.Request)
 		req.Properties,
 	)
 
-	// Create relation through engine
 	if err := h.engine.CreateRelation(r.Context(), relation); err != nil {
 		statusCode := middleware.HTTPErrorFromAppError(err)
 		middleware.SendError(w, r, err, statusCode)
 		return
 	}
 
-	// Return created relation
 	response := relationToResponse(relation)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
@@ -170,7 +162,6 @@ func (h *RelationHandler) DeleteRelation(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// Helper function to convert relation to response
 func relationToResponse(relation *models.Relation) RelationResponse {
 	return RelationResponse{
 		ID:             relation.ID,

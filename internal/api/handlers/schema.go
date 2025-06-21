@@ -12,26 +12,22 @@ import (
 	"github.com/google/uuid"
 )
 
-// SchemaHandler handles schema-related HTTP requests
 type SchemaHandler struct {
 	engine *core.Engine
 }
 
-// NewSchemaHandler creates a new schema handler
 func NewSchemaHandler(engine *core.Engine) *SchemaHandler {
 	return &SchemaHandler{
 		engine: engine,
 	}
 }
 
-// EntitySchemaRequest represents the request body for creating/updating entity schemas
 type EntitySchemaRequest struct {
 	EntityType string                   `json:"entity_type" validate:"required"`
 	Properties models.PropertySchema    `json:"properties" validate:"required"`
 	Indexes    []models.IndexConfig     `json:"indexes,omitempty"`
 }
 
-// EntitySchemaResponse represents the response body for entity schema operations
 type EntitySchemaResponse struct {
 	ID         uuid.UUID                `json:"id"`
 	EntityType string                   `json:"entity_type"`
@@ -42,7 +38,6 @@ type EntitySchemaResponse struct {
 	Version    int                      `json:"version"`
 }
 
-// RelationshipSchemaRequest represents the request body for creating/updating relationship schemas
 type RelationshipSchemaRequest struct {
 	RelationshipType      string                        `json:"relationship_type" validate:"required"`
 	FromEntityType        string                        `json:"from_entity_type" validate:"required"`
@@ -52,7 +47,6 @@ type RelationshipSchemaRequest struct {
 	DenormalizationConfig models.DenormalizationConfig `json:"denormalization_config,omitempty"`
 }
 
-// RelationshipSchemaResponse represents the response body for relationship schema operations
 type RelationshipSchemaResponse struct {
 	ID                    uuid.UUID                     `json:"id"`
 	RelationshipType      string                        `json:"relationship_type"`
@@ -65,8 +59,6 @@ type RelationshipSchemaResponse struct {
 	UpdatedAt             time.Time                     `json:"updated_at"`
 	Version               int                           `json:"version"`
 }
-
-// Entity Schema Operations
 
 // CreateEntitySchema creates a new entity schema
 // @Summary Create entity schema
@@ -89,7 +81,6 @@ func (h *SchemaHandler) CreateEntitySchema(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Validate required fields
 	if req.EntityType == "" {
 		middleware.SendValidationError(w, r, "entity_type is required", nil)
 		return
@@ -99,20 +90,17 @@ func (h *SchemaHandler) CreateEntitySchema(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Create schema model
 	schema := models.NewEntitySchema(req.EntityType, req.Properties)
 	if req.Indexes != nil {
 		schema.Indexes = req.Indexes
 	}
 
-	// Create schema through engine
 	if err := h.engine.CreateEntitySchema(r.Context(), schema); err != nil {
 		statusCode := middleware.HTTPErrorFromAppError(err)
 		middleware.SendError(w, r, err, statusCode)
 		return
 	}
 
-	// Return created schema
 	response := h.entitySchemaToResponse(schema)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
@@ -177,7 +165,6 @@ func (h *SchemaHandler) UpdateEntitySchema(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Get existing schema first
 	schema, err := h.engine.GetEntitySchema(r.Context(), entityType)
 	if err != nil {
 		statusCode := middleware.HTTPErrorFromAppError(err)
@@ -185,20 +172,17 @@ func (h *SchemaHandler) UpdateEntitySchema(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Update schema fields
 	schema.Properties = req.Properties
 	if req.Indexes != nil {
 		schema.Indexes = req.Indexes
 	}
 
-	// Update schema through engine
 	if err := h.engine.UpdateEntitySchema(r.Context(), schema); err != nil {
 		statusCode := middleware.HTTPErrorFromAppError(err)
 		middleware.SendError(w, r, err, statusCode)
 		return
 	}
 
-	// Return updated schema
 	response := h.entitySchemaToResponse(schema)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -247,7 +231,6 @@ func (h *SchemaHandler) ListEntitySchemas(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Convert to response format
 	responses := make([]EntitySchemaResponse, len(schemas))
 	for i, schema := range schemas {
 		responses[i] = h.entitySchemaToResponse(schema)
@@ -257,8 +240,6 @@ func (h *SchemaHandler) ListEntitySchemas(w http.ResponseWriter, r *http.Request
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(responses)
 }
-
-// Relationship Schema Operations
 
 // CreateRelationshipSchema creates a new relationship schema
 // @Summary Create relationship schema
@@ -281,7 +262,6 @@ func (h *SchemaHandler) CreateRelationshipSchema(w http.ResponseWriter, r *http.
 		return
 	}
 
-	// Validate required fields
 	if req.RelationshipType == "" {
 		middleware.SendValidationError(w, r, "relationship_type is required", nil)
 		return
@@ -299,7 +279,6 @@ func (h *SchemaHandler) CreateRelationshipSchema(w http.ResponseWriter, r *http.
 		return
 	}
 
-	// Create schema model
 	schema := models.NewRelationshipSchema(
 		req.RelationshipType,
 		req.FromEntityType,
@@ -312,14 +291,12 @@ func (h *SchemaHandler) CreateRelationshipSchema(w http.ResponseWriter, r *http.
 	}
 	schema.DenormalizationConfig = req.DenormalizationConfig
 
-	// Create schema through engine
 	if err := h.engine.CreateRelationshipSchema(r.Context(), schema); err != nil {
 		statusCode := middleware.HTTPErrorFromAppError(err)
 		middleware.SendError(w, r, err, statusCode)
 		return
 	}
 
-	// Return created schema
 	response := h.relationshipSchemaToResponse(schema)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
@@ -384,7 +361,6 @@ func (h *SchemaHandler) UpdateRelationshipSchema(w http.ResponseWriter, r *http.
 		return
 	}
 
-	// Get existing schema first
 	schema, err := h.engine.GetRelationshipSchema(r.Context(), relationshipType)
 	if err != nil {
 		statusCode := middleware.HTTPErrorFromAppError(err)
@@ -392,7 +368,6 @@ func (h *SchemaHandler) UpdateRelationshipSchema(w http.ResponseWriter, r *http.
 		return
 	}
 
-	// Update schema fields
 	if req.Properties != nil {
 		schema.Properties = req.Properties
 	}
@@ -401,14 +376,12 @@ func (h *SchemaHandler) UpdateRelationshipSchema(w http.ResponseWriter, r *http.
 	}
 	schema.DenormalizationConfig = req.DenormalizationConfig
 
-	// Update schema through engine
 	if err := h.engine.UpdateRelationshipSchema(r.Context(), schema); err != nil {
 		statusCode := middleware.HTTPErrorFromAppError(err)
 		middleware.SendError(w, r, err, statusCode)
 		return
 	}
 
-	// Return updated schema
 	response := h.relationshipSchemaToResponse(schema)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -456,7 +429,6 @@ func (h *SchemaHandler) ListRelationshipSchemas(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	// Convert to response format
 	responses := make([]RelationshipSchemaResponse, len(schemas))
 	for i, schema := range schemas {
 		responses[i] = h.relationshipSchemaToResponse(schema)
@@ -466,8 +438,6 @@ func (h *SchemaHandler) ListRelationshipSchemas(w http.ResponseWriter, r *http.R
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(responses)
 }
-
-// Helper methods
 
 func (h *SchemaHandler) entitySchemaToResponse(schema *models.EntitySchema) EntitySchemaResponse {
 	return EntitySchemaResponse{

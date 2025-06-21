@@ -13,25 +13,21 @@ import (
 	"github.com/google/uuid"
 )
 
-// EntityHandler handles entity-related HTTP requests
 type EntityHandler struct {
 	engine *core.Engine
 }
 
-// NewEntityHandler creates a new entity handler
 func NewEntityHandler(engine *core.Engine) *EntityHandler {
 	return &EntityHandler{
 		engine: engine,
 	}
 }
 
-// EntityRequest represents the request body for creating/updating entities
 type EntityRequest struct {
 	URN        string                 `json:"urn" validate:"required"`
 	Properties map[string]interface{} `json:"properties" validate:"required"`
 }
 
-// EntityResponse represents the response body for entity operations
 type EntityResponse struct {
 	ID         uuid.UUID              `json:"id"`
 	EntityType string                 `json:"entity_type"`
@@ -42,7 +38,6 @@ type EntityResponse struct {
 	Version    int                    `json:"version"`
 }
 
-// EntityListResponse represents the response for listing entities
 type EntityListResponse struct {
 	Entities []EntityResponse `json:"entities"`
 	Total    int              `json:"total"`
@@ -78,17 +73,14 @@ func (h *EntityHandler) CreateEntity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Create entity model
 	entity := models.NewEntity(entityType, req.URN, req.Properties)
 
-	// Create entity through engine
 	if err := h.engine.CreateEntity(r.Context(), entity); err != nil {
 		statusCode := middleware.HTTPErrorFromAppError(err)
 		middleware.SendError(w, r, err, statusCode)
 		return
 	}
 
-	// Return created entity
 	response := h.entityToResponse(entity)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
@@ -166,7 +158,6 @@ func (h *EntityHandler) UpdateEntity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get existing entity first
 	entity, err := h.engine.GetEntity(r.Context(), entityType, entityID)
 	if err != nil {
 		statusCode := middleware.HTTPErrorFromAppError(err)
@@ -174,20 +165,17 @@ func (h *EntityHandler) UpdateEntity(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Update properties
 	entity.Properties = req.Properties
 	if req.URN != "" {
 		entity.URN = req.URN
 	}
 
-	// Update entity through engine
 	if err := h.engine.UpdateEntity(r.Context(), entity); err != nil {
 		statusCode := middleware.HTTPErrorFromAppError(err)
 		middleware.SendError(w, r, err, statusCode)
 		return
 	}
 
-	// Return updated entity
 	response := h.entityToResponse(entity)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -240,15 +228,14 @@ func (h *EntityHandler) DeleteEntity(w http.ResponseWriter, r *http.Request) {
 func (h *EntityHandler) ListEntities(w http.ResponseWriter, r *http.Request) {
 	entityType := chi.URLParam(r, "entityType")
 
-	// Parse query parameters
-	limit := 20 // default
+	limit := 20
 	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
 		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 100 {
 			limit = l
 		}
 	}
 
-	offset := 0 // default
+	offset := 0
 	if offsetStr := r.URL.Query().Get("offset"); offsetStr != "" {
 		if o, err := strconv.Atoi(offsetStr); err == nil && o >= 0 {
 			offset = o
@@ -262,7 +249,6 @@ func (h *EntityHandler) ListEntities(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Convert to response format
 	responses := make([]EntityResponse, len(entities))
 	for i, entity := range entities {
 		responses[i] = h.entityToResponse(entity)
@@ -270,7 +256,7 @@ func (h *EntityHandler) ListEntities(w http.ResponseWriter, r *http.Request) {
 
 	response := EntityListResponse{
 		Entities: responses,
-		Total:    len(responses), // This should be the total count from a separate query
+		Total:    len(responses), // TODO: should be total count from separate query
 		Limit:    limit,
 		Offset:   offset,
 	}
@@ -303,7 +289,6 @@ func (h *EntityHandler) GetEntityRelations(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Parse relation types filter
 	var relationTypes []string
 	if typesStr := r.URL.Query().Get("relation_types"); typesStr != "" {
 		relationTypes = parseCommaSeparated(typesStr)
@@ -347,13 +332,11 @@ func (h *EntityHandler) Search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate query
 	if len(query.EntityTypes) == 0 {
 		middleware.SendValidationError(w, r, "entity_types is required", nil)
 		return
 	}
 
-	// Set defaults
 	if query.Limit <= 0 || query.Limit > 1000 {
 		query.Limit = 20
 	}
@@ -393,7 +376,6 @@ func (h *EntityHandler) VectorSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate query
 	if len(query.EntityTypes) == 0 {
 		middleware.SendValidationError(w, r, "entity_types is required", nil)
 		return
@@ -407,7 +389,6 @@ func (h *EntityHandler) VectorSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Set defaults
 	if query.TopK <= 0 || query.TopK > 1000 {
 		query.TopK = 10
 	}
@@ -424,8 +405,6 @@ func (h *EntityHandler) VectorSearch(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(result)
 }
 
-// Helper methods
-
 func (h *EntityHandler) entityToResponse(entity *models.Entity) EntityResponse {
 	return EntityResponse{
 		ID:         entity.ID,
@@ -438,7 +417,6 @@ func (h *EntityHandler) entityToResponse(entity *models.Entity) EntityResponse {
 	}
 }
 
-// parseCommaSeparated parses a comma-separated string into a slice
 func parseCommaSeparated(s string) []string {
 	var result []string
 	if s == "" {
@@ -455,7 +433,6 @@ func parseCommaSeparated(s string) []string {
 	return result
 }
 
-// splitByComma splits a string by comma
 func splitByComma(s string) []string {
 	var result []string
 	var current string
@@ -476,17 +453,14 @@ func splitByComma(s string) []string {
 	return result
 }
 
-// trimSpace removes leading and trailing whitespace
 func trimSpace(s string) string {
 	start := 0
 	end := len(s)
 
-	// Trim leading spaces
 	for start < end && (s[start] == ' ' || s[start] == '\t' || s[start] == '\n') {
 		start++
 	}
 
-	// Trim trailing spaces
 	for end > start && (s[end-1] == ' ' || s[end-1] == '\t' || s[end-1] == '\n') {
 		end--
 	}
