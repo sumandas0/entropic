@@ -504,10 +504,6 @@ func (s *TypesenseStore) convertSearchResult(tsResult *api.SearchResult, query i
 			}
 		}
 
-		// Extract text match score if available
-		// TODO: Check the actual field name for text match score in the API
-		// For now, we'll use a default score
-
 		// Extract vector distance if available
 		if tsHit.VectorDistance != nil {
 			// Convert distance to similarity score (1 - distance for cosine similarity)

@@ -14,23 +14,23 @@ import (
 
 // RateLimitConfig holds configuration for rate limiting
 type RateLimitConfig struct {
-	Enabled       bool          `yaml:"enabled" mapstructure:"enabled"`
-	RequestsPerSecond float64   `yaml:"requests_per_second" mapstructure:"requests_per_second"`
-	BurstSize     int           `yaml:"burst_size" mapstructure:"burst_size"`
-	CleanupInterval time.Duration `yaml:"cleanup_interval" mapstructure:"cleanup_interval"`
-	
+	Enabled           bool          `yaml:"enabled" mapstructure:"enabled"`
+	RequestsPerSecond float64       `yaml:"requests_per_second" mapstructure:"requests_per_second"`
+	BurstSize         int           `yaml:"burst_size" mapstructure:"burst_size"`
+	CleanupInterval   time.Duration `yaml:"cleanup_interval" mapstructure:"cleanup_interval"`
+
 	// Different limits for different endpoints
 	EndpointLimits map[string]EndpointLimit `yaml:"endpoint_limits" mapstructure:"endpoint_limits"`
-	
+
 	// IP-based rate limiting
-	IPLimitEnabled bool    `yaml:"ip_limit_enabled" mapstructure:"ip_limit_enabled"`
+	IPLimitEnabled      bool    `yaml:"ip_limit_enabled" mapstructure:"ip_limit_enabled"`
 	IPRequestsPerSecond float64 `yaml:"ip_requests_per_second" mapstructure:"ip_requests_per_second"`
-	IPBurstSize   int     `yaml:"ip_burst_size" mapstructure:"ip_burst_size"`
-	
+	IPBurstSize         int     `yaml:"ip_burst_size" mapstructure:"ip_burst_size"`
+
 	// User-based rate limiting
-	UserLimitEnabled bool    `yaml:"user_limit_enabled" mapstructure:"user_limit_enabled"`
+	UserLimitEnabled      bool    `yaml:"user_limit_enabled" mapstructure:"user_limit_enabled"`
 	UserRequestsPerSecond float64 `yaml:"user_requests_per_second" mapstructure:"user_requests_per_second"`
-	UserBurstSize int       `yaml:"user_burst_size" mapstructure:"user_burst_size"`
+	UserBurstSize         int     `yaml:"user_burst_size" mapstructure:"user_burst_size"`
 }
 
 // EndpointLimit defines rate limits for specific endpoints
@@ -41,7 +41,7 @@ type EndpointLimit struct {
 
 // RateLimiter manages rate limiting for different scopes
 type RateLimiter struct {
-	config     RateLimitConfig
+	config        RateLimitConfig
 	globalLimiter *rate.Limiter
 	ipLimiters    map[string]*rateLimiterEntry
 	userLimiters  map[string]*rateLimiterEntry
@@ -112,7 +112,7 @@ func (rl *RateLimiter) AllowEndpoint(endpoint string) bool {
 	}
 
 	if endpointLimit, exists := rl.config.EndpointLimits[endpoint]; exists {
-		limiter := rl.getEndpointLimiter(endpoint, endpointLimit)
+		limiter := rl.getEndpointLimiter(endpointLimit)
 		return limiter.Allow()
 	}
 
@@ -166,7 +166,7 @@ func (rl *RateLimiter) getUserLimiter(userID string) *rate.Limiter {
 }
 
 // getEndpointLimiter returns a rate limiter for the given endpoint
-func (rl *RateLimiter) getEndpointLimiter(endpoint string, config EndpointLimit) *rate.Limiter {
+func (rl *RateLimiter) getEndpointLimiter(config EndpointLimit) *rate.Limiter {
 	// For endpoint limiters, we use a simple approach and create them on-demand
 	// In a production system, you might want to cache these as well
 	return rate.NewLimiter(
@@ -229,12 +229,12 @@ func (rl *RateLimiter) GetStats() map[string]interface{} {
 	defer rl.mutex.RUnlock()
 
 	return map[string]interface{}{
-		"enabled":            rl.config.Enabled,
-		"ip_limiters_count":  len(rl.ipLimiters),
+		"enabled":             rl.config.Enabled,
+		"ip_limiters_count":   len(rl.ipLimiters),
 		"user_limiters_count": len(rl.userLimiters),
 		"global_limit": map[string]interface{}{
 			"requests_per_second": rl.config.RequestsPerSecond,
-			"burst_size":         rl.config.BurstSize,
+			"burst_size":          rl.config.BurstSize,
 		},
 	}
 }
@@ -250,7 +250,7 @@ func (rl *RateLimiter) RateLimitMiddleware() func(next http.Handler) http.Handle
 
 			// Extract client IP
 			clientIP := getClientIP(r)
-			
+
 			// Extract user ID if available (from authentication middleware)
 			userID := getUserID(r)
 
@@ -292,7 +292,7 @@ func (rl *RateLimiter) sendRateLimitResponse(w http.ResponseWriter, message stri
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Retry-After", "60") // Suggest retry after 60 seconds
 	w.WriteHeader(http.StatusTooManyRequests)
-	
+
 	response := fmt.Sprintf(`{"error": "rate_limit_exceeded", "message": "%s"}`, message)
 	w.Write([]byte(response))
 }
@@ -354,14 +354,14 @@ func getUserID(r *http.Request) string {
 	if userID := r.Header.Get("X-User-ID"); userID != "" {
 		return userID
 	}
-	
+
 	// Check context for user information
 	if userID := r.Context().Value("user_id"); userID != nil {
 		if id, ok := userID.(string); ok {
 			return id
 		}
 	}
-	
+
 	return ""
 }
 
@@ -370,7 +370,7 @@ func getEndpointPattern(r *http.Request) string {
 	// Simple pattern matching - in production, you might want more sophisticated routing
 	path := r.URL.Path
 	method := r.Method
-	
+
 	// Normalize common patterns
 	// For example, /entities/123 becomes /entities/*
 	segments := strings.Split(path, "/")
@@ -379,7 +379,7 @@ func getEndpointPattern(r *http.Request) string {
 			segments[i] = "*"
 		}
 	}
-	
+
 	normalizedPath := strings.Join(segments, "/")
 	return fmt.Sprintf("%s %s", method, normalizedPath)
 }
@@ -419,7 +419,7 @@ func (arl *AdaptiveRateLimiter) Allow() bool {
 
 	load := arl.getCurrentLoad()
 	multiplier := arl.getLoadMultiplier(load)
-	
+
 	// Adjust rate limit based on load
 	if multiplier < 1.0 {
 		// Higher load = stricter limits
@@ -432,20 +432,20 @@ func (arl *AdaptiveRateLimiter) Allow() bool {
 		}
 		return true
 	}
-	
+
 	return arl.baseLimiter.Allow()
 }
 
 // getLoadMultiplier returns the rate multiplier based on current load
 func (arl *AdaptiveRateLimiter) getLoadMultiplier(load float64) float64 {
 	var multiplier float64 = 1.0
-	
+
 	for threshold, mult := range arl.loadThresholds {
 		if load >= threshold {
 			multiplier = mult
 		}
 	}
-	
+
 	return multiplier
 }
 
