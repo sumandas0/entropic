@@ -2,12 +2,10 @@ package testutils
 
 import (
 	"database/sql"
-	"fmt"
+	"net/http"
 	"testing"
-	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
-	"github.com/ory/dockertest/v3"
 )
 
 func TestSetupTestPostgres(t *testing.T) {
@@ -42,31 +40,43 @@ func TestSetupTestPostgres(t *testing.T) {
 }
 
 func TestSetupTestTypesense(t *testing.T) {
-	
-	pool, err := dockertest.NewPool("")
+	container, err := SetupTestTypesense()
 	if err != nil {
-		t.Fatalf("Could not construct pool: %v", err)
+		t.Fatalf("Failed to setup typesense: %v", err)
+	}
+	defer container.Cleanup()
+
+	// Test that the container was created with proper fields
+	if container.URL == "" {
+		t.Error("Typesense URL is empty")
+	}
+	if container.APIKey == "" {
+		t.Error("Typesense API key is empty")
+	}
+	if container.Pool == nil {
+		t.Error("Docker pool is nil")
+	}
+	if container.Resource == nil {
+		t.Error("Docker resource is nil")
 	}
 
-	apiKey := "test-api-key-12345"
-	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
-		Repository: "typesense/typesense",
-		Tag:        "28.0",
-		Env: []string{
-			"TYPESENSE_DATA_DIR=/data",
-			fmt.Sprintf("TYPESENSE_API_KEY=%s", apiKey),
-			"TYPESENSE_ENABLE_CORS=true",
-		},
-	})
+	// Test health check using raw HTTP
+	httpClient := &http.Client{}
+	req, err := http.NewRequest("GET", container.URL+"/health", nil)
 	if err != nil {
-		t.Fatalf("Could not start resource: %v", err)
+		t.Fatalf("Failed to create health request: %v", err)
 	}
-	defer pool.Purge(resource)
+	req.Header.Set("X-TYPESENSE-API-KEY", container.APIKey)
 
-	time.Sleep(5 * time.Second) 
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		t.Fatalf("Failed to check Typesense health: %v", err)
+	}
+	defer resp.Body.Close()
 
-	hostAndPort := resource.GetHostPort("8108/tcp")
-	url := fmt.Sprintf("http://%s", hostAndPort)
-	t.Logf("Typesense URL: %s", url)
-	t.Logf("Typesense API Key: %s", apiKey)
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", resp.StatusCode)
+	}
+
+	t.Logf("Typesense container started successfully at %s", container.URL)
 }
