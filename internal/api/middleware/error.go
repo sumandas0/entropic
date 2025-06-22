@@ -10,12 +10,10 @@ import (
 	"github.com/sumandas0/entropic/pkg/utils"
 )
 
-// ErrorResponse represents a standardized API error response
 type ErrorResponse struct {
 	Error ErrorDetail `json:"error"`
 }
 
-// ErrorDetail contains detailed error information
 type ErrorDetail struct {
 	Code      string                 `json:"code"`
 	Message   string                 `json:"message"`
@@ -24,7 +22,6 @@ type ErrorDetail struct {
 	RequestID string                 `json:"request_id,omitempty"`
 }
 
-// ErrorHandler returns an error handling middleware
 func ErrorHandler() func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -39,14 +36,12 @@ func ErrorHandler() func(next http.Handler) http.Handler {
 	}
 }
 
-// SendError sends a standardized error response
 func SendError(w http.ResponseWriter, r *http.Request, err error, statusCode int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 
 	var errorResponse ErrorResponse
-	
-	// Check if it's an AppError with structured information
+
 	if appErr, ok := err.(*utils.AppError); ok {
 		errorResponse = ErrorResponse{
 			Error: ErrorDetail{
@@ -58,7 +53,7 @@ func SendError(w http.ResponseWriter, r *http.Request, err error, statusCode int
 			},
 		}
 	} else {
-		// Generic error
+		
 		errorResponse = ErrorResponse{
 			Error: ErrorDetail{
 				Code:      "INTERNAL_ERROR",
@@ -72,7 +67,6 @@ func SendError(w http.ResponseWriter, r *http.Request, err error, statusCode int
 	json.NewEncoder(w).Encode(errorResponse)
 }
 
-// SendValidationError sends a validation error response
 func SendValidationError(w http.ResponseWriter, r *http.Request, message string, details map[string]interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusBadRequest)
@@ -90,7 +84,6 @@ func SendValidationError(w http.ResponseWriter, r *http.Request, message string,
 	json.NewEncoder(w).Encode(errorResponse)
 }
 
-// SendNotFoundError sends a not found error response
 func SendNotFoundError(w http.ResponseWriter, r *http.Request, resource string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusNotFound)
@@ -107,7 +100,6 @@ func SendNotFoundError(w http.ResponseWriter, r *http.Request, resource string) 
 	json.NewEncoder(w).Encode(errorResponse)
 }
 
-// SendConflictError sends a conflict error response
 func SendConflictError(w http.ResponseWriter, r *http.Request, message string, details map[string]interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusConflict)
@@ -125,7 +117,6 @@ func SendConflictError(w http.ResponseWriter, r *http.Request, message string, d
 	json.NewEncoder(w).Encode(errorResponse)
 }
 
-// SendInternalError sends an internal server error response
 func SendInternalError(w http.ResponseWriter, r *http.Request, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusInternalServerError)
@@ -142,9 +133,8 @@ func SendInternalError(w http.ResponseWriter, r *http.Request, message string) {
 	json.NewEncoder(w).Encode(errorResponse)
 }
 
-// handlePanic handles panic recovery
 func handlePanic(w http.ResponseWriter, r *http.Request, err interface{}) {
-	// Log the panic
+	
 	fmt.Printf("[ERROR] %s PANIC in %s %s: %v\nStack:\n%s\n",
 		time.Now().Format(time.RFC3339),
 		r.Method,
@@ -153,18 +143,15 @@ func handlePanic(w http.ResponseWriter, r *http.Request, err interface{}) {
 		debug.Stack(),
 	)
 
-	// Send error response
 	SendInternalError(w, r, "Internal server error")
 }
 
-// getRequestID extracts the request ID from context or headers
 func getRequestID(r *http.Request) string {
-	// Try to get from Chi middleware context
+	
 	if requestID := r.Header.Get("X-Request-ID"); requestID != "" {
 		return requestID
 	}
-	
-	// Try to get from context (Chi middleware sets this)
+
 	if requestID := r.Context().Value("RequestID"); requestID != nil {
 		if id, ok := requestID.(string); ok {
 			return id
@@ -174,7 +161,6 @@ func getRequestID(r *http.Request) string {
 	return ""
 }
 
-// HTTPErrorFromAppError converts an AppError to appropriate HTTP status code
 func HTTPErrorFromAppError(err error) int {
 	if appErr, ok := err.(*utils.AppError); ok {
 		switch appErr.Code {
@@ -198,8 +184,7 @@ func HTTPErrorFromAppError(err error) int {
 			return http.StatusInternalServerError
 		}
 	}
-	
-	// Check for common error types
+
 	if utils.IsNotFound(err) {
 		return http.StatusNotFound
 	}

@@ -19,7 +19,6 @@ func TestValidator_ValidateEntity(t *testing.T) {
 
 	validator := core.NewValidator(env.CacheManager.Manager, env.PrimaryStore)
 
-	// Create test schema
 	schema := testhelpers.CreateTestEntitySchema("user")
 	err := env.Engine.CreateEntitySchema(ctx, schema)
 	require.NoError(t, err)
@@ -55,7 +54,7 @@ func TestValidator_ValidateEntity(t *testing.T) {
 				EntityType: "user",
 				URN:        "test:user:invalid-type",
 				Properties: map[string]interface{}{
-					"name": 123, // Should be string
+					"name": 123, 
 				},
 			},
 			wantError: true,
@@ -69,7 +68,7 @@ func TestValidator_ValidateEntity(t *testing.T) {
 				URN:        "test:user:invalid-array",
 				Properties: map[string]interface{}{
 					"name": "Test User",
-					"tags": []interface{}{123, "string"}, // Should be all strings
+					"tags": []interface{}{123, "string"}, 
 				},
 			},
 			wantError: true,
@@ -83,7 +82,7 @@ func TestValidator_ValidateEntity(t *testing.T) {
 				URN:        "test:user:invalid-vector",
 				Properties: map[string]interface{}{
 					"name":      "Test User",
-					"embedding": []float32{1.0, 2.0}, // Should be 384 dimensions
+					"embedding": []float32{1.0, 2.0}, 
 				},
 			},
 			wantError: true,
@@ -111,7 +110,6 @@ func TestValidator_ValidateRelation(t *testing.T) {
 
 	validator := core.NewValidator(env.CacheManager.Manager, env.PrimaryStore)
 
-	// Create test schemas
 	userSchema := testhelpers.CreateTestEntitySchema("user")
 	err := env.Engine.CreateEntitySchema(ctx, userSchema)
 	require.NoError(t, err)
@@ -124,7 +122,6 @@ func TestValidator_ValidateRelation(t *testing.T) {
 	err = env.Engine.CreateRelationshipSchema(ctx, relationSchema)
 	require.NoError(t, err)
 
-	// Create test entities
 	user := testhelpers.CreateTestEntity("user", "test-user")
 	err = env.Engine.CreateEntity(ctx, user)
 	require.NoError(t, err)
@@ -164,7 +161,7 @@ func TestValidator_ValidateRelation(t *testing.T) {
 				ID:             uuid.New(),
 				RelationType:   "member_of",
 				FromEntityID:   user.ID,
-				FromEntityType: "organization", // Wrong type
+				FromEntityType: "organization", 
 				ToEntityID:     org.ID,
 				ToEntityType:   org.EntityType,
 				Properties:     map[string]interface{}{},
@@ -194,33 +191,28 @@ func TestValidator_ValidateURNUniqueness(t *testing.T) {
 
 	validator := core.NewValidator(env.CacheManager.Manager, env.PrimaryStore)
 
-	// Create test schema
 	schema := testhelpers.CreateTestEntitySchema("user")
 	err := env.Engine.CreateEntitySchema(ctx, schema)
 	require.NoError(t, err)
 
-	// Create first entity
 	entity1 := testhelpers.CreateTestEntity("user", "test-user")
 	entity1.URN = "test:user:unique-urn"
 	err = env.Engine.CreateEntity(ctx, entity1)
 	require.NoError(t, err)
 
-	// Test duplicate URN
 	entity2 := testhelpers.CreateTestEntity("user", "another-user")
-	entity2.URN = "test:user:unique-urn" // Same URN
+	entity2.URN = "test:user:unique-urn" 
 
 	err = validator.ValidateEntity(ctx, entity2)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "URN already exists")
 
-	// Test unique URN
 	entity3 := testhelpers.CreateTestEntity("user", "third-user")
 	entity3.URN = "test:user:different-urn"
 
 	err = validator.ValidateEntity(ctx, entity3)
 	assert.NoError(t, err)
 }
-
 
 func TestValidator_ValidateEntitySchema(t *testing.T) {
 	ctx := context.Background()
@@ -262,7 +254,7 @@ func TestValidator_ValidateEntitySchema(t *testing.T) {
 					"embedding": models.PropertyDefinition{
 						Type:     "vector",
 						Required: false,
-						// Missing VectorDim
+						
 					},
 				},
 			},
@@ -291,7 +283,6 @@ func BenchmarkValidator_ValidateEntity(b *testing.B) {
 
 	validator := core.NewValidator(env.CacheManager.Manager, env.PrimaryStore)
 
-	// Create test schema
 	schema := testhelpers.CreateTestEntitySchema("user")
 	env.Engine.CreateEntitySchema(ctx, schema)
 

@@ -17,7 +17,6 @@ func BenchmarkEntityCreation(b *testing.B) {
 	env := testhelpers.SetupTestEnvironment(&testing.T{}, ctx)
 	defer env.Cleanup(ctx)
 
-	// Setup schema
 	schema := testhelpers.CreateTestEntitySchema("user")
 	env.Engine.CreateEntitySchema(ctx, schema)
 
@@ -34,7 +33,6 @@ func BenchmarkEntityCreationConcurrent(b *testing.B) {
 	env := testhelpers.SetupTestEnvironment(&testing.T{}, ctx)
 	defer env.Cleanup(ctx)
 
-	// Setup schema
 	schema := testhelpers.CreateTestEntitySchema("user")
 	env.Engine.CreateEntitySchema(ctx, schema)
 
@@ -55,11 +53,9 @@ func BenchmarkEntityRetrieval(b *testing.B) {
 	env := testhelpers.SetupTestEnvironment(&testing.T{}, ctx)
 	defer env.Cleanup(ctx)
 
-	// Setup schema and entities
 	schema := testhelpers.CreateTestEntitySchema("user")
 	env.Engine.CreateEntitySchema(ctx, schema)
 
-	// Create test entities
 	entities := make([]*models.Entity, 100)
 	for i := 0; i < 100; i++ {
 		entity := testhelpers.CreateTestEntity("user", fmt.Sprintf("user-%d", i))
@@ -70,7 +66,7 @@ func BenchmarkEntityRetrieval(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		// Randomly select an entity to retrieve
+		
 		entity := entities[rand.Intn(len(entities))]
 		env.Engine.GetEntity(ctx, entity.EntityType, entity.ID)
 	}
@@ -81,7 +77,6 @@ func BenchmarkEntityUpdate(b *testing.B) {
 	env := testhelpers.SetupTestEnvironment(&testing.T{}, ctx)
 	defer env.Cleanup(ctx)
 
-	// Setup schema and entity
 	schema := testhelpers.CreateTestEntitySchema("user")
 	env.Engine.CreateEntitySchema(ctx, schema)
 
@@ -90,10 +85,9 @@ func BenchmarkEntityUpdate(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		// Get current entity
+		
 		current, _ := env.Engine.GetEntity(ctx, entity.EntityType, entity.ID)
 
-		// Update properties
 		updated := &models.Entity{
 			ID:         current.ID,
 			EntityType: current.EntityType,
@@ -118,11 +112,9 @@ func BenchmarkTextSearch(b *testing.B) {
 	env := testhelpers.SetupTestEnvironment(&testing.T{}, ctx)
 	defer env.Cleanup(ctx)
 
-	// Setup schema and entities
 	schema := testhelpers.CreateTestEntitySchema("document")
 	env.Engine.CreateEntitySchema(ctx, schema)
 
-	// Create test entities
 	searchTerms := []string{"technology", "science", "business", "health", "education"}
 	for i := 0; i < 100; i++ {
 		term := searchTerms[i%len(searchTerms)]
@@ -132,7 +124,6 @@ func BenchmarkTextSearch(b *testing.B) {
 		env.Engine.CreateEntity(ctx, entity)
 	}
 
-	// Wait for indexing
 	time.Sleep(2 * time.Second)
 
 	query := &models.SearchQuery{
@@ -152,11 +143,9 @@ func BenchmarkVectorSearch(b *testing.B) {
 	env := testhelpers.SetupTestEnvironment(&testing.T{}, ctx)
 	defer env.Cleanup(ctx)
 
-	// Setup schema and entities
 	schema := testhelpers.CreateTestEntitySchema("document")
 	env.Engine.CreateEntitySchema(ctx, schema)
 
-	// Create test entities with embeddings
 	for i := 0; i < 50; i++ {
 		embedding := testhelpers.GenerateTestEmbedding(384)
 		entity := testhelpers.CreateTestEntityWithEmbedding("document", fmt.Sprintf("doc-%d", i), embedding)
@@ -164,7 +153,6 @@ func BenchmarkVectorSearch(b *testing.B) {
 		env.Engine.CreateEntity(ctx, entity)
 	}
 
-	// Wait for indexing
 	time.Sleep(3 * time.Second)
 
 	queryEmbedding := testhelpers.GenerateTestEmbedding(384)
@@ -186,7 +174,6 @@ func BenchmarkRelationCreation(b *testing.B) {
 	env := testhelpers.SetupTestEnvironment(&testing.T{}, ctx)
 	defer env.Cleanup(ctx)
 
-	// Setup schemas
 	userSchema := testhelpers.CreateTestEntitySchema("user")
 	env.Engine.CreateEntitySchema(ctx, userSchema)
 
@@ -196,7 +183,6 @@ func BenchmarkRelationCreation(b *testing.B) {
 	relationSchema := testhelpers.CreateTestRelationshipSchema("member_of", "user", "organization")
 	env.Engine.CreateRelationshipSchema(ctx, relationSchema)
 
-	// Create entities
 	users := make([]*models.Entity, 10)
 	orgs := make([]*models.Entity, 5)
 
@@ -229,7 +215,6 @@ func BenchmarkCacheHitRate(b *testing.B) {
 	env := testhelpers.SetupTestEnvironment(&testing.T{}, ctx)
 	defer env.Cleanup(ctx)
 
-	// Setup schemas
 	schemas := make([]string, 10)
 	for i := 0; i < 10; i++ {
 		entityType := fmt.Sprintf("type-%d", i)
@@ -240,7 +225,7 @@ func BenchmarkCacheHitRate(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		// Randomly access schemas to test cache performance
+		
 		entityType := schemas[rand.Intn(len(schemas))]
 		env.CacheManager.GetEntitySchema(ctx, entityType)
 	}
@@ -264,7 +249,7 @@ func BenchmarkLockContention(b *testing.B) {
 
 			err := env.LockManager.Lock(ctx, resource, 100*time.Millisecond)
 			if err == nil {
-				// Simulate some work
+				
 				time.Sleep(1 * time.Millisecond)
 				env.LockManager.Unlock(ctx, resource)
 			}
@@ -277,7 +262,6 @@ func BenchmarkTwoPhaseCommit(b *testing.B) {
 	env := testhelpers.SetupTestEnvironment(&testing.T{}, ctx)
 	defer env.Cleanup(ctx)
 
-	// Setup schema
 	schema := testhelpers.CreateTestEntitySchema("user")
 	env.Engine.CreateEntitySchema(ctx, schema)
 
@@ -286,7 +270,6 @@ func BenchmarkTwoPhaseCommit(b *testing.B) {
 		entity := testhelpers.CreateTestEntity("user", fmt.Sprintf("user-%d", i))
 		entity.URN = fmt.Sprintf("benchmark:2pc:user:%d", i)
 
-		// This tests the full two-phase commit flow
 		env.Engine.CreateEntity(ctx, entity)
 	}
 }
@@ -296,11 +279,9 @@ func BenchmarkHighVolumeOperations(b *testing.B) {
 	env := testhelpers.SetupTestEnvironment(&testing.T{}, ctx)
 	defer env.Cleanup(ctx)
 
-	// Setup schema
 	schema := testhelpers.CreateTestEntitySchema("event")
 	env.Engine.CreateEntitySchema(ctx, schema)
 
-	// Test high-volume concurrent operations
 	b.ResetTimer()
 
 	var wg sync.WaitGroup
@@ -332,17 +313,14 @@ func BenchmarkMemoryUsage(b *testing.B) {
 	env := testhelpers.SetupTestEnvironment(&testing.T{}, ctx)
 	defer env.Cleanup(ctx)
 
-	// Setup schema
 	schema := testhelpers.CreateTestEntitySchema("large_entity")
 	env.Engine.CreateEntitySchema(ctx, schema)
 
-	// Create entities with large property sets
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		entity := testhelpers.CreateTestEntity("large_entity", fmt.Sprintf("large-%d", i))
 		entity.URN = fmt.Sprintf("benchmark:memory:large:%d", i)
 
-		// Add large properties to test memory usage
 		largeData := make(map[string]interface{})
 		for j := 0; j < 100; j++ {
 			largeData[fmt.Sprintf("field_%d", j)] = fmt.Sprintf("value_%d_%s", j, testhelpers.RandomString(50))
@@ -353,13 +331,11 @@ func BenchmarkMemoryUsage(b *testing.B) {
 	}
 }
 
-// LoadTest simulates realistic load patterns
 func BenchmarkRealisticLoad(b *testing.B) {
 	ctx := context.Background()
 	env := testhelpers.SetupTestEnvironment(&testing.T{}, ctx)
 	defer env.Cleanup(ctx)
 
-	// Setup multiple schemas
 	userSchema := testhelpers.CreateTestEntitySchema("user")
 	env.Engine.CreateEntitySchema(ctx, userSchema)
 
@@ -369,7 +345,6 @@ func BenchmarkRealisticLoad(b *testing.B) {
 	orderSchema := testhelpers.CreateTestEntitySchema("order")
 	env.Engine.CreateEntitySchema(ctx, orderSchema)
 
-	// Pre-create some entities for read operations
 	for i := 0; i < 50; i++ {
 		user := testhelpers.CreateTestEntity("user", fmt.Sprintf("user-%d", i))
 		user.URN = fmt.Sprintf("load:user:%d", i)
@@ -380,7 +355,6 @@ func BenchmarkRealisticLoad(b *testing.B) {
 		env.Engine.CreateEntity(ctx, product)
 	}
 
-	// Wait for indexing
 	time.Sleep(2 * time.Second)
 
 	b.ResetTimer()
@@ -390,7 +364,7 @@ func BenchmarkRealisticLoad(b *testing.B) {
 			operation := operationCount % 10
 
 			switch operation {
-			case 0, 1, 2: // 30% reads
+			case 0, 1, 2: 
 				entityTypes := []string{"user", "product"}
 				query := &models.SearchQuery{
 					EntityTypes: entityTypes,
@@ -399,22 +373,22 @@ func BenchmarkRealisticLoad(b *testing.B) {
 				}
 				env.Engine.Search(ctx, query)
 
-			case 3, 4: // 20% writes
+			case 3, 4: 
 				entity := testhelpers.CreateTestEntity("order", fmt.Sprintf("order-%d", operationCount))
 				entity.URN = fmt.Sprintf("load:order:%d:%d", time.Now().UnixNano(), operationCount)
 				env.Engine.CreateEntity(ctx, entity)
 
-			case 5: // 10% updates
-				// Update existing entity (simplified)
+			case 5: 
+				
 				entity := testhelpers.CreateTestEntity("user", fmt.Sprintf("updated-user-%d", operationCount))
 				entity.URN = fmt.Sprintf("load:user:update:%d", operationCount)
 				env.Engine.CreateEntity(ctx, entity)
 
-			case 6, 7: // 20% cache operations
+			case 6, 7: 
 				env.CacheManager.GetEntitySchema(ctx, "user")
 				env.CacheManager.GetEntitySchema(ctx, "product")
 
-			case 8, 9: // 20% vector operations (if supported)
+			case 8, 9: 
 				embedding := testhelpers.GenerateTestEmbedding(384)
 				entity := testhelpers.CreateTestEntityWithEmbedding("product", fmt.Sprintf("vector-product-%d", operationCount), embedding)
 				entity.URN = fmt.Sprintf("load:product:vector:%d", operationCount)

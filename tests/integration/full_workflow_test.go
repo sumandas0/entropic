@@ -17,23 +17,19 @@ func TestFullWorkflow_EntityLifecycle(t *testing.T) {
 	env := testhelpers.SetupTestEnvironment(t, ctx)
 	defer env.Cleanup(ctx)
 
-	// Step 1: Create entity schema
 	schema := testhelpers.CreateTestEntitySchema("user")
 	err := env.Engine.CreateEntitySchema(ctx, schema)
 	require.NoError(t, err, "Failed to create entity schema")
 
-	// Step 2: Create entity
 	entity := testhelpers.CreateTestEntity("user", "john-doe")
 	originalURN := entity.URN
 	err = env.Engine.CreateEntity(ctx, entity)
 	require.NoError(t, err, "Failed to create entity")
 
-	// Step 3: Verify entity exists in primary store
 	retrievedEntity, err := env.Engine.GetEntity(ctx, entity.EntityType, entity.ID)
 	require.NoError(t, err, "Failed to retrieve entity from primary store")
 	testhelpers.AssertEntityEqual(t, entity, retrievedEntity)
 
-	// Step 4: Wait for indexing and verify entity is searchable
 	testhelpers.WaitForIndexing(t, ctx, env.IndexStore, 3*time.Second)
 
 	searchQuery := &models.SearchQuery{
@@ -46,7 +42,6 @@ func TestFullWorkflow_EntityLifecycle(t *testing.T) {
 	require.NoError(t, err, "Failed to search entities")
 	assert.Greater(t, len(searchResults.Hits), 0, "Entity should be found in search")
 
-	// Verify the searched entity matches
 	found := false
 	for _, result := range searchResults.Hits {
 		if result.ID == entity.ID {
@@ -57,7 +52,6 @@ func TestFullWorkflow_EntityLifecycle(t *testing.T) {
 	}
 	assert.True(t, found, "Created entity should be found in search results")
 
-	// Step 5: Update entity
 	updatedProperties := map[string]interface{}{
 		"name":        "john-doe-updated",
 		"description": "Updated user description",
@@ -79,13 +73,11 @@ func TestFullWorkflow_EntityLifecycle(t *testing.T) {
 	err = env.Engine.UpdateEntity(ctx, updatedEntity)
 	require.NoError(t, err, "Failed to update entity")
 
-	// Step 6: Verify update in primary store
 	retrievedUpdated, err := env.Engine.GetEntity(ctx, entity.EntityType, entity.ID)
 	require.NoError(t, err, "Failed to retrieve updated entity")
 	assert.Equal(t, "john-doe-updated", retrievedUpdated.Properties["name"])
 	assert.Greater(t, retrievedUpdated.Version, retrievedEntity.Version)
 
-	// Step 7: Verify update is searchable
 	testhelpers.WaitForIndexing(t, ctx, env.IndexStore, 3*time.Second)
 
 	searchQueryUpdated := &models.SearchQuery{
@@ -98,16 +90,13 @@ func TestFullWorkflow_EntityLifecycle(t *testing.T) {
 	require.NoError(t, err, "Failed to search updated entities")
 	assert.Greater(t, len(searchResultsUpdated.Hits), 0, "Updated entity should be found in search")
 
-	// Step 8: Delete entity
 	err = env.Engine.DeleteEntity(ctx, entity.EntityType, entity.ID)
 	require.NoError(t, err, "Failed to delete entity")
 
-	// Step 9: Verify entity is deleted from primary store
 	_, err = env.Engine.GetEntity(ctx, entity.EntityType, entity.ID)
 	assert.Error(t, err, "Deleted entity should not exist in primary store")
 	assert.Contains(t, err.Error(), "not found")
 
-	// Step 10: Verify entity is removed from search index
 	testhelpers.WaitForIndexing(t, ctx, env.IndexStore, 3*time.Second)
 
 	searchQueryDeleted := &models.SearchQuery{
@@ -118,8 +107,7 @@ func TestFullWorkflow_EntityLifecycle(t *testing.T) {
 
 	searchResultsDeleted, err := env.Engine.Search(ctx, searchQueryDeleted)
 	require.NoError(t, err, "Search should succeed even if no results")
-	
-	// Entity should not be found in search results
+
 	foundDeleted := false
 	for _, result := range searchResultsDeleted.Hits {
 		if result.ID == entity.ID {
@@ -135,7 +123,6 @@ func TestFullWorkflow_RelationshipLifecycle(t *testing.T) {
 	env := testhelpers.SetupTestEnvironment(t, ctx)
 	defer env.Cleanup(ctx)
 
-	// Step 1: Create entity schemas
 	userSchema := testhelpers.CreateTestEntitySchema("user")
 	err := env.Engine.CreateEntitySchema(ctx, userSchema)
 	require.NoError(t, err)
@@ -144,12 +131,10 @@ func TestFullWorkflow_RelationshipLifecycle(t *testing.T) {
 	err = env.Engine.CreateEntitySchema(ctx, orgSchema)
 	require.NoError(t, err)
 
-	// Step 2: Create relationship schema
 	relationSchema := testhelpers.CreateTestRelationshipSchema("member_of", "user", "organization")
 	err = env.Engine.CreateRelationshipSchema(ctx, relationSchema)
 	require.NoError(t, err)
 
-	// Step 3: Create entities
 	user := testhelpers.CreateTestEntity("user", "john-doe")
 	err = env.Engine.CreateEntity(ctx, user)
 	require.NoError(t, err)
@@ -158,27 +143,22 @@ func TestFullWorkflow_RelationshipLifecycle(t *testing.T) {
 	err = env.Engine.CreateEntity(ctx, org)
 	require.NoError(t, err)
 
-	// Step 4: Create relationship
 	relation := testhelpers.CreateTestRelation("member_of", user, org)
 	err = env.Engine.CreateRelation(ctx, relation)
 	require.NoError(t, err)
 
-	// Step 5: Verify relationship exists
 	retrievedRelation, err := env.Engine.GetRelation(ctx, relation.ID)
 	require.NoError(t, err)
 	testhelpers.AssertRelationEqual(t, relation, retrievedRelation)
 
-	// Step 6: Verify denormalization (if configured)
 	if relationSchema.DenormalizationConfig.DenormalizeToFrom != nil {
-		// Check if denormalized data is present in the "to" entity
+		
 		retrievedOrg, err := env.Engine.GetEntity(ctx, org.EntityType, org.ID)
 		require.NoError(t, err)
-		
-		// Verify denormalized fields are present
+
 		assert.NotNil(t, retrievedOrg.Properties, "Organization should have denormalized properties")
 	}
 
-	// Step 7: Query relationships
 	userRelations, err := env.Engine.GetRelationsByEntity(ctx, user.ID, nil)
 	require.NoError(t, err)
 	assert.Greater(t, len(userRelations), 0, "User should have relations")
@@ -192,21 +172,17 @@ func TestFullWorkflow_RelationshipLifecycle(t *testing.T) {
 	}
 	assert.True(t, foundRelation, "Created relation should be found in user relations")
 
-	// Step 8: Delete relationship
 	err = env.Engine.DeleteRelation(ctx, relation.ID)
 	require.NoError(t, err)
 
-	// Step 9: Verify relationship is deleted
 	_, err = env.Engine.GetRelation(ctx, relation.ID)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
 
-	// Step 10: Verify denormalized data is cleaned up
 	if relationSchema.DenormalizationConfig.UpdateOnChange {
 		retrievedOrgAfterDelete, err := env.Engine.GetEntity(ctx, org.EntityType, org.ID)
 		require.NoError(t, err)
-		
-		// Denormalized data should be removed or updated
+
 		assert.NotNil(t, retrievedOrgAfterDelete.Properties)
 	}
 }
@@ -216,12 +192,10 @@ func TestFullWorkflow_VectorSearchLifecycle(t *testing.T) {
 	env := testhelpers.SetupTestEnvironment(t, ctx)
 	defer env.Cleanup(ctx)
 
-	// Step 1: Create entity schema with vector support
 	schema := testhelpers.CreateTestEntitySchema("document")
 	err := env.Engine.CreateEntitySchema(ctx, schema)
 	require.NoError(t, err)
 
-	// Step 2: Create entities with vector embeddings
 	embedding1 := testhelpers.GenerateTestEmbedding(384)
 	embedding2 := testhelpers.GenerateTestEmbedding(384)
 	embedding3 := testhelpers.GenerateTestEmbedding(384)
@@ -238,13 +212,11 @@ func TestFullWorkflow_VectorSearchLifecycle(t *testing.T) {
 	err = env.Engine.CreateEntity(ctx, doc3)
 	require.NoError(t, err)
 
-	// Step 3: Wait for indexing
 	testhelpers.WaitForIndexing(t, ctx, env.IndexStore, 3*time.Second)
 
-	// Step 4: Perform vector search
 	vectorQuery := &models.VectorQuery{
 		EntityTypes: []string{"document"},
-		Vector:      embedding1, // Search for similar to doc1
+		Vector:      embedding1, 
 		VectorField: "embedding",
 		TopK:        5,
 	}
@@ -253,12 +225,10 @@ func TestFullWorkflow_VectorSearchLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	assert.Greater(t, len(vectorResults.Hits), 0, "Vector search should return results")
 
-	// Step 5: Verify the exact match is first
 	if len(vectorResults.Hits) > 0 {
 		assert.Equal(t, doc1.ID, vectorResults.Hits[0].ID, "Exact match should be first result")
 	}
 
-	// Step 6: Update embedding and verify search updates
 	newEmbedding := testhelpers.GenerateTestEmbedding(384)
 	updatedDoc1 := &models.Entity{
 		ID:         doc1.ID,
@@ -275,10 +245,8 @@ func TestFullWorkflow_VectorSearchLifecycle(t *testing.T) {
 	err = env.Engine.UpdateEntity(ctx, updatedDoc1)
 	require.NoError(t, err)
 
-	// Wait for re-indexing
 	testhelpers.WaitForIndexing(t, ctx, env.IndexStore, 3*time.Second)
 
-	// Step 7: Search with new embedding should find updated document
 	newVectorQuery := &models.VectorQuery{
 		EntityTypes: []string{"document"},
 		Vector:      newEmbedding,
@@ -300,17 +268,14 @@ func TestFullWorkflow_ConcurrentOperations(t *testing.T) {
 	env := testhelpers.SetupTestEnvironment(t, ctx)
 	defer env.Cleanup(ctx)
 
-	// Create schema
 	schema := testhelpers.CreateTestEntitySchema("user")
 	err := env.Engine.CreateEntitySchema(ctx, schema)
 	require.NoError(t, err)
 
-	// Test concurrent entity creation
 	numEntities := 20
 	entityChan := make(chan *models.Entity, numEntities)
 	errorChan := make(chan error, numEntities)
 
-	// Create entities concurrently
 	for i := 0; i < numEntities; i++ {
 		go func(index int) {
 			entity := testhelpers.CreateTestEntity("user", testhelpers.RandomString(8))
@@ -325,7 +290,6 @@ func TestFullWorkflow_ConcurrentOperations(t *testing.T) {
 		}(i)
 	}
 
-	// Collect results
 	var entities []*models.Entity
 	var errors []error
 
@@ -340,14 +304,11 @@ func TestFullWorkflow_ConcurrentOperations(t *testing.T) {
 		}
 	}
 
-	// All operations should succeed
 	assert.Empty(t, errors, "No errors expected in concurrent operations")
 	assert.Equal(t, numEntities, len(entities), "All entities should be created")
 
-	// Wait for indexing
 	testhelpers.WaitForIndexing(t, ctx, env.IndexStore, 5*time.Second)
 
-	// Verify all entities are searchable
 	searchQuery := &models.SearchQuery{
 		EntityTypes: []string{"user"},
 		Query:       "*",
@@ -364,31 +325,26 @@ func TestFullWorkflow_TransactionRollback(t *testing.T) {
 	env := testhelpers.SetupTestEnvironment(t, ctx)
 	defer env.Cleanup(ctx)
 
-	// Create schema
 	schema := testhelpers.CreateTestEntitySchema("user")
 	err := env.Engine.CreateEntitySchema(ctx, schema)
 	require.NoError(t, err)
 
-	// Create entity with invalid properties to trigger rollback
 	invalidEntity := &models.Entity{
 		ID:         uuid.New(),
 		EntityType: "user",
 		URN:        "test:user:invalid",
 		Properties: map[string]interface{}{
-			"name": 123, // Invalid type - should be string
+			"name": 123, 
 		},
 	}
 
-	// This should fail and rollback
 	err = env.Engine.CreateEntity(ctx, invalidEntity)
 	assert.Error(t, err, "Invalid entity creation should fail")
 
-	// Verify entity was not created in primary store
 	_, err = env.Engine.GetEntity(ctx, invalidEntity.EntityType, invalidEntity.ID)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
 
-	// Wait and verify entity is not in search index
 	testhelpers.WaitForIndexing(t, ctx, env.IndexStore, 2*time.Second)
 
 	searchQuery := &models.SearchQuery{
@@ -399,8 +355,7 @@ func TestFullWorkflow_TransactionRollback(t *testing.T) {
 
 	searchResults, err := env.Engine.Search(ctx, searchQuery)
 	require.NoError(t, err)
-	
-	// Entity should not be found
+
 	foundInvalid := false
 	for _, result := range searchResults.Hits {
 		if result.ID == invalidEntity.ID {
@@ -416,17 +371,14 @@ func TestFullWorkflow_SchemaEvolution(t *testing.T) {
 	env := testhelpers.SetupTestEnvironment(t, ctx)
 	defer env.Cleanup(ctx)
 
-	// Step 1: Create initial schema
 	initialSchema := testhelpers.CreateTestEntitySchema("user")
 	err := env.Engine.CreateEntitySchema(ctx, initialSchema)
 	require.NoError(t, err)
 
-	// Step 2: Create entity with initial schema
 	entity := testhelpers.CreateTestEntity("user", "test-user")
 	err = env.Engine.CreateEntity(ctx, entity)
 	require.NoError(t, err)
 
-	// Step 3: Update schema with additional properties
 	updatedSchema := testhelpers.CreateTestEntitySchema("user")
 	updatedSchema.Properties["email"] = models.PropertyDefinition{
 		Type:     "string",
@@ -440,7 +392,6 @@ func TestFullWorkflow_SchemaEvolution(t *testing.T) {
 	err = env.Engine.UpdateEntitySchema(ctx, updatedSchema)
 	require.NoError(t, err)
 
-	// Step 4: Create entity with new schema properties
 	newEntity := &models.Entity{
 		ID:         uuid.New(),
 		EntityType: "user",
@@ -456,7 +407,6 @@ func TestFullWorkflow_SchemaEvolution(t *testing.T) {
 	err = env.Engine.CreateEntity(ctx, newEntity)
 	require.NoError(t, err)
 
-	// Step 5: Verify both old and new entities work
 	retrievedOld, err := env.Engine.GetEntity(ctx, entity.EntityType, entity.ID)
 	require.NoError(t, err)
 	assert.Equal(t, entity.Properties["name"], retrievedOld.Properties["name"])

@@ -14,19 +14,16 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// PostgresStore implements the PrimaryStore interface for PostgreSQL
 type PostgresStore struct {
 	pool *pgxpool.Pool
 }
 
-// NewPostgresStore creates a new PostgreSQL store
 func NewPostgresStore(connectionString string) (*PostgresStore, error) {
 	config, err := pgxpool.ParseConfig(connectionString)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse connection string: %w", err)
 	}
 
-	// Configure connection pool
 	config.MaxConns = 25
 	config.MinConns = 5
 	config.MaxConnLifetime = time.Hour
@@ -41,8 +38,6 @@ func NewPostgresStore(connectionString string) (*PostgresStore, error) {
 		pool: pool,
 	}, nil
 }
-
-// Entity operations
 
 func (s *PostgresStore) CreateEntity(ctx context.Context, entity *models.Entity) error {
 	propertiesJSON, err := json.Marshal(entity.Properties)
@@ -66,7 +61,7 @@ func (s *PostgresStore) CreateEntity(ctx context.Context, entity *models.Entity)
 	)
 
 	if err != nil {
-		// Check for unique constraint violation
+		
 		if isUniqueViolation(err) {
 			return utils.NewAppError(utils.CodeAlreadyExists, "entity with URN already exists", err).
 				WithDetail("urn", entity.URN)
@@ -227,8 +222,6 @@ func (s *PostgresStore) ListEntities(ctx context.Context, entityType string, lim
 	return entities, nil
 }
 
-// Relation operations
-
 func (s *PostgresStore) CreateRelation(ctx context.Context, relation *models.Relation) error {
 	propertiesJSON, err := json.Marshal(relation.Properties)
 	if err != nil {
@@ -376,8 +369,6 @@ func (s *PostgresStore) GetRelationsByEntity(ctx context.Context, entityID uuid.
 
 	return relations, nil
 }
-
-// Schema operations
 
 func (s *PostgresStore) CreateEntitySchema(ctx context.Context, schema *models.EntitySchema) error {
 	propertiesJSON, err := json.Marshal(schema.Properties)
@@ -558,8 +549,6 @@ func (s *PostgresStore) ListEntitySchemas(ctx context.Context) ([]*models.Entity
 
 	return schemas, nil
 }
-
-// Relationship schema operations
 
 func (s *PostgresStore) CreateRelationshipSchema(ctx context.Context, schema *models.RelationshipSchema) error {
 	propertiesJSON, err := json.Marshal(schema.Properties)
@@ -760,8 +749,6 @@ func (s *PostgresStore) ListRelationshipSchemas(ctx context.Context) ([]*models.
 	return schemas, nil
 }
 
-// Transaction support
-
 func (s *PostgresStore) BeginTx(ctx context.Context) (store.Transaction, error) {
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{
 		IsoLevel: pgx.Serializable,
@@ -773,13 +760,10 @@ func (s *PostgresStore) BeginTx(ctx context.Context) (store.Transaction, error) 
 	return &PostgresTx{tx: tx}, nil
 }
 
-// Health check and cleanup
-
 func (s *PostgresStore) Ping(ctx context.Context) error {
 	return s.pool.Ping(ctx)
 }
 
-// GetPool returns the connection pool for migrations
 func (s *PostgresStore) GetPool() *pgxpool.Pool {
 	return s.pool
 }
@@ -789,15 +773,12 @@ func (s *PostgresStore) Close() error {
 	return nil
 }
 
-// Helper functions
-
 func isUniqueViolation(err error) bool {
 	if err == nil {
 		return false
 	}
-	// PostgreSQL unique violation error code is 23505
+	
 	return err.Error() == "ERROR: duplicate key value violates unique constraint (SQLSTATE 23505)"
 }
 
-// Ensure PostgresStore implements PrimaryStore
 var _ store.PrimaryStore = (*PostgresStore)(nil)

@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 	"github.com/sumandas0/entropic/config"
 	"github.com/sumandas0/entropic/internal/cache"
 	"github.com/sumandas0/entropic/internal/core"
@@ -14,35 +16,29 @@ import (
 	postgresstore "github.com/sumandas0/entropic/internal/store/postgres"
 	"github.com/sumandas0/entropic/internal/store/testutils"
 	"github.com/sumandas0/entropic/internal/store/typesense"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/modules/redis"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-// TestContainers holds test container instances
 type TestContainers struct {
-	PostgresContainer *postgres.PostgresContainer
-	RedisContainer    *redis.RedisContainer
+	PostgresContainer  *postgres.PostgresContainer
+	RedisContainer     *redis.RedisContainer
 	TypesenseContainer testcontainers.Container
 }
 
-// TestEnvironment provides a complete test environment
 type TestEnvironment struct {
-	Containers    *TestContainers
-	Config        *config.Config
-	PrimaryStore  *postgresstore.PostgresStore
-	IndexStore    *typesense.TypesenseStore
-	CacheManager  *cache.CacheAwareManager
-	LockManager   *lock.LockManager
-	Engine        *core.Engine
+	Containers   *TestContainers
+	Config       *config.Config
+	PrimaryStore *postgresstore.PostgresStore
+	IndexStore   *typesense.TypesenseStore
+	CacheManager *cache.CacheAwareManager
+	LockManager  *lock.LockManager
+	Engine       *core.Engine
 }
 
-// SetupTestContainers creates and starts test containers
 func SetupTestContainers(t *testing.T, ctx context.Context) *TestContainers {
-	// Start PostgreSQL container
 	postgresContainer, err := postgres.Run(ctx,
 		"pgvector/pgvector:pg17",
 		postgres.WithDatabase("entropic_test"),
@@ -56,11 +52,9 @@ func SetupTestContainers(t *testing.T, ctx context.Context) *TestContainers {
 	)
 	require.NoError(t, err)
 
-	// Start Redis container
 	redisContainer, err := redis.Run(ctx, "redis:7-alpine")
 	require.NoError(t, err)
 
-	// Start Typesense container
 	typesenseReq := testcontainers.ContainerRequest{
 		Image:        "typesense/typesense:28.0",
 		ExposedPorts: []string{"8108/tcp"},
@@ -84,11 +78,9 @@ func SetupTestContainers(t *testing.T, ctx context.Context) *TestContainers {
 	}
 }
 
-// SetupTestEnvironment creates a complete test environment
 func SetupTestEnvironment(t *testing.T, ctx context.Context) *TestEnvironment {
 	containers := SetupTestContainers(t, ctx)
 
-	// Get connection strings
 	postgresConnStr, err := containers.PostgresContainer.ConnectionString(ctx, "sslmode=disable")
 	require.NoError(t, err)
 
@@ -103,10 +95,9 @@ func SetupTestEnvironment(t *testing.T, ctx context.Context) *TestEnvironment {
 
 	typesenseURL := fmt.Sprintf("http://%s:%s", typesenseHost, typesensePort.Port())
 
-	// Create test configuration
 	cfg := &config.Config{
 		Database: config.DatabaseConfig{
-			Host:     "localhost", // Will be overridden by connection string
+			Host:     "localhost",
 			Port:     5432,
 			Database: "entropic_test",
 			Username: "test",
@@ -120,7 +111,7 @@ func SetupTestEnvironment(t *testing.T, ctx context.Context) *TestEnvironment {
 		Lock: config.LockConfig{
 			Type: "redis",
 			Redis: config.RedisConfig{
-				Host: "localhost", // Will be overridden by connection string
+				Host: "localhost",
 				Port: 6379,
 			},
 		},
@@ -130,27 +121,21 @@ func SetupTestEnvironment(t *testing.T, ctx context.Context) *TestEnvironment {
 		},
 	}
 
-	// Initialize primary store
 	primaryStore, err := postgresstore.NewPostgresStore(postgresConnStr)
 	require.NoError(t, err)
 
-	// Run migrations
 	migrator := postgresstore.NewMigrator(primaryStore.GetPool())
 	err = migrator.Run(ctx)
 	require.NoError(t, err)
 
-	// Initialize index store
 	indexStore, err := typesense.NewTypesenseStore(typesenseURL, "test-key")
 	require.NoError(t, err)
 
-	// Initialize cache manager
 	cacheManager := cache.NewCacheAwareManager(primaryStore, cfg.Cache.TTL)
 
-	// Initialize lock manager
-	distributedLock := lock.NewInMemoryDistributedLock() // Use in-memory for tests
+	distributedLock := lock.NewInMemoryDistributedLock()
 	lockManager := lock.NewLockManager(distributedLock)
 
-	// Initialize engine
 	engine, err := core.NewEngine(primaryStore, indexStore, cacheManager, lockManager)
 	require.NoError(t, err)
 
@@ -165,7 +150,6 @@ func SetupTestEnvironment(t *testing.T, ctx context.Context) *TestEnvironment {
 	}
 }
 
-// Cleanup shuts down all test containers
 func (tc *TestContainers) Cleanup(ctx context.Context) error {
 	var errors []error
 
@@ -194,7 +178,6 @@ func (tc *TestContainers) Cleanup(ctx context.Context) error {
 	return nil
 }
 
-// Cleanup shuts down the test environment
 func (te *TestEnvironment) Cleanup(ctx context.Context) error {
 	var errors []error
 
@@ -215,7 +198,6 @@ func (te *TestEnvironment) Cleanup(ctx context.Context) error {
 	return nil
 }
 
-// CreateTestEntitySchema creates a test entity schema
 func CreateTestEntitySchema(entityType string) *models.EntitySchema {
 	properties := models.PropertySchema{
 		"name": models.PropertyDefinition{
@@ -245,7 +227,6 @@ func CreateTestEntitySchema(entityType string) *models.EntitySchema {
 	return models.NewEntitySchema(entityType, properties)
 }
 
-// CreateTestRelationshipSchema creates a test relationship schema
 func CreateTestRelationshipSchema(relationshipType, fromType, toType string) *models.RelationshipSchema {
 	properties := models.PropertySchema{
 		"weight": models.PropertyDefinition{
@@ -270,7 +251,6 @@ func CreateTestRelationshipSchema(relationshipType, fromType, toType string) *mo
 	return schema
 }
 
-// CreateTestEntity creates a test entity
 func CreateTestEntity(entityType, name string) *models.Entity {
 	properties := map[string]interface{}{
 		"name":        name,
@@ -286,14 +266,12 @@ func CreateTestEntity(entityType, name string) *models.Entity {
 	return models.NewEntity(entityType, urn, properties)
 }
 
-// CreateTestEntityWithEmbedding creates a test entity with vector embedding
 func CreateTestEntityWithEmbedding(entityType, name string, embedding []float32) *models.Entity {
 	entity := CreateTestEntity(entityType, name)
 	entity.Properties["embedding"] = embedding
 	return entity
 }
 
-// CreateTestRelation creates a test relation
 func CreateTestRelation(relationType string, from, to *models.Entity) *models.Relation {
 	properties := map[string]interface{}{
 		"weight": 1.0,
@@ -312,7 +290,6 @@ func CreateTestRelation(relationType string, from, to *models.Entity) *models.Re
 	)
 }
 
-// GenerateTestEmbedding generates a test vector embedding
 func GenerateTestEmbedding(dim int) []float32 {
 	embedding := make([]float32, dim)
 	for i := 0; i < dim; i++ {
@@ -321,7 +298,6 @@ func GenerateTestEmbedding(dim int) []float32 {
 	return embedding
 }
 
-// AssertEntityEqual asserts that two entities are equal
 func AssertEntityEqual(t *testing.T, expected, actual *models.Entity) {
 	require.Equal(t, expected.ID, actual.ID)
 	require.Equal(t, expected.EntityType, actual.EntityType)
@@ -330,7 +306,6 @@ func AssertEntityEqual(t *testing.T, expected, actual *models.Entity) {
 	require.Equal(t, expected.Version, actual.Version)
 }
 
-// AssertRelationEqual asserts that two relations are equal
 func AssertRelationEqual(t *testing.T, expected, actual *models.Relation) {
 	require.Equal(t, expected.ID, actual.ID)
 	require.Equal(t, expected.RelationType, actual.RelationType)
@@ -341,18 +316,15 @@ func AssertRelationEqual(t *testing.T, expected, actual *models.Relation) {
 	require.Equal(t, expected.Properties, actual.Properties)
 }
 
-// WaitForIndexing waits for entity to be indexed in search store
 func WaitForIndexing(t *testing.T, ctx context.Context, indexStore *typesense.TypesenseStore, timeout time.Duration) {
-	// Simple wait for indexing to complete
+
 	time.Sleep(100 * time.Millisecond)
 }
 
-// RandomString generates a random string for testing
 func RandomString(length int) string {
 	return fmt.Sprintf("test_%s", uuid.New().String()[:length])
 }
 
-// SetupPostgresWithDockertest creates a PostgreSQL test container using our dockertest utilities
 func SetupPostgresWithDockertest(t *testing.T) (string, func()) {
 	container, err := testutils.SetupTestPostgres()
 	require.NoError(t, err)
@@ -366,7 +338,6 @@ func SetupPostgresWithDockertest(t *testing.T) (string, func()) {
 	return container.URL, cleanup
 }
 
-// SetupTypesenseWithDockertest creates a Typesense test container using our dockertest utilities  
 func SetupTypesenseWithDockertest(t *testing.T) (string, string, func()) {
 	container, err := testutils.SetupTestTypesense()
 	require.NoError(t, err)

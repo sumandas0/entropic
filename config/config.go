@@ -8,7 +8,6 @@ import (
 	"github.com/spf13/viper"
 )
 
-// Config holds all configuration for the Entropic application
 type Config struct {
 	Server     ServerConfig     `mapstructure:"server"`
 	Database   DatabaseConfig   `mapstructure:"database"`
@@ -20,7 +19,6 @@ type Config struct {
 	Security   SecurityConfig   `mapstructure:"security"`
 }
 
-// ServerConfig holds server configuration
 type ServerConfig struct {
 	Host            string        `mapstructure:"host"`
 	Port            int           `mapstructure:"port"`
@@ -31,7 +29,6 @@ type ServerConfig struct {
 	CORS            CORSConfig    `mapstructure:"cors"`
 }
 
-// CORSConfig holds CORS configuration
 type CORSConfig struct {
 	AllowedOrigins   []string `mapstructure:"allowed_origins"`
 	AllowedMethods   []string `mapstructure:"allowed_methods"`
@@ -41,7 +38,6 @@ type CORSConfig struct {
 	MaxAge           int      `mapstructure:"max_age"`
 }
 
-// DatabaseConfig holds database configuration
 type DatabaseConfig struct {
 	Host            string        `mapstructure:"host"`
 	Port            int           `mapstructure:"port"`
@@ -56,9 +52,8 @@ type DatabaseConfig struct {
 	MigrateOnStart  bool          `mapstructure:"migrate_on_start"`
 }
 
-// SearchConfig holds search engine configuration
 type SearchConfig struct {
-	Type    string           `mapstructure:"type"` // "typesense"
+	Type    string           `mapstructure:"type"` 
 	URL     string           `mapstructure:"url"`
 	APIKey  string           `mapstructure:"api_key"`
 	Timeout time.Duration    `mapstructure:"timeout"`
@@ -66,7 +61,6 @@ type SearchConfig struct {
 	Batch   BatchConfig      `mapstructure:"batch"`
 }
 
-// RetryConfig holds retry configuration
 type RetryConfig struct {
 	MaxRetries    int           `mapstructure:"max_retries"`
 	InitialDelay  time.Duration `mapstructure:"initial_delay"`
@@ -74,28 +68,24 @@ type RetryConfig struct {
 	Multiplier    float64       `mapstructure:"multiplier"`
 }
 
-// BatchConfig holds batch processing configuration
 type BatchConfig struct {
 	Size          int           `mapstructure:"size"`
 	FlushInterval time.Duration `mapstructure:"flush_interval"`
 	Concurrency   int           `mapstructure:"concurrency"`
 }
 
-// CacheConfig holds cache configuration
 type CacheConfig struct {
 	TTL             time.Duration `mapstructure:"ttl"`
 	CleanupInterval time.Duration `mapstructure:"cleanup_interval"`
 }
 
-// LockConfig holds lock configuration
 type LockConfig struct {
-	Type           string        `mapstructure:"type"` // "memory", "redis"
+	Type           string        `mapstructure:"type"` 
 	DefaultTimeout time.Duration `mapstructure:"default_timeout"`
 	MaxWaitTime    time.Duration `mapstructure:"max_wait_time"`
 	Redis          RedisConfig   `mapstructure:"redis"`
 }
 
-// RedisConfig holds Redis configuration for distributed locking
 type RedisConfig struct {
 	Host     string        `mapstructure:"host"`
 	Port     int           `mapstructure:"port"`
@@ -104,77 +94,66 @@ type RedisConfig struct {
 	Timeout  time.Duration `mapstructure:"timeout"`
 }
 
-// LoggingConfig holds logging configuration
 type LoggingConfig struct {
-	Level  string `mapstructure:"level"`  // "debug", "info", "warn", "error"
-	Format string `mapstructure:"format"` // "json", "console"
-	File   string `mapstructure:"file"`   // empty for stdout
+	Level  string `mapstructure:"level"`  
+	Format string `mapstructure:"format"` 
+	File   string `mapstructure:"file"`   
 }
 
-// MetricsConfig holds metrics configuration
 type MetricsConfig struct {
 	Enabled  bool   `mapstructure:"enabled"`
 	Path     string `mapstructure:"path"`
 	Interval time.Duration `mapstructure:"interval"`
 }
 
-// SecurityConfig holds security configuration
 type SecurityConfig struct {
 	RateLimit   RateLimitConfig `mapstructure:"rate_limit"`
 	RequestSize RequestSizeConfig `mapstructure:"request_size"`
 }
 
-// RateLimitConfig holds rate limiting configuration
 type RateLimitConfig struct {
 	Enabled    bool          `mapstructure:"enabled"`
-	Rate       int           `mapstructure:"rate"`        // requests per period
-	Period     time.Duration `mapstructure:"period"`      // time period
-	BurstSize  int           `mapstructure:"burst_size"`  // burst allowance
+	Rate       int           `mapstructure:"rate"`        
+	Period     time.Duration `mapstructure:"period"`      
+	BurstSize  int           `mapstructure:"burst_size"`  
 }
 
-// RequestSizeConfig holds request size limits
 type RequestSizeConfig struct {
-	MaxBodySize    int64 `mapstructure:"max_body_size"`    // in bytes
-	MaxHeaderSize  int   `mapstructure:"max_header_size"`  // in bytes
+	MaxBodySize    int64 `mapstructure:"max_body_size"`    
+	MaxHeaderSize  int   `mapstructure:"max_header_size"`  
 }
 
-// LoadConfig loads configuration from various sources
 func LoadConfig(configPath string) (*Config, error) {
-	// Set default configuration
-	setDefaults()
 	
-	// Set config file path if provided
+	setDefaults()
+
 	if configPath != "" {
 		viper.SetConfigFile(configPath)
 	} else {
-		// Look for config in current directory and /etc/entropic/
+		
 		viper.SetConfigName("entropic")
 		viper.SetConfigType("yaml")
 		viper.AddConfigPath(".")
 		viper.AddConfigPath("/etc/entropic/")
 		viper.AddConfigPath("$HOME/.entropic/")
 	}
-	
-	// Environment variables
+
 	viper.SetEnvPrefix("ENTROPIC")
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.AutomaticEnv()
-	
-	// Read config file
+
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 			return nil, fmt.Errorf("failed to read config file: %w", err)
 		}
-		// Config file not found, use defaults and environment variables
+		
 	}
-	
-	// Unmarshal into struct
+
 	var config Config
 	if err := viper.Unmarshal(&config); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
-	
-	// Validate configuration
+
 	if err := validateConfig(&config); err != nil {
 		return nil, fmt.Errorf("invalid configuration: %w", err)
 	}
@@ -182,25 +161,22 @@ func LoadConfig(configPath string) (*Config, error) {
 	return &config, nil
 }
 
-// setDefaults sets default configuration values
 func setDefaults() {
-	// Server defaults
+	
 	viper.SetDefault("server.host", "0.0.0.0")
 	viper.SetDefault("server.port", 8080)
 	viper.SetDefault("server.read_timeout", "30s")
 	viper.SetDefault("server.write_timeout", "30s")
 	viper.SetDefault("server.idle_timeout", "120s")
 	viper.SetDefault("server.shutdown_timeout", "30s")
-	
-	// CORS defaults
+
 	viper.SetDefault("server.cors.allowed_origins", []string{"*"})
 	viper.SetDefault("server.cors.allowed_methods", []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"})
 	viper.SetDefault("server.cors.allowed_headers", []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"})
 	viper.SetDefault("server.cors.exposed_headers", []string{"Link"})
 	viper.SetDefault("server.cors.allow_credentials", false)
 	viper.SetDefault("server.cors.max_age", 300)
-	
-	// Database defaults
+
 	viper.SetDefault("database.host", "localhost")
 	viper.SetDefault("database.port", 5432)
 	viper.SetDefault("database.database", "entropic")
@@ -212,8 +188,7 @@ func setDefaults() {
 	viper.SetDefault("database.conn_max_lifetime", "1h")
 	viper.SetDefault("database.conn_max_idle_time", "30m")
 	viper.SetDefault("database.migrate_on_start", true)
-	
-	// Search defaults
+
 	viper.SetDefault("search.type", "typesense")
 	viper.SetDefault("search.url", "http://localhost:8108")
 	viper.SetDefault("search.api_key", "xyz")
@@ -225,12 +200,10 @@ func setDefaults() {
 	viper.SetDefault("search.batch.size", 100)
 	viper.SetDefault("search.batch.flush_interval", "5s")
 	viper.SetDefault("search.batch.concurrency", 4)
-	
-	// Cache defaults
+
 	viper.SetDefault("cache.ttl", "5m")
 	viper.SetDefault("cache.cleanup_interval", "1m")
-	
-	// Lock defaults
+
 	viper.SetDefault("lock.type", "memory")
 	viper.SetDefault("lock.default_timeout", "30s")
 	viper.SetDefault("lock.max_wait_time", "5m")
@@ -239,34 +212,29 @@ func setDefaults() {
 	viper.SetDefault("lock.redis.password", "")
 	viper.SetDefault("lock.redis.db", 0)
 	viper.SetDefault("lock.redis.timeout", "5s")
-	
-	// Logging defaults
+
 	viper.SetDefault("logging.level", "info")
 	viper.SetDefault("logging.format", "console")
 	viper.SetDefault("logging.file", "")
-	
-	// Metrics defaults
+
 	viper.SetDefault("metrics.enabled", true)
 	viper.SetDefault("metrics.path", "/metrics")
 	viper.SetDefault("metrics.interval", "15s")
-	
-	// Security defaults
+
 	viper.SetDefault("security.rate_limit.enabled", true)
 	viper.SetDefault("security.rate_limit.rate", 100)
 	viper.SetDefault("security.rate_limit.period", "1m")
 	viper.SetDefault("security.rate_limit.burst_size", 10)
-	viper.SetDefault("security.request_size.max_body_size", 10485760) // 10MB
-	viper.SetDefault("security.request_size.max_header_size", 8192)   // 8KB
+	viper.SetDefault("security.request_size.max_body_size", 10485760) 
+	viper.SetDefault("security.request_size.max_header_size", 8192)   
 }
 
-// validateConfig validates the configuration
 func validateConfig(config *Config) error {
-	// Validate server configuration
+	
 	if config.Server.Port <= 0 || config.Server.Port > 65535 {
 		return fmt.Errorf("invalid server port: %d", config.Server.Port)
 	}
-	
-	// Validate database configuration
+
 	if config.Database.Host == "" {
 		return fmt.Errorf("database host is required")
 	}
@@ -276,16 +244,14 @@ func validateConfig(config *Config) error {
 	if config.Database.Port <= 0 || config.Database.Port > 65535 {
 		return fmt.Errorf("invalid database port: %d", config.Database.Port)
 	}
-	
-	// Validate search configuration
+
 	if config.Search.URL == "" {
 		return fmt.Errorf("search URL is required")
 	}
 	if config.Search.APIKey == "" {
 		return fmt.Errorf("search API key is required")
 	}
-	
-	// Validate logging level
+
 	validLevels := []string{"debug", "info", "warn", "error"}
 	isValidLevel := false
 	for _, level := range validLevels {
@@ -297,13 +263,11 @@ func validateConfig(config *Config) error {
 	if !isValidLevel {
 		return fmt.Errorf("invalid logging level: %s", config.Logging.Level)
 	}
-	
-	// Validate logging format
+
 	if config.Logging.Format != "json" && config.Logging.Format != "console" {
 		return fmt.Errorf("invalid logging format: %s", config.Logging.Format)
 	}
-	
-	// Validate lock type
+
 	if config.Lock.Type != "memory" && config.Lock.Type != "redis" {
 		return fmt.Errorf("invalid lock type: %s", config.Lock.Type)
 	}
@@ -311,7 +275,6 @@ func validateConfig(config *Config) error {
 	return nil
 }
 
-// GetDatabaseURL returns the database connection URL
 func (c *Config) GetDatabaseURL() string {
 	return fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s",
 		c.Database.Username,
@@ -323,7 +286,6 @@ func (c *Config) GetDatabaseURL() string {
 	)
 }
 
-// GetRedisURL returns the Redis connection URL
 func (c *Config) GetRedisURL() string {
 	if c.Lock.Redis.Password != "" {
 		return fmt.Sprintf("redis://:%s@%s:%d/%d",
@@ -340,7 +302,6 @@ func (c *Config) GetRedisURL() string {
 	)
 }
 
-// GetServerAddress returns the server address
 func (c *Config) GetServerAddress() string {
 	return fmt.Sprintf("%s:%d", c.Server.Host, c.Server.Port)
 }

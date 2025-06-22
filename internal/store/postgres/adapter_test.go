@@ -15,28 +15,25 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Test fixtures
 var (
 	testContainer *testutils.PostgresTestContainer
 	testStore     *PostgresStore
 )
 
 func TestMain(m *testing.M) {
-	// Setup test container
+	
 	var err error
 	testContainer, err = testutils.SetupTestPostgres()
 	if err != nil {
 		panic(err)
 	}
 
-	// Create store
 	testStore, err = NewPostgresStore(testContainer.URL)
 	if err != nil {
 		testContainer.Cleanup()
 		panic(err)
 	}
 
-	// Run migrations
 	ctx := context.Background()
 	migrator := NewMigrator(testStore.GetPool())
 	if err := migrator.Run(ctx); err != nil {
@@ -45,14 +42,11 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 
-	// Run tests
 	code := m.Run()
 
-	// Cleanup
 	testStore.Close()
 	testContainer.Cleanup()
 
-	// Exit with test code
 	if code != 0 {
 		panic("tests failed")
 	}
@@ -62,7 +56,7 @@ func TestPostgresStore_EntityOperations(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("CreateEntity", func(t *testing.T) {
-		// Create test entity
+		
 		entity := &models.Entity{
 			ID:         uuid.New(),
 			EntityType: "user",
@@ -80,26 +74,22 @@ func TestPostgresStore_EntityOperations(t *testing.T) {
 		err := testStore.CreateEntity(ctx, entity)
 		require.NoError(t, err)
 
-		// Verify entity was created
 		retrieved, err := testStore.GetEntity(ctx, entity.EntityType, entity.ID)
 		require.NoError(t, err)
 		assert.Equal(t, entity.ID, retrieved.ID)
 		assert.Equal(t, entity.EntityType, retrieved.EntityType)
 		assert.Equal(t, entity.URN, retrieved.URN)
-		
-		// Check properties individually due to JSON marshalling type conversions
+
 		assert.Equal(t, entity.Properties["name"], retrieved.Properties["name"])
 		assert.Equal(t, entity.Properties["email"], retrieved.Properties["email"])
-		assert.Equal(t, float64(30), retrieved.Properties["age"]) // JSON numbers become float64
-		
-		// Check tags array
+		assert.Equal(t, float64(30), retrieved.Properties["age"]) 
+
 		retrievedTags, ok := retrieved.Properties["tags"].([]interface{})
 		require.True(t, ok, "tags should be an array")
 		assert.Len(t, retrievedTags, 2)
 		assert.Equal(t, "test", retrievedTags[0])
 		assert.Equal(t, "user", retrievedTags[1])
-		
-		// Check metadata
+
 		retrievedMetadata, ok := retrieved.Properties["metadata"].(map[string]interface{})
 		require.True(t, ok, "metadata should be a map")
 		assert.Equal(t, "test", retrievedMetadata["created_by"])
@@ -109,7 +99,7 @@ func TestPostgresStore_EntityOperations(t *testing.T) {
 	})
 
 	t.Run("CreateEntity_WithVector", func(t *testing.T) {
-		// Create test entity with vector
+		
 		embedding := make([]float32, 384)
 		for i := range embedding {
 			embedding[i] = float32(i) / 384.0
@@ -130,18 +120,16 @@ func TestPostgresStore_EntityOperations(t *testing.T) {
 		err := testStore.CreateEntity(ctx, entity)
 		require.NoError(t, err)
 
-		// Verify entity with vector was created
 		retrieved, err := testStore.GetEntity(ctx, entity.EntityType, entity.ID)
 		require.NoError(t, err)
-		
-		// Check vector field
+
 		retrievedEmbedding, ok := retrieved.Properties["embedding"].([]interface{})
 		require.True(t, ok, "embedding should be an array")
 		assert.Len(t, retrievedEmbedding, 384)
 	})
 
 	t.Run("UpdateEntity", func(t *testing.T) {
-		// Create initial entity
+		
 		entity := &models.Entity{
 			ID:         uuid.New(),
 			EntityType: "user",
@@ -156,7 +144,6 @@ func TestPostgresStore_EntityOperations(t *testing.T) {
 		err := testStore.CreateEntity(ctx, entity)
 		require.NoError(t, err)
 
-		// Update entity
 		entity.Properties["name"] = "Updated Name"
 		entity.Properties["age"] = 26
 		entity.Properties["new_field"] = "new value"
@@ -164,7 +151,6 @@ func TestPostgresStore_EntityOperations(t *testing.T) {
 		err = testStore.UpdateEntity(ctx, entity)
 		require.NoError(t, err)
 
-		// Verify update
 		retrieved, err := testStore.GetEntity(ctx, entity.EntityType, entity.ID)
 		require.NoError(t, err)
 		assert.Equal(t, "Updated Name", retrieved.Properties["name"])
@@ -175,7 +161,7 @@ func TestPostgresStore_EntityOperations(t *testing.T) {
 	})
 
 	t.Run("DeleteEntity", func(t *testing.T) {
-		// Create entity
+		
 		entity := &models.Entity{
 			ID:         uuid.New(),
 			EntityType: "user",
@@ -189,11 +175,9 @@ func TestPostgresStore_EntityOperations(t *testing.T) {
 		err := testStore.CreateEntity(ctx, entity)
 		require.NoError(t, err)
 
-		// Delete entity
 		err = testStore.DeleteEntity(ctx, entity.EntityType, entity.ID)
 		require.NoError(t, err)
 
-		// Verify deletion
 		_, err = testStore.GetEntity(ctx, entity.EntityType, entity.ID)
 		assert.Error(t, err)
 		var appErr *utils.AppError
@@ -202,10 +186,9 @@ func TestPostgresStore_EntityOperations(t *testing.T) {
 	})
 
 	t.Run("ListEntities", func(t *testing.T) {
-		// Clear existing test data
+		
 		cleanupTestData(t, ctx)
 
-		// Create multiple entities
 		entityType := "user"
 		for i := 0; i < 5; i++ {
 			entity := &models.Entity{
@@ -222,17 +205,14 @@ func TestPostgresStore_EntityOperations(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		// List entities
 		entities, err := testStore.ListEntities(ctx, entityType, 3, 0)
 		require.NoError(t, err)
 		assert.Len(t, entities, 3)
 
-		// Test pagination
 		page2, err := testStore.ListEntities(ctx, entityType, 3, 3)
 		require.NoError(t, err)
 		assert.Len(t, page2, 2)
 
-		// Verify no overlap
 		for _, e1 := range entities {
 			for _, e2 := range page2 {
 				assert.NotEqual(t, e1.ID, e2.ID)
@@ -242,13 +222,11 @@ func TestPostgresStore_EntityOperations(t *testing.T) {
 
 	t.Run("CheckURNExists", func(t *testing.T) {
 		urn := "test:user:unique-" + uuid.New().String()
-		
-		// Check non-existent URN
+
 		exists, err := testStore.CheckURNExists(ctx, urn)
 		require.NoError(t, err)
 		assert.False(t, exists)
 
-		// Create entity with URN
 		entity := &models.Entity{
 			ID:         uuid.New(),
 			EntityType: "user",
@@ -259,7 +237,6 @@ func TestPostgresStore_EntityOperations(t *testing.T) {
 		err = testStore.CreateEntity(ctx, entity)
 		require.NoError(t, err)
 
-		// Check existing URN
 		exists, err = testStore.CheckURNExists(ctx, urn)
 		require.NoError(t, err)
 		assert.True(t, exists)
@@ -270,11 +247,10 @@ func TestPostgresStore_RelationOperations(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("CreateRelation", func(t *testing.T) {
-		// Create entities first
+		
 		user := createTestEntity(t, ctx, "user", "relation-test-user")
 		org := createTestEntity(t, ctx, "organization", "relation-test-org")
 
-		// Create relation
 		relation := &models.Relation{
 			ID:             uuid.New(),
 			RelationType:   "member_of",
@@ -291,7 +267,6 @@ func TestPostgresStore_RelationOperations(t *testing.T) {
 		err := testStore.CreateRelation(ctx, relation)
 		require.NoError(t, err)
 
-		// Verify relation was created
 		retrieved, err := testStore.GetRelation(ctx, relation.ID)
 		require.NoError(t, err)
 		assert.Equal(t, relation.ID, retrieved.ID)
@@ -302,7 +277,7 @@ func TestPostgresStore_RelationOperations(t *testing.T) {
 	})
 
 	t.Run("DeleteRelation", func(t *testing.T) {
-		// Create entities and relation
+		
 		user := createTestEntity(t, ctx, "user", "delete-relation-user")
 		org := createTestEntity(t, ctx, "organization", "delete-relation-org")
 
@@ -318,24 +293,21 @@ func TestPostgresStore_RelationOperations(t *testing.T) {
 		err := testStore.CreateRelation(ctx, relation)
 		require.NoError(t, err)
 
-		// Delete relation
 		err = testStore.DeleteRelation(ctx, relation.ID)
 		require.NoError(t, err)
 
-		// Verify deletion
 		_, err = testStore.GetRelation(ctx, relation.ID)
 		assert.Error(t, err)
 		assert.True(t, utils.IsNotFound(err))
 	})
 
 	t.Run("GetRelationsByEntity", func(t *testing.T) {
-		// Create test entities
+		
 		user := createTestEntity(t, ctx, "user", "relations-test-user")
 		org1 := createTestEntity(t, ctx, "organization", "relations-test-org1")
 		org2 := createTestEntity(t, ctx, "organization", "relations-test-org2")
 		project := createTestEntity(t, ctx, "project", "relations-test-project")
 
-		// Create multiple relations
 		relations := []*models.Relation{
 			{
 				ID:             uuid.New(),
@@ -368,12 +340,10 @@ func TestPostgresStore_RelationOperations(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		// Get all relations for user
 		userRelations, err := testStore.GetRelationsByEntity(ctx, user.ID, nil)
 		require.NoError(t, err)
 		assert.Len(t, userRelations, 3)
 
-		// Get specific relation types
 		memberRelations, err := testStore.GetRelationsByEntity(ctx, user.ID, []string{"member_of"})
 		require.NoError(t, err)
 		assert.Len(t, memberRelations, 2)
@@ -388,7 +358,7 @@ func TestPostgresStore_SchemaOperations(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("EntitySchema_CRUD", func(t *testing.T) {
-		// Create entity schema
+		
 		schema := &models.EntitySchema{
 			EntityType: "test_entity_" + uuid.New().String()[:8],
 			Properties: models.PropertySchema{
@@ -408,17 +378,14 @@ func TestPostgresStore_SchemaOperations(t *testing.T) {
 			},
 		}
 
-		// Create
 		err := testStore.CreateEntitySchema(ctx, schema)
 		require.NoError(t, err)
 
-		// Get
 		retrieved, err := testStore.GetEntitySchema(ctx, schema.EntityType)
 		require.NoError(t, err)
 		assert.Equal(t, schema.EntityType, retrieved.EntityType)
 		assert.Equal(t, schema.Properties, retrieved.Properties)
 
-		// Update
 		schema.Properties["email"] = models.PropertyDefinition{
 			Type:     "string",
 			Required: true,
@@ -426,28 +393,24 @@ func TestPostgresStore_SchemaOperations(t *testing.T) {
 		err = testStore.UpdateEntitySchema(ctx, schema)
 		require.NoError(t, err)
 
-		// Verify update
 		updated, err := testStore.GetEntitySchema(ctx, schema.EntityType)
 		require.NoError(t, err)
 		assert.Contains(t, updated.Properties, "email")
 
-		// List
 		schemas, err := testStore.ListEntitySchemas(ctx)
 		require.NoError(t, err)
 		assert.Greater(t, len(schemas), 0)
 
-		// Delete
 		err = testStore.DeleteEntitySchema(ctx, schema.EntityType)
 		require.NoError(t, err)
 
-		// Verify deletion
 		_, err = testStore.GetEntitySchema(ctx, schema.EntityType)
 		assert.Error(t, err)
 		assert.True(t, utils.IsNotFound(err))
 	})
 
 	t.Run("RelationshipSchema_CRUD", func(t *testing.T) {
-		// Create relationship schema
+		
 		schema := &models.RelationshipSchema{
 			RelationshipType: "test_rel_" + uuid.New().String()[:8],
 			FromEntityType:   "user",
@@ -467,18 +430,15 @@ func TestPostgresStore_SchemaOperations(t *testing.T) {
 			},
 		}
 
-		// Create
 		err := testStore.CreateRelationshipSchema(ctx, schema)
 		require.NoError(t, err)
 
-		// Get
 		retrieved, err := testStore.GetRelationshipSchema(ctx, schema.RelationshipType)
 		require.NoError(t, err)
 		assert.Equal(t, schema.RelationshipType, retrieved.RelationshipType)
 		assert.Equal(t, schema.Properties, retrieved.Properties)
 		assert.Equal(t, schema.DenormalizationConfig, retrieved.DenormalizationConfig)
 
-		// Update
 		schema.Properties["permissions"] = models.PropertyDefinition{
 			Type:        "array",
 			ElementType: "string",
@@ -487,16 +447,13 @@ func TestPostgresStore_SchemaOperations(t *testing.T) {
 		err = testStore.UpdateRelationshipSchema(ctx, schema)
 		require.NoError(t, err)
 
-		// List
 		schemas, err := testStore.ListRelationshipSchemas(ctx)
 		require.NoError(t, err)
 		assert.Greater(t, len(schemas), 0)
 
-		// Delete
 		err = testStore.DeleteRelationshipSchema(ctx, schema.RelationshipType)
 		require.NoError(t, err)
 
-		// Verify deletion
 		_, err = testStore.GetRelationshipSchema(ctx, schema.RelationshipType)
 		assert.Error(t, err)
 		assert.True(t, utils.IsNotFound(err))
@@ -510,7 +467,6 @@ func TestPostgresStore_TransactionOperations(t *testing.T) {
 		tx, err := testStore.BeginTx(ctx)
 		require.NoError(t, err)
 
-		// Create entity within transaction
 		entity := &models.Entity{
 			ID:         uuid.New(),
 			EntityType: "user",
@@ -524,11 +480,9 @@ func TestPostgresStore_TransactionOperations(t *testing.T) {
 		err = tx.CreateEntity(ctx, entity)
 		require.NoError(t, err)
 
-		// Commit transaction
 		err = tx.Commit()
 		require.NoError(t, err)
 
-		// Verify entity exists
 		retrieved, err := testStore.GetEntity(ctx, entity.EntityType, entity.ID)
 		require.NoError(t, err)
 		assert.Equal(t, entity.ID, retrieved.ID)
@@ -538,7 +492,6 @@ func TestPostgresStore_TransactionOperations(t *testing.T) {
 		tx, err := testStore.BeginTx(ctx)
 		require.NoError(t, err)
 
-		// Create entity within transaction
 		entity := &models.Entity{
 			ID:         uuid.New(),
 			EntityType: "user",
@@ -552,18 +505,16 @@ func TestPostgresStore_TransactionOperations(t *testing.T) {
 		err = tx.CreateEntity(ctx, entity)
 		require.NoError(t, err)
 
-		// Rollback transaction
 		err = tx.Rollback()
 		require.NoError(t, err)
 
-		// Verify entity does not exist
 		_, err = testStore.GetEntity(ctx, entity.EntityType, entity.ID)
 		assert.Error(t, err)
 		assert.True(t, utils.IsNotFound(err))
 	})
 
 	t.Run("Transaction_Isolation", func(t *testing.T) {
-		// Create entity
+		
 		entity := &models.Entity{
 			ID:         uuid.New(),
 			EntityType: "user",
@@ -576,7 +527,6 @@ func TestPostgresStore_TransactionOperations(t *testing.T) {
 		err := testStore.CreateEntity(ctx, entity)
 		require.NoError(t, err)
 
-		// Start two transactions
 		tx1, err := testStore.BeginTx(ctx)
 		require.NoError(t, err)
 		defer tx1.Rollback()
@@ -585,20 +535,13 @@ func TestPostgresStore_TransactionOperations(t *testing.T) {
 		require.NoError(t, err)
 		defer tx2.Rollback()
 
-		// Update in tx1
 		entity.Properties["counter"] = 1
 		err = tx1.UpdateEntity(ctx, entity)
 		require.NoError(t, err)
 
-		// Note: Transaction interface doesn't have GetEntity method
-		// So we can't test isolation by reading in tx2
-		// Instead, we'll just test that both transactions can proceed
-
-		// Commit tx1
 		err = tx1.Commit()
 		require.NoError(t, err)
 
-		// New read should see updated value
 		updated, err := testStore.GetEntity(ctx, entity.EntityType, entity.ID)
 		require.NoError(t, err)
 		assert.Equal(t, float64(1), updated.Properties["counter"])
@@ -635,7 +578,6 @@ func TestPostgresStore_ConcurrentOperations(t *testing.T) {
 			}(i)
 		}
 
-		// Wait for all goroutines
 		successCount := 0
 		for i := 0; i < numGoroutines; i++ {
 			select {
@@ -652,7 +594,7 @@ func TestPostgresStore_ConcurrentOperations(t *testing.T) {
 	})
 
 	t.Run("Concurrent_Updates", func(t *testing.T) {
-		// Create entity
+		
 		entity := &models.Entity{
 			ID:         uuid.New(),
 			EntityType: "user",
@@ -666,21 +608,19 @@ func TestPostgresStore_ConcurrentOperations(t *testing.T) {
 		err := testStore.CreateEntity(ctx, entity)
 		require.NoError(t, err)
 
-		// Concurrent updates
 		numGoroutines := 5
 		errChan := make(chan error, numGoroutines)
 		doneChan := make(chan bool, numGoroutines)
 
 		for i := 0; i < numGoroutines; i++ {
 			go func(index int) {
-				// Get latest version
+				
 				current, err := testStore.GetEntity(ctx, entity.EntityType, entity.ID)
 				if err != nil {
 					errChan <- err
 					return
 				}
 
-				// Update
 				current.Properties["counter"] = index
 				current.Properties[fmt.Sprintf("update_%d", index)] = true
 				
@@ -693,20 +633,18 @@ func TestPostgresStore_ConcurrentOperations(t *testing.T) {
 			}(i)
 		}
 
-		// Wait for completion
 		for i := 0; i < numGoroutines; i++ {
 			select {
 			case err := <-errChan:
-				// Some updates may fail due to version conflicts, which is expected
+				
 				t.Logf("Update failed (expected for some): %v", err)
 			case <-doneChan:
-				// Success
+				
 			case <-time.After(5 * time.Second):
 				t.Fatal("Timeout waiting for concurrent updates")
 			}
 		}
 
-		// Verify entity still exists and has been updated
 		final, err := testStore.GetEntity(ctx, entity.EntityType, entity.ID)
 		require.NoError(t, err)
 		assert.Greater(t, final.Version, entity.Version)
@@ -717,7 +655,7 @@ func TestPostgresStore_EdgeCases(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("LargeProperties", func(t *testing.T) {
-		// Create entity with large properties
+		
 		largeArray := make([]string, 1000)
 		for i := range largeArray {
 			largeArray[i] = fmt.Sprintf("item_%d_%s", i, uuid.New().String())
@@ -744,7 +682,6 @@ func TestPostgresStore_EdgeCases(t *testing.T) {
 		err := testStore.CreateEntity(ctx, entity)
 		require.NoError(t, err)
 
-		// Retrieve and verify
 		retrieved, err := testStore.GetEntity(ctx, entity.EntityType, entity.ID)
 		require.NoError(t, err)
 		
@@ -754,7 +691,7 @@ func TestPostgresStore_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("SpecialCharacters", func(t *testing.T) {
-		// Test with special characters in properties
+		
 		entity := &models.Entity{
 			ID:         uuid.New(),
 			EntityType: "test",
@@ -805,8 +742,6 @@ func TestPostgresStore_EdgeCases(t *testing.T) {
 	})
 }
 
-// Helper functions
-
 func createTestEntity(t *testing.T, ctx context.Context, entityType, name string) *models.Entity {
 	entity := &models.Entity{
 		ID:         uuid.New(),
@@ -824,7 +759,7 @@ func createTestEntity(t *testing.T, ctx context.Context, entityType, name string
 }
 
 func cleanupTestData(t *testing.T, ctx context.Context) {
-	// Clean up test entities
+	
 	db, err := sql.Open("pgx", testContainer.URL)
 	require.NoError(t, err)
 	defer db.Close()

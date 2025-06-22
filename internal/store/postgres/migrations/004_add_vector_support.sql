@@ -1,19 +1,15 @@
--- Add support for vector searches on entity properties
-
--- Create a helper table to track vector indexes
 CREATE TABLE vector_indexes (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     entity_type VARCHAR(100) NOT NULL,
     property_path TEXT NOT NULL,
     vector_dimension INTEGER NOT NULL,
     index_type VARCHAR(20) NOT NULL DEFAULT 'ivfflat',
-    lists INTEGER DEFAULT 100, -- for ivfflat
-    probes INTEGER DEFAULT 10, -- for ivfflat search
+    lists INTEGER DEFAULT 100, 
+    probes INTEGER DEFAULT 10, 
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(entity_type, property_path)
 );
 
--- Function to create vector index for a specific property
 CREATE OR REPLACE FUNCTION create_vector_index(
     p_entity_type VARCHAR(100),
     p_property_path TEXT,
@@ -24,10 +20,9 @@ DECLARE
     index_name TEXT;
     sql_query TEXT;
 BEGIN
-    -- Generate index name
-    index_name := 'idx_vector_' || p_entity_type || '_' || replace(p_property_path, '.', '_');
     
-    -- Build the CREATE INDEX query based on index type
+    index_name := 'idx_vector_' || p_entity_type || '_' || replace(p_property_path, '.', '_');
+
     IF p_index_type = 'ivfflat' THEN
         sql_query := format(
             'CREATE INDEX %I ON entities USING ivfflat ((jsonb_to_vector(properties#>''{%s}'')::vector(%s)) vector_cosine_ops) WHERE entity_type = %L AND deleted_at IS NULL',
@@ -47,17 +42,14 @@ BEGIN
     ELSE
         RAISE EXCEPTION 'Unsupported index type: %', p_index_type;
     END IF;
-    
-    -- Execute the query
+
     EXECUTE sql_query;
-    
-    -- Record the index
+
     INSERT INTO vector_indexes (entity_type, property_path, vector_dimension, index_type)
     VALUES (p_entity_type, p_property_path, p_dimension, p_index_type);
 END;
 $$ LANGUAGE plpgsql;
 
--- Function to perform vector similarity search
 CREATE OR REPLACE FUNCTION vector_search(
     p_entity_type VARCHAR(100),
     p_property_path TEXT,
@@ -74,15 +66,13 @@ DECLARE
     query_vec vector;
     filter_clause TEXT DEFAULT '';
 BEGIN
-    -- Convert array to vector
-    query_vec := p_query_vector::vector;
     
-    -- Build filter clause if filters provided
+    query_vec := p_query_vector::vector;
+
     IF p_filters IS NOT NULL THEN
         filter_clause := format(' AND properties @> %L', p_filters);
     END IF;
-    
-    -- Execute the search query
+
     RETURN QUERY EXECUTE format(
         'SELECT e.id, e.urn, e.properties, 
                 1 - (jsonb_to_vector(e.properties#>''{%s}'')::vector <=> %L::vector) as similarity
@@ -105,7 +95,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Function to perform hybrid search (text + vector)
 CREATE OR REPLACE FUNCTION hybrid_search(
     p_entity_type VARCHAR(100),
     p_text_query TEXT,
@@ -165,6 +154,5 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Add GIN index for full-text search on properties
 CREATE INDEX idx_entities_properties_text ON entities 
     USING GIN (to_tsvector('english', properties::text));

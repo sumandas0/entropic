@@ -45,19 +45,6 @@ type EntityListResponse struct {
 	Offset   int              `json:"offset"`
 }
 
-// CreateEntity creates a new entity
-// @Summary Create a new entity
-// @Description Creates a new entity of the specified type
-// @Tags entities
-// @Accept json
-// @Produce json
-// @Param entityType path string true "Entity Type"
-// @Param entity body EntityRequest true "Entity data"
-// @Success 201 {object} EntityResponse
-// @Failure 400 {object} middleware.ErrorResponse
-// @Failure 409 {object} middleware.ErrorResponse
-// @Failure 500 {object} middleware.ErrorResponse
-// @Router /api/v1/entities/{entityType} [post]
 func (h *EntityHandler) CreateEntity(w http.ResponseWriter, r *http.Request) {
 	entityType := chi.URLParam(r, "entityType")
 	if entityType == "" {
@@ -87,17 +74,6 @@ func (h *EntityHandler) CreateEntity(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-// GetEntity retrieves an entity by ID
-// @Summary Get an entity
-// @Description Retrieves an entity by its type and ID
-// @Tags entities
-// @Produce json
-// @Param entityType path string true "Entity Type"
-// @Param entityID path string true "Entity ID"
-// @Success 200 {object} EntityResponse
-// @Failure 404 {object} middleware.ErrorResponse
-// @Failure 500 {object} middleware.ErrorResponse
-// @Router /api/v1/entities/{entityType}/{entityID} [get]
 func (h *EntityHandler) GetEntity(w http.ResponseWriter, r *http.Request) {
 	entityType := chi.URLParam(r, "entityType")
 	entityIDStr := chi.URLParam(r, "entityID")
@@ -123,21 +99,6 @@ func (h *EntityHandler) GetEntity(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-// UpdateEntity updates an existing entity
-// @Summary Update an entity
-// @Description Updates an existing entity's properties
-// @Tags entities
-// @Accept json
-// @Produce json
-// @Param entityType path string true "Entity Type"
-// @Param entityID path string true "Entity ID"
-// @Param entity body EntityRequest true "Updated entity data"
-// @Success 200 {object} EntityResponse
-// @Failure 400 {object} middleware.ErrorResponse
-// @Failure 404 {object} middleware.ErrorResponse
-// @Failure 409 {object} middleware.ErrorResponse
-// @Failure 500 {object} middleware.ErrorResponse
-// @Router /api/v1/entities/{entityType}/{entityID} [patch]
 func (h *EntityHandler) UpdateEntity(w http.ResponseWriter, r *http.Request) {
 	entityType := chi.URLParam(r, "entityType")
 	entityIDStr := chi.URLParam(r, "entityID")
@@ -182,16 +143,6 @@ func (h *EntityHandler) UpdateEntity(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-// DeleteEntity deletes an entity
-// @Summary Delete an entity
-// @Description Deletes an entity and all its relations
-// @Tags entities
-// @Param entityType path string true "Entity Type"
-// @Param entityID path string true "Entity ID"
-// @Success 204
-// @Failure 404 {object} middleware.ErrorResponse
-// @Failure 500 {object} middleware.ErrorResponse
-// @Router /api/v1/entities/{entityType}/{entityID} [delete]
 func (h *EntityHandler) DeleteEntity(w http.ResponseWriter, r *http.Request) {
 	entityType := chi.URLParam(r, "entityType")
 	entityIDStr := chi.URLParam(r, "entityID")
@@ -213,18 +164,6 @@ func (h *EntityHandler) DeleteEntity(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// ListEntities lists entities of a given type with pagination
-// @Summary List entities
-// @Description Lists entities of the specified type with pagination
-// @Tags entities
-// @Produce json
-// @Param entityType path string true "Entity Type"
-// @Param limit query int false "Number of entities to return (default: 20, max: 100)"
-// @Param offset query int false "Number of entities to skip (default: 0)"
-// @Success 200 {object} EntityListResponse
-// @Failure 400 {object} middleware.ErrorResponse
-// @Failure 500 {object} middleware.ErrorResponse
-// @Router /api/v1/entities/{entityType} [get]
 func (h *EntityHandler) ListEntities(w http.ResponseWriter, r *http.Request) {
 	entityType := chi.URLParam(r, "entityType")
 
@@ -256,7 +195,7 @@ func (h *EntityHandler) ListEntities(w http.ResponseWriter, r *http.Request) {
 
 	response := EntityListResponse{
 		Entities: responses,
-		Total:    len(responses), // TODO: should be total count from separate query
+		Total:    len(responses), 
 		Limit:    limit,
 		Offset:   offset,
 	}
@@ -266,18 +205,6 @@ func (h *EntityHandler) ListEntities(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-// GetEntityRelations gets all relations for an entity
-// @Summary Get entity relations
-// @Description Retrieves all relations involving the specified entity
-// @Tags entities
-// @Produce json
-// @Param entityType path string true "Entity Type"
-// @Param entityID path string true "Entity ID"
-// @Param relation_types query string false "Comma-separated list of relation types to filter"
-// @Success 200 {array} RelationResponse
-// @Failure 404 {object} middleware.ErrorResponse
-// @Failure 500 {object} middleware.ErrorResponse
-// @Router /api/v1/entities/{entityType}/{entityID}/relations [get]
 func (h *EntityHandler) GetEntityRelations(w http.ResponseWriter, r *http.Request) {
 	entityIDStr := chi.URLParam(r, "entityID")
 
@@ -301,7 +228,6 @@ func (h *EntityHandler) GetEntityRelations(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Convert to response format
 	responses := make([]RelationResponse, len(relations))
 	for i, relation := range relations {
 		responses[i] = relationToResponse(relation)
@@ -312,17 +238,6 @@ func (h *EntityHandler) GetEntityRelations(w http.ResponseWriter, r *http.Reques
 	json.NewEncoder(w).Encode(responses)
 }
 
-// Search performs text search across entities
-// @Summary Search entities
-// @Description Performs text search across entities
-// @Tags search
-// @Accept json
-// @Produce json
-// @Param query body models.SearchQuery true "Search query"
-// @Success 200 {object} models.SearchResult
-// @Failure 400 {object} middleware.ErrorResponse
-// @Failure 500 {object} middleware.ErrorResponse
-// @Router /api/v1/search [post]
 func (h *EntityHandler) Search(w http.ResponseWriter, r *http.Request) {
 	var query models.SearchQuery
 	if err := json.NewDecoder(r.Body).Decode(&query); err != nil {
@@ -356,17 +271,6 @@ func (h *EntityHandler) Search(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(result)
 }
 
-// VectorSearch performs vector similarity search
-// @Summary Vector search entities
-// @Description Performs vector similarity search across entities
-// @Tags search
-// @Accept json
-// @Produce json
-// @Param query body models.VectorQuery true "Vector search query"
-// @Success 200 {object} models.SearchResult
-// @Failure 400 {object} middleware.ErrorResponse
-// @Failure 500 {object} middleware.ErrorResponse
-// @Router /api/v1/search/vector [post]
 func (h *EntityHandler) VectorSearch(w http.ResponseWriter, r *http.Request) {
 	var query models.VectorQuery
 	if err := json.NewDecoder(r.Body).Decode(&query); err != nil {

@@ -14,7 +14,6 @@ import (
 	"github.com/microcosm-cc/bluemonday"
 )
 
-// SanitizerConfig holds configuration for input sanitization
 type SanitizerConfig struct {
 	Enabled          bool `yaml:"enabled" mapstructure:"enabled"`
 	MaxStringLength  int  `yaml:"max_string_length" mapstructure:"max_string_length"`
@@ -26,7 +25,6 @@ type SanitizerConfig struct {
 	AllowSQLKeywords bool `yaml:"allow_sql_keywords" mapstructure:"allow_sql_keywords"`
 }
 
-// InputSanitizer provides comprehensive input sanitization
 type InputSanitizer struct {
 	config     SanitizerConfig
 	htmlPolicy *bluemonday.Policy
@@ -35,40 +33,34 @@ type InputSanitizer struct {
 	xssPattern *regexp.Regexp
 }
 
-// NewInputSanitizer creates a new input sanitizer with the given configuration
 func NewInputSanitizer(config SanitizerConfig) *InputSanitizer {
 	sanitizer := &InputSanitizer{
 		config: config,
 	}
 
 	if config.Enabled {
-		// Configure HTML policy
+		
 		if config.AllowHTML {
 			sanitizer.htmlPolicy = bluemonday.UGCPolicy()
 		} else {
 			sanitizer.htmlPolicy = bluemonday.StrictPolicy()
 		}
 
-		// Compile SQL injection patterns
 		sanitizer.sqlPattern = regexp.MustCompile(`(?i)(union|select|insert|update|delete|drop|create|alter|exec|execute|script|declare|cast|convert|having|where|from|join|on|group\s+by|order\s+by|--|\||;|\*|'|"|\$|%|@|\+|=|<|>|\(|\)|,|\.|\\|/)`)
 
-		// Compile JavaScript patterns
 		sanitizer.jsPattern = regexp.MustCompile(`(?i)(javascript:|vbscript:|data:|onload|onerror|onclick|onmouseover|onfocus|onblur|onchange|onsubmit|<script|</script|eval\(|function\(|alert\(|confirm\(|prompt\()`)
 
-		// Compile XSS patterns
 		sanitizer.xssPattern = regexp.MustCompile(`(?i)(<script|</script|<iframe|</iframe|<object|</object|<embed|</embed|<link|<meta|<style|</style|javascript:|vbscript:|data:|on\w+\s*=)`)
 	}
 
 	return sanitizer
 }
 
-// SanitizeString sanitizes a string value
 func (is *InputSanitizer) SanitizeString(input string) (string, error) {
 	if !is.config.Enabled {
 		return input, nil
 	}
 
-	// Check length
 	if len(input) > is.config.MaxStringLength {
 		if is.config.StrictMode {
 			return "", fmt.Errorf("string length exceeds maximum allowed length of %d", is.config.MaxStringLength)
@@ -76,7 +68,6 @@ func (is *InputSanitizer) SanitizeString(input string) (string, error) {
 		input = input[:is.config.MaxStringLength]
 	}
 
-	// Validate UTF-8
 	if !utf8.ValidString(input) {
 		if is.config.StrictMode {
 			return "", fmt.Errorf("invalid UTF-8 string")
@@ -84,10 +75,8 @@ func (is *InputSanitizer) SanitizeString(input string) (string, error) {
 		input = strings.ToValidUTF8(input, "")
 	}
 
-	// Remove null bytes
 	input = strings.ReplaceAll(input, "\x00", "")
 
-	// Check for SQL injection patterns
 	if !is.config.AllowSQLKeywords && is.sqlPattern.MatchString(input) {
 		if is.config.StrictMode {
 			return "", fmt.Errorf("potential SQL injection detected")
@@ -95,7 +84,6 @@ func (is *InputSanitizer) SanitizeString(input string) (string, error) {
 		input = is.sqlPattern.ReplaceAllString(input, "")
 	}
 
-	// Check for JavaScript patterns
 	if !is.config.AllowJavaScript && is.jsPattern.MatchString(input) {
 		if is.config.StrictMode {
 			return "", fmt.Errorf("potential JavaScript injection detected")
@@ -103,7 +91,6 @@ func (is *InputSanitizer) SanitizeString(input string) (string, error) {
 		input = is.jsPattern.ReplaceAllString(input, "")
 	}
 
-	// Check for XSS patterns
 	if is.xssPattern.MatchString(input) {
 		if is.config.StrictMode {
 			return "", fmt.Errorf("potential XSS detected")
@@ -111,12 +98,10 @@ func (is *InputSanitizer) SanitizeString(input string) (string, error) {
 		input = is.xssPattern.ReplaceAllString(input, "")
 	}
 
-	// HTML sanitization
 	if is.htmlPolicy != nil {
 		input = is.htmlPolicy.Sanitize(input)
 	}
 
-	// HTML entity encoding for additional safety
 	if !is.config.AllowHTML {
 		input = html.EscapeString(input)
 	}
@@ -124,23 +109,20 @@ func (is *InputSanitizer) SanitizeString(input string) (string, error) {
 	return strings.TrimSpace(input), nil
 }
 
-// SanitizeValue sanitizes any value (string, number, array, object)
 func (is *InputSanitizer) SanitizeValue(value interface{}) (interface{}, error) {
 	return is.sanitizeValueWithDepth(value, 0)
 }
 
-// sanitizeValueWithDepth sanitizes a value while tracking object depth
 func (is *InputSanitizer) sanitizeValueWithDepth(value interface{}, depth int) (interface{}, error) {
 	if !is.config.Enabled {
 		return value, nil
 	}
 
-	// Check object depth
 	if depth > is.config.MaxObjectDepth {
 		if is.config.StrictMode {
 			return nil, fmt.Errorf("object depth exceeds maximum allowed depth of %d", is.config.MaxObjectDepth)
 		}
-		return nil, nil // Truncate deeply nested objects
+		return nil, nil 
 	}
 
 	switch v := value.(type) {
@@ -166,13 +148,12 @@ func (is *InputSanitizer) sanitizeValueWithDepth(value interface{}, depth int) (
 		return nil, nil
 
 	default:
-		// Convert unknown types to string and sanitize
+		
 		str := fmt.Sprintf("%v", v)
 		return is.SanitizeString(str)
 	}
 }
 
-// sanitizeArray sanitizes an array/slice
 func (is *InputSanitizer) sanitizeArray(arr []interface{}, depth int) ([]interface{}, error) {
 	if len(arr) > is.config.MaxArrayLength {
 		if is.config.StrictMode {
@@ -188,7 +169,7 @@ func (is *InputSanitizer) sanitizeArray(arr []interface{}, depth int) ([]interfa
 			if is.config.StrictMode {
 				return nil, err
 			}
-			continue // Skip invalid items in non-strict mode
+			continue 
 		}
 		sanitized = append(sanitized, sanitizedItem)
 	}
@@ -196,32 +177,29 @@ func (is *InputSanitizer) sanitizeArray(arr []interface{}, depth int) ([]interfa
 	return sanitized, nil
 }
 
-// sanitizeObject sanitizes a map/object
 func (is *InputSanitizer) sanitizeObject(obj map[string]interface{}, depth int) (map[string]interface{}, error) {
 	sanitized := make(map[string]interface{})
 
 	for key, value := range obj {
-		// Sanitize the key
+		
 		sanitizedKey, err := is.SanitizeString(key)
 		if err != nil {
 			if is.config.StrictMode {
 				return nil, fmt.Errorf("invalid key '%s': %w", key, err)
 			}
-			continue // Skip invalid keys in non-strict mode
+			continue 
 		}
 
-		// Skip empty keys
 		if sanitizedKey == "" {
 			continue
 		}
 
-		// Sanitize the value
 		sanitizedValue, err := is.sanitizeValueWithDepth(value, depth+1)
 		if err != nil {
 			if is.config.StrictMode {
 				return nil, fmt.Errorf("invalid value for key '%s': %w", key, err)
 			}
-			continue // Skip invalid values in non-strict mode
+			continue 
 		}
 
 		sanitized[sanitizedKey] = sanitizedValue
@@ -230,19 +208,16 @@ func (is *InputSanitizer) sanitizeObject(obj map[string]interface{}, depth int) 
 	return sanitized, nil
 }
 
-// SanitizeURL sanitizes and validates URLs
 func (is *InputSanitizer) SanitizeURL(rawURL string) (string, error) {
 	if !is.config.Enabled {
 		return rawURL, nil
 	}
 
-	// Parse URL
 	parsedURL, err := url.Parse(rawURL)
 	if err != nil {
 		return "", fmt.Errorf("invalid URL: %w", err)
 	}
 
-	// Check scheme
 	allowedSchemes := []string{"http", "https", "ftp", "ftps"}
 	if !contains(allowedSchemes, strings.ToLower(parsedURL.Scheme)) {
 		if is.config.StrictMode {
@@ -251,7 +226,6 @@ func (is *InputSanitizer) SanitizeURL(rawURL string) (string, error) {
 		return "", nil
 	}
 
-	// Sanitize host
 	if parsedURL.Host != "" {
 		host, err := is.SanitizeString(parsedURL.Host)
 		if err != nil {
@@ -260,7 +234,6 @@ func (is *InputSanitizer) SanitizeURL(rawURL string) (string, error) {
 		parsedURL.Host = host
 	}
 
-	// Sanitize path
 	if parsedURL.Path != "" {
 		path, err := is.SanitizeString(parsedURL.Path)
 		if err != nil {
@@ -269,7 +242,6 @@ func (is *InputSanitizer) SanitizeURL(rawURL string) (string, error) {
 		parsedURL.Path = path
 	}
 
-	// Sanitize query parameters
 	if parsedURL.RawQuery != "" {
 		query := parsedURL.Query()
 		sanitizedQuery := url.Values{}
@@ -301,21 +273,17 @@ func (is *InputSanitizer) SanitizeURL(rawURL string) (string, error) {
 	return parsedURL.String(), nil
 }
 
-// SanitizeFilename sanitizes filenames to prevent directory traversal
 func (is *InputSanitizer) SanitizeFilename(filename string) (string, error) {
 	if !is.config.Enabled {
 		return filename, nil
 	}
 
-	// Remove directory traversal patterns
 	filename = strings.ReplaceAll(filename, "..", "")
 	filename = strings.ReplaceAll(filename, "/", "")
 	filename = strings.ReplaceAll(filename, "\\", "")
 
-	// Remove null bytes
 	filename = strings.ReplaceAll(filename, "\x00", "")
 
-	// Remove control characters
 	filename = strings.Map(func(r rune) rune {
 		if unicode.IsControl(r) {
 			return -1
@@ -323,13 +291,11 @@ func (is *InputSanitizer) SanitizeFilename(filename string) (string, error) {
 		return r
 	}, filename)
 
-	// Sanitize as string
 	sanitized, err := is.SanitizeString(filename)
 	if err != nil {
 		return "", err
 	}
 
-	// Check for reserved names on Windows
 	reservedNames := []string{"CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"}
 	upperName := strings.ToUpper(sanitized)
 	for _, reserved := range reservedNames {
@@ -345,22 +311,18 @@ func (is *InputSanitizer) SanitizeFilename(filename string) (string, error) {
 	return sanitized, nil
 }
 
-// ValidateEmail validates and sanitizes email addresses
 func (is *InputSanitizer) ValidateEmail(email string) (string, error) {
 	if !is.config.Enabled {
 		return email, nil
 	}
 
-	// Basic email regex (simplified)
 	emailRegex := regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
 
-	// Sanitize first
 	sanitized, err := is.SanitizeString(email)
 	if err != nil {
 		return "", err
 	}
 
-	// Validate format
 	if !emailRegex.MatchString(sanitized) {
 		return "", fmt.Errorf("invalid email format")
 	}
@@ -368,25 +330,21 @@ func (is *InputSanitizer) ValidateEmail(email string) (string, error) {
 	return strings.ToLower(sanitized), nil
 }
 
-// ValidateNumber validates and sanitizes numeric inputs
 func (is *InputSanitizer) ValidateNumber(input string, minVal, maxVal float64) (float64, error) {
 	if !is.config.Enabled {
 		return strconv.ParseFloat(input, 64)
 	}
 
-	// Sanitize string first
 	sanitized, err := is.SanitizeString(input)
 	if err != nil {
 		return 0, err
 	}
 
-	// Parse as float
 	value, err := strconv.ParseFloat(sanitized, 64)
 	if err != nil {
 		return 0, fmt.Errorf("invalid number format: %w", err)
 	}
 
-	// Check bounds
 	if value < minVal || value > maxVal {
 		return 0, fmt.Errorf("number %f is outside allowed range [%f, %f]", value, minVal, maxVal)
 	}
@@ -394,14 +352,10 @@ func (is *InputSanitizer) ValidateNumber(input string, minVal, maxVal float64) (
 	return value, nil
 }
 
-// IsEnabled returns whether sanitization is enabled
 func (is *InputSanitizer) IsEnabled() bool {
 	return is.config.Enabled
 }
 
-// Middleware functions
-
-// SanitizeMiddleware creates HTTP middleware for request sanitization
 func (is *InputSanitizer) SanitizeMiddleware() func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -410,7 +364,6 @@ func (is *InputSanitizer) SanitizeMiddleware() func(next http.Handler) http.Hand
 				return
 			}
 
-			// Sanitize query parameters
 			query := r.URL.Query()
 			sanitizedQuery := url.Values{}
 
@@ -433,9 +386,8 @@ func (is *InputSanitizer) SanitizeMiddleware() func(next http.Handler) http.Hand
 
 			r.URL.RawQuery = sanitizedQuery.Encode()
 
-			// Sanitize headers (optional - be careful not to break authentication)
 			for key, values := range r.Header {
-				// Skip authentication and standard headers
+				
 				if isStandardHeader(key) {
 					continue
 				}
@@ -454,8 +406,6 @@ func (is *InputSanitizer) SanitizeMiddleware() func(next http.Handler) http.Hand
 		})
 	}
 }
-
-// Helper functions
 
 func contains(slice []string, item string) bool {
 	for _, s := range slice {
@@ -476,19 +426,16 @@ func isStandardHeader(header string) bool {
 	return contains(standardHeaders, header)
 }
 
-// EntitySanitizer provides entity-specific sanitization
 type EntitySanitizer struct {
 	sanitizer *InputSanitizer
 }
 
-// NewEntitySanitizer creates a new entity sanitizer
 func NewEntitySanitizer(config SanitizerConfig) *EntitySanitizer {
 	return &EntitySanitizer{
 		sanitizer: NewInputSanitizer(config),
 	}
 }
 
-// SanitizeEntityProperties sanitizes entity properties
 func (es *EntitySanitizer) SanitizeEntityProperties(properties map[string]interface{}) (map[string]interface{}, error) {
 	sanitized, err := es.sanitizer.SanitizeValue(properties)
 	if err != nil {
@@ -502,20 +449,17 @@ func (es *EntitySanitizer) SanitizeEntityProperties(properties map[string]interf
 	return nil, fmt.Errorf("sanitized value is not a map")
 }
 
-// SanitizeEntityType sanitizes entity type strings
 func (es *EntitySanitizer) SanitizeEntityType(entityType string) (string, error) {
-	// Entity types should follow specific patterns
+	
 	sanitized, err := es.sanitizer.SanitizeString(entityType)
 	if err != nil {
 		return "", err
 	}
 
-	// Additional validation for entity types
 	if len(sanitized) == 0 || len(sanitized) > 100 {
 		return "", fmt.Errorf("entity type length must be between 1 and 100 characters")
 	}
 
-	// Entity types should only contain alphanumeric characters and underscores
 	validPattern := regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_]*$`)
 	if !validPattern.MatchString(sanitized) {
 		return "", fmt.Errorf("entity type contains invalid characters")
@@ -524,14 +468,12 @@ func (es *EntitySanitizer) SanitizeEntityType(entityType string) (string, error)
 	return sanitized, nil
 }
 
-// SanitizeURN sanitizes URN strings
 func (es *EntitySanitizer) SanitizeURN(urn string) (string, error) {
 	sanitized, err := es.sanitizer.SanitizeString(urn)
 	if err != nil {
 		return "", err
 	}
 
-	// URNs should follow a specific format
 	if len(sanitized) == 0 || len(sanitized) > 500 {
 		return "", fmt.Errorf("URN length must be between 1 and 500 characters")
 	}
@@ -539,26 +481,22 @@ func (es *EntitySanitizer) SanitizeURN(urn string) (string, error) {
 	return sanitized, nil
 }
 
-// SearchSanitizer provides search-specific sanitization
 type SearchSanitizer struct {
 	sanitizer *InputSanitizer
 }
 
-// NewSearchSanitizer creates a new search sanitizer
 func NewSearchSanitizer(config SanitizerConfig) *SearchSanitizer {
 	return &SearchSanitizer{
 		sanitizer: NewInputSanitizer(config),
 	}
 }
 
-// SanitizeSearchQuery sanitizes search query strings
 func (ss *SearchSanitizer) SanitizeSearchQuery(query string) (string, error) {
 	sanitized, err := ss.sanitizer.SanitizeString(query)
 	if err != nil {
 		return "", err
 	}
 
-	// Additional search-specific validation
 	if len(sanitized) > 1000 {
 		return "", fmt.Errorf("search query too long")
 	}
@@ -566,7 +504,6 @@ func (ss *SearchSanitizer) SanitizeSearchQuery(query string) (string, error) {
 	return sanitized, nil
 }
 
-// SanitizeSearchFilters sanitizes search filter parameters
 func (ss *SearchSanitizer) SanitizeSearchFilters(filters map[string]interface{}) (map[string]interface{}, error) {
 	sanitized, err := ss.sanitizer.SanitizeValue(filters)
 	if err != nil {

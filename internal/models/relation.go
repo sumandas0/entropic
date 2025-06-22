@@ -6,7 +6,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// Relation represents a relationship between two entities
 type Relation struct {
 	ID             uuid.UUID              `json:"id" validate:"required"`
 	RelationType   string                 `json:"relation_type" validate:"required,min=1,max=100"`
@@ -19,7 +18,6 @@ type Relation struct {
 	UpdatedAt      time.Time              `json:"updated_at"`
 }
 
-// NewRelation creates a new relation with generated ID and timestamps
 func NewRelation(relationType string, fromEntityID uuid.UUID, fromEntityType string, 
 	toEntityID uuid.UUID, toEntityType string, properties map[string]interface{}) *Relation {
 	now := time.Now()
@@ -36,14 +34,12 @@ func NewRelation(relationType string, fromEntityID uuid.UUID, fromEntityType str
 	}
 }
 
-// RelationReference represents a reference to a related entity
 type RelationReference struct {
 	EntityID   uuid.UUID `json:"entity_id"`
 	EntityType string    `json:"entity_type"`
 	URN        string    `json:"urn,omitempty"`
 }
 
-// GetFromReference returns the from entity reference
 func (r *Relation) GetFromReference() RelationReference {
 	return RelationReference{
 		EntityID:   r.FromEntityID,
@@ -51,7 +47,6 @@ func (r *Relation) GetFromReference() RelationReference {
 	}
 }
 
-// GetToReference returns the to entity reference
 func (r *Relation) GetToReference() RelationReference {
 	return RelationReference{
 		EntityID:   r.ToEntityID,

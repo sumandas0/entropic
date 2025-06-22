@@ -12,7 +12,6 @@ import (
 	"github.com/rs/zerolog/pkgerrors"
 )
 
-// LogLevel represents log levels
 type LogLevel string
 
 const (
@@ -25,7 +24,6 @@ const (
 	LogLevelPanic LogLevel = "panic"
 )
 
-// LogFormat represents log output formats
 type LogFormat string
 
 const (
@@ -33,16 +31,14 @@ const (
 	LogFormatConsole LogFormat = "console"
 )
 
-// LoggingConfig holds configuration for structured logging
 type LoggingConfig struct {
 	Level      LogLevel  `yaml:"level" mapstructure:"level"`
 	Format     LogFormat `yaml:"format" mapstructure:"format"`
-	Output     string    `yaml:"output" mapstructure:"output"` // "stdout", "stderr", or file path
+	Output     string    `yaml:"output" mapstructure:"output"` 
 	TimeFormat string    `yaml:"time_format" mapstructure:"time_format"`
 	Sampling   *SamplingConfig `yaml:"sampling" mapstructure:"sampling"`
 }
 
-// SamplingConfig configures log sampling to reduce volume
 type SamplingConfig struct {
 	Enabled  bool `yaml:"enabled" mapstructure:"enabled"`
 	Tick     time.Duration `yaml:"tick" mapstructure:"tick"`
@@ -50,25 +46,21 @@ type SamplingConfig struct {
 	Thereafter int `yaml:"thereafter" mapstructure:"thereafter"`
 }
 
-// Logger wraps zerolog with additional functionality
 type Logger struct {
 	logger zerolog.Logger
 	config LoggingConfig
 }
 
-// NewLogger creates a new structured logger with the given configuration
 func NewLogger(config LoggingConfig) (*Logger, error) {
-	// Configure error stack marshaling
+	
 	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
 
-	// Set global log level
 	level, err := parseLogLevel(config.Level)
 	if err != nil {
 		return nil, err
 	}
 	zerolog.SetGlobalLevel(level)
 
-	// Configure output
 	var output io.Writer
 	switch config.Output {
 	case "stdout", "":
@@ -76,7 +68,7 @@ func NewLogger(config LoggingConfig) (*Logger, error) {
 	case "stderr":
 		output = os.Stderr
 	default:
-		// File output
+		
 		file, err := os.OpenFile(config.Output, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 		if err != nil {
 			return nil, err
@@ -84,7 +76,6 @@ func NewLogger(config LoggingConfig) (*Logger, error) {
 		output = file
 	}
 
-	// Configure logger based on format
 	var logger zerolog.Logger
 	switch config.Format {
 	case LogFormatConsole:
@@ -99,14 +90,12 @@ func NewLogger(config LoggingConfig) (*Logger, error) {
 		logger = zerolog.New(output)
 	}
 
-	// Add timestamp and caller information
 	logger = logger.With().
 		Timestamp().
 		Caller().
 		Str("service", "entropic").
 		Logger()
 
-	// Configure sampling if enabled
 	if config.Sampling != nil && config.Sampling.Enabled {
 		logger = logger.Sample(&zerolog.BasicSampler{
 			N: uint32(config.Sampling.Thereafter),
@@ -119,11 +108,9 @@ func NewLogger(config LoggingConfig) (*Logger, error) {
 	}, nil
 }
 
-// WithContext adds trace information from context to the logger
 func (l *Logger) WithContext(ctx context.Context) *zerolog.Logger {
 	logger := l.logger.With()
-	
-	// Add trace information if available
+
 	if traceInfo := ExtractTraceInfo(ctx); traceInfo != nil {
 		for key, value := range traceInfo {
 			logger = logger.Interface(key, value)
@@ -134,7 +121,6 @@ func (l *Logger) WithContext(ctx context.Context) *zerolog.Logger {
 	return &contextLogger
 }
 
-// WithEntity adds entity information to the logger
 func (l *Logger) WithEntity(entityType, entityID string) *zerolog.Logger {
 	logger := l.logger.With().
 		Str("entity_type", entityType).
@@ -143,7 +129,6 @@ func (l *Logger) WithEntity(entityType, entityID string) *zerolog.Logger {
 	return &logger
 }
 
-// WithRelation adds relation information to the logger
 func (l *Logger) WithRelation(relationType, relationID string) *zerolog.Logger {
 	logger := l.logger.With().
 		Str("relation_type", relationType).
@@ -152,7 +137,6 @@ func (l *Logger) WithRelation(relationType, relationID string) *zerolog.Logger {
 	return &logger
 }
 
-// WithOperation adds operation information to the logger
 func (l *Logger) WithOperation(operation string) *zerolog.Logger {
 	logger := l.logger.With().
 		Str("operation", operation).
@@ -160,7 +144,6 @@ func (l *Logger) WithOperation(operation string) *zerolog.Logger {
 	return &logger
 }
 
-// WithUser adds user information to the logger
 func (l *Logger) WithUser(userID string) *zerolog.Logger {
 	logger := l.logger.With().
 		Str("user_id", userID).
@@ -168,7 +151,6 @@ func (l *Logger) WithUser(userID string) *zerolog.Logger {
 	return &logger
 }
 
-// WithRequest adds HTTP request information to the logger
 func (l *Logger) WithRequest(method, path, userAgent, clientIP string) *zerolog.Logger {
 	logger := l.logger.With().
 		Str("http_method", method).
@@ -179,7 +161,6 @@ func (l *Logger) WithRequest(method, path, userAgent, clientIP string) *zerolog.
 	return &logger
 }
 
-// WithDuration adds duration information to the logger
 func (l *Logger) WithDuration(duration time.Duration) *zerolog.Logger {
 	logger := l.logger.With().
 		Dur("duration", duration).
@@ -187,7 +168,6 @@ func (l *Logger) WithDuration(duration time.Duration) *zerolog.Logger {
 	return &logger
 }
 
-// WithError adds error information to the logger with stack trace
 func (l *Logger) WithError(err error) *zerolog.Logger {
 	logger := l.logger.With().
 		Stack().
@@ -196,37 +176,29 @@ func (l *Logger) WithError(err error) *zerolog.Logger {
 	return &logger
 }
 
-// Debug logs a debug message
 func (l *Logger) Debug(msg string) {
 	l.logger.Debug().Msg(msg)
 }
 
-// Info logs an info message
 func (l *Logger) Info(msg string) {
 	l.logger.Info().Msg(msg)
 }
 
-// Warn logs a warning message
 func (l *Logger) Warn(msg string) {
 	l.logger.Warn().Msg(msg)
 }
 
-// Error logs an error message
 func (l *Logger) Error(msg string) {
 	l.logger.Error().Msg(msg)
 }
 
-// Fatal logs a fatal message and exits
 func (l *Logger) Fatal(msg string) {
 	l.logger.Fatal().Msg(msg)
 }
 
-// GetZerologLogger returns the underlying zerolog logger
 func (l *Logger) GetZerologLogger() zerolog.Logger {
 	return l.logger
 }
-
-// Helper functions
 
 func parseLogLevel(level LogLevel) (zerolog.Level, error) {
 	switch level {
@@ -256,16 +228,13 @@ func getTimeFormat(format string) string {
 	return format
 }
 
-// LoggingMiddleware creates middleware for HTTP request logging
 func (l *Logger) LoggingMiddleware() func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
-			
-			// Wrap response writer to capture status code and size
+
 			wrapped := &loggingResponseWriter{ResponseWriter: w}
-			
-			// Log request start
+
 			logger := l.WithContext(r.Context()).
 				With().
 				Str("method", r.Method).
@@ -275,11 +244,9 @@ func (l *Logger) LoggingMiddleware() func(next http.Handler) http.Handler {
 				Logger()
 			
 			logger.Info().Msg("HTTP request started")
-			
-			// Process request
+
 			next.ServeHTTP(wrapped, r)
-			
-			// Log request completion
+
 			duration := time.Since(start)
 			logEvent := logger.Info().
 				Int("status_code", wrapped.statusCode).
@@ -322,7 +289,6 @@ func (lrw *loggingResponseWriter) Write(data []byte) (int, error) {
 	return size, err
 }
 
-// StructuredError represents a structured error for consistent logging
 type StructuredError struct {
 	Code      string                 `json:"code"`
 	Message   string                 `json:"message"`
@@ -335,7 +301,6 @@ func (se *StructuredError) Error() string {
 	return se.Message
 }
 
-// NewStructuredError creates a new structured error
 func NewStructuredError(code, message string, details map[string]interface{}) *StructuredError {
 	return &StructuredError{
 		Code:      code,
@@ -345,13 +310,11 @@ func NewStructuredError(code, message string, details map[string]interface{}) *S
 	}
 }
 
-// WithCause adds a cause to the structured error
 func (se *StructuredError) WithCause(cause error) *StructuredError {
 	se.Cause = cause
 	return se
 }
 
-// LogStructuredError logs a structured error with appropriate context
 func (l *Logger) LogStructuredError(ctx context.Context, err *StructuredError) {
 	logger := l.WithContext(ctx)
 	
@@ -367,12 +330,10 @@ func (l *Logger) LogStructuredError(ctx context.Context, err *StructuredError) {
 	logEvent.Msg(err.Message)
 }
 
-// SetGlobalLogger sets the global logger instance
 func SetGlobalLogger(logger *Logger) {
 	log.Logger = logger.logger
 }
 
-// GetGlobalLogger returns a logger from the global context
 func GetGlobalLogger() zerolog.Logger {
 	return log.Logger
 }

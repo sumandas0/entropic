@@ -96,7 +96,7 @@ func (e *Engine) UpdateEntity(ctx context.Context, entity *models.Entity) error 
 		}
 		
 		if err := e.denormalizationMgr.UpdateDenormalizedData(ctx, entity); err != nil {
-			// Log warning but don't fail the transaction
+			
 			fmt.Printf("Warning: failed to update denormalized data for entity %s: %v\n", entity.ID, err)
 		}
 		
@@ -150,7 +150,7 @@ func (e *Engine) CreateRelation(ctx context.Context, relation *models.Relation) 
 		}
 		
 		if err := e.denormalizationMgr.HandleRelationCreation(ctx, relation); err != nil {
-			// Log warning but don't fail the transaction
+			
 			fmt.Printf("Warning: failed to handle denormalization for relation %s: %v\n", relation.ID, err)
 		}
 		
@@ -235,7 +235,7 @@ func (e *Engine) UpdateEntitySchema(ctx context.Context, schema *models.EntitySc
 		}
 		
 		if err := e.indexStore.UpdateCollection(ctx, schema.EntityType, schema); err != nil {
-			// Log warning but don't fail the operation
+			
 			fmt.Printf("Warning: failed to update index collection for %s: %v\n", schema.EntityType, err)
 		}
 		
@@ -265,7 +265,7 @@ func (e *Engine) DeleteEntitySchema(ctx context.Context, entityType string) erro
 		}
 		
 		if err := e.indexStore.DeleteCollection(ctx, entityType); err != nil {
-			// Log warning but don't fail the operation
+			
 			fmt.Printf("Warning: failed to delete index collection for %s: %v\n", entityType, err)
 		}
 		

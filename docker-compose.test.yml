@@ -1,8 +1,5 @@
-# Docker Compose configuration for testing
 version: '3.8'
-
 services:
-  # Test PostgreSQL database
   postgres-test:
     image: pgvector/pgvector:pg17
     container_name: entropic-postgres-test
@@ -25,8 +22,6 @@ services:
       start_period: 10s
     tmpfs:
       - /var/lib/postgresql/data
-
-  # Test Typesense instance
   typesense-test:
     image: typesense/typesense:28.0
     container_name: entropic-typesense-test
@@ -46,8 +41,6 @@ services:
       start_period: 10s
     tmpfs:
       - /data
-
-  # Test Redis instance
   redis-test:
     image: redis:7-alpine
     container_name: entropic-redis-test
@@ -62,36 +55,25 @@ services:
       retries: 3
     tmpfs:
       - /data
-
-  # Test runner
   test-runner:
     build:
       context: .
       dockerfile: Dockerfile.test
     container_name: entropic-test-runner
     environment:
-      # Test database configuration
       ENTROPIC_DATABASE_HOST: postgres-test
       ENTROPIC_DATABASE_PORT: 5432
       ENTROPIC_DATABASE_DATABASE: entropic_test
       ENTROPIC_DATABASE_USERNAME: postgres
       ENTROPIC_DATABASE_PASSWORD: postgres
       ENTROPIC_DATABASE_SSL_MODE: disable
-      
-      # Test search configuration
       ENTROPIC_SEARCH_URL: http://typesense-test:8108
       ENTROPIC_SEARCH_API_KEY: test-key
-      
-      # Test lock configuration
       ENTROPIC_LOCK_TYPE: redis
       ENTROPIC_LOCK_REDIS_HOST: redis-test
       ENTROPIC_LOCK_REDIS_PORT: 6379
-      
-      # Test logging
       ENTROPIC_LOGGING_LEVEL: debug
       ENTROPIC_LOGGING_FORMAT: console
-      
-      # Test environment
       GO_ENV: test
     volumes:
       - .:/app
@@ -109,15 +91,12 @@ services:
         condition: service_healthy
     profiles:
       - test
-
-  # Integration test runner
   integration-test:
     build:
       context: .
       dockerfile: Dockerfile.test
     container_name: entropic-integration-test
     environment:
-      # Test configuration
       ENTROPIC_DATABASE_HOST: postgres-test
       ENTROPIC_DATABASE_PORT: 5432
       ENTROPIC_DATABASE_DATABASE: entropic_test
@@ -143,15 +122,11 @@ services:
     command: ["go", "test", "-tags=integration", "./tests/integration/...", "-v"]
     profiles:
       - integration
-
-# Volumes for test caching
 volumes:
   go_cache:
     driver: local
   test_coverage:
     driver: local
-
-# Test network
 networks:
   entropic-test-network:
     driver: bridge

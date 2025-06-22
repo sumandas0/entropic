@@ -1,8 +1,5 @@
-# Docker Compose configuration for Entropic
 version: '3.8'
-
 services:
-  # PostgreSQL database with pgvector extension
   postgres:
     image: pgvector/pgvector:pg17
     container_name: entropic-postgres
@@ -25,8 +22,6 @@ services:
       retries: 5
       start_period: 30s
     restart: unless-stopped
-
-  # Typesense search engine
   typesense:
     image: typesense/typesense:28.0
     container_name: entropic-typesense
@@ -47,8 +42,6 @@ services:
       retries: 3
       start_period: 30s
     restart: unless-stopped
-
-  # Redis for distributed locking (optional)
   redis:
     image: redis:7-alpine
     container_name: entropic-redis
@@ -65,8 +58,6 @@ services:
       retries: 3
     restart: unless-stopped
     command: redis-server --appendonly yes
-
-  # Entropic application server
   entropic:
     build:
       context: .
@@ -77,11 +68,8 @@ services:
         BUILD_TIME: ${BUILD_TIME:-unknown}
     container_name: entropic-server
     environment:
-      # Server configuration
       ENTROPIC_SERVER_HOST: 0.0.0.0
       ENTROPIC_SERVER_PORT: 8080
-      
-      # Database configuration
       ENTROPIC_DATABASE_HOST: postgres
       ENTROPIC_DATABASE_PORT: 5432
       ENTROPIC_DATABASE_DATABASE: entropic
@@ -89,17 +77,11 @@ services:
       ENTROPIC_DATABASE_PASSWORD: postgres
       ENTROPIC_DATABASE_SSL_MODE: disable
       ENTROPIC_DATABASE_MIGRATE_ON_START: true
-      
-      # Search configuration
       ENTROPIC_SEARCH_URL: http://typesense:8108
       ENTROPIC_SEARCH_API_KEY: xyz
-      
-      # Lock configuration
       ENTROPIC_LOCK_TYPE: memory
       ENTROPIC_LOCK_REDIS_HOST: redis
       ENTROPIC_LOCK_REDIS_PORT: 6379
-      
-      # Logging configuration
       ENTROPIC_LOGGING_LEVEL: info
       ENTROPIC_LOGGING_FORMAT: json
     ports:
@@ -121,8 +103,6 @@ services:
       retries: 3
       start_period: 60s
     restart: unless-stopped
-
-  # Nginx reverse proxy (optional)
   nginx:
     image: nginx:alpine
     container_name: entropic-nginx
@@ -140,8 +120,6 @@ services:
     restart: unless-stopped
     profiles:
       - proxy
-
-# Named volumes for data persistence
 volumes:
   postgres_data:
     driver: local
@@ -153,8 +131,6 @@ volumes:
     driver: local
   nginx_logs:
     driver: local
-
-# Custom network
 networks:
   entropic-network:
     driver: bridge

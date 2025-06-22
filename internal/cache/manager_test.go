@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// mockPrimaryStore implements store.PrimaryStore for testing
 type mockPrimaryStore struct {
 	entitySchemas       map[string]*models.EntitySchema
 	relationshipSchemas map[string]*models.RelationshipSchema
@@ -110,7 +109,6 @@ func (m *mockPrimaryStore) ListRelationshipSchemas(ctx context.Context) ([]*mode
 	return schemas, nil
 }
 
-// Implement remaining PrimaryStore methods with no-op or panic
 func (m *mockPrimaryStore) CreateEntity(ctx context.Context, entity *models.Entity) error { panic("not implemented") }
 func (m *mockPrimaryStore) GetEntity(ctx context.Context, entityType string, entityID uuid.UUID) (*models.Entity, error) { panic("not implemented") }
 func (m *mockPrimaryStore) UpdateEntity(ctx context.Context, entity *models.Entity) error { panic("not implemented") }
@@ -125,7 +123,6 @@ func (m *mockPrimaryStore) BeginTx(ctx context.Context) (store.Transaction, erro
 func (m *mockPrimaryStore) Close() error { return nil }
 func (m *mockPrimaryStore) Ping(ctx context.Context) error { return nil }
 
-// Test helper functions
 func createTestEntitySchema(entityType string) *models.EntitySchema {
 	return &models.EntitySchema{
 		ID:         uuid.New(),
@@ -167,7 +164,6 @@ func TestCacheAwareManager_GetEntitySchema(t *testing.T) {
 	mockStore := newMockPrimaryStore()
 	manager := NewCacheAwareManager(mockStore, 5*time.Minute)
 
-	// Create test schema
 	schema := createTestEntitySchema("user")
 	err := mockStore.CreateEntitySchema(ctx, schema)
 	require.NoError(t, err)
@@ -201,7 +197,7 @@ func TestCacheAwareManager_GetEntitySchema(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if !tt.cacheHit {
-				// Clear cache for cache miss test
+				
 				manager.InvalidateEntitySchema(tt.entityType)
 			}
 
@@ -214,7 +210,6 @@ func TestCacheAwareManager_GetEntitySchema(t *testing.T) {
 				assert.NotNil(t, retrieved)
 				assert.Equal(t, tt.entityType, retrieved.EntityType)
 
-				// Second call should hit cache
 				cached, err := manager.GetEntitySchema(ctx, tt.entityType)
 				assert.NoError(t, err)
 				assert.Equal(t, retrieved, cached)
@@ -228,7 +223,6 @@ func TestCacheAwareManager_GetRelationshipSchema(t *testing.T) {
 	mockStore := newMockPrimaryStore()
 	manager := NewCacheAwareManager(mockStore, 5*time.Minute)
 
-	// Create entity schemas first
 	userSchema := createTestEntitySchema("user")
 	err := mockStore.CreateEntitySchema(ctx, userSchema)
 	require.NoError(t, err)
@@ -237,22 +231,18 @@ func TestCacheAwareManager_GetRelationshipSchema(t *testing.T) {
 	err = mockStore.CreateEntitySchema(ctx, orgSchema)
 	require.NoError(t, err)
 
-	// Create relationship schema
 	relationSchema := createTestRelationshipSchema("member_of", "user", "organization")
 	err = mockStore.CreateRelationshipSchema(ctx, relationSchema)
 	require.NoError(t, err)
 
-	// Test cache behavior
 	retrieved, err := manager.GetRelationshipSchema(ctx, "member_of")
 	require.NoError(t, err)
 	assert.Equal(t, "member_of", retrieved.RelationshipType)
 
-	// Second call should hit cache
 	cached, err := manager.GetRelationshipSchema(ctx, "member_of")
 	require.NoError(t, err)
 	assert.Equal(t, retrieved, cached)
 
-	// Test non-existent schema
 	_, err = manager.GetRelationshipSchema(ctx, "nonexistent")
 	assert.Error(t, err)
 }
@@ -262,22 +252,17 @@ func TestCacheAwareManager_InvalidateEntitySchema(t *testing.T) {
 	mockStore := newMockPrimaryStore()
 	manager := NewCacheAwareManager(mockStore, 5*time.Minute)
 
-	// Create test schema
 	schema := createTestEntitySchema("user")
 	err := mockStore.CreateEntitySchema(ctx, schema)
 	require.NoError(t, err)
 
-	// Load into cache
 	_, err = manager.GetEntitySchema(ctx, "user")
 	require.NoError(t, err)
 
-	// Verify cache contains the schema
 	assert.True(t, manager.HasEntitySchema("user"))
 
-	// Invalidate cache
 	manager.InvalidateEntitySchema("user")
 
-	// Verify cache no longer contains the schema
 	assert.False(t, manager.HasEntitySchema("user"))
 }
 
@@ -286,7 +271,6 @@ func TestCacheAwareManager_InvalidateRelationshipSchema(t *testing.T) {
 	mockStore := newMockPrimaryStore()
 	manager := NewCacheAwareManager(mockStore, 5*time.Minute)
 
-	// Create schemas
 	userSchema := createTestEntitySchema("user")
 	err := mockStore.CreateEntitySchema(ctx, userSchema)
 	require.NoError(t, err)
@@ -299,17 +283,13 @@ func TestCacheAwareManager_InvalidateRelationshipSchema(t *testing.T) {
 	err = mockStore.CreateRelationshipSchema(ctx, relationSchema)
 	require.NoError(t, err)
 
-	// Load into cache
 	_, err = manager.GetRelationshipSchema(ctx, "member_of")
 	require.NoError(t, err)
 
-	// Verify cache contains the schema
 	assert.True(t, manager.HasRelationshipSchema("member_of"))
 
-	// Invalidate cache
 	manager.InvalidateRelationshipSchema("member_of")
 
-	// Verify cache no longer contains the schema
 	assert.False(t, manager.HasRelationshipSchema("member_of"))
 }
 
@@ -318,7 +298,6 @@ func TestCacheAwareManager_InvalidateAll(t *testing.T) {
 	mockStore := newMockPrimaryStore()
 	manager := NewCacheAwareManager(mockStore, 5*time.Minute)
 
-	// Create schemas
 	userSchema := createTestEntitySchema("user")
 	err := mockStore.CreateEntitySchema(ctx, userSchema)
 	require.NoError(t, err)
@@ -331,7 +310,6 @@ func TestCacheAwareManager_InvalidateAll(t *testing.T) {
 	err = mockStore.CreateRelationshipSchema(ctx, relationSchema)
 	require.NoError(t, err)
 
-	// Load schemas into cache
 	_, err = manager.GetEntitySchema(ctx, "user")
 	require.NoError(t, err)
 	_, err = manager.GetEntitySchema(ctx, "organization")
@@ -339,15 +317,12 @@ func TestCacheAwareManager_InvalidateAll(t *testing.T) {
 	_, err = manager.GetRelationshipSchema(ctx, "member_of")
 	require.NoError(t, err)
 
-	// Verify cache contains schemas
 	assert.True(t, manager.HasEntitySchema("user"))
 	assert.True(t, manager.HasEntitySchema("organization"))
 	assert.True(t, manager.HasRelationshipSchema("member_of"))
 
-	// Invalidate all
 	manager.InvalidateAll()
 
-	// Verify cache is empty
 	assert.False(t, manager.HasEntitySchema("user"))
 	assert.False(t, manager.HasEntitySchema("organization"))
 	assert.False(t, manager.HasRelationshipSchema("member_of"))
@@ -358,12 +333,10 @@ func TestCacheAwareManager_ConcurrentAccess(t *testing.T) {
 	mockStore := newMockPrimaryStore()
 	manager := NewCacheAwareManager(mockStore, 5*time.Minute)
 
-	// Create test schema
 	schema := createTestEntitySchema("user")
 	err := mockStore.CreateEntitySchema(ctx, schema)
 	require.NoError(t, err)
 
-	// Test concurrent access
 	numGoroutines := 10
 	results := make(chan error, numGoroutines)
 
@@ -374,7 +347,6 @@ func TestCacheAwareManager_ConcurrentAccess(t *testing.T) {
 		}()
 	}
 
-	// Collect results
 	var errors []error
 	for i := 0; i < numGoroutines; i++ {
 		if err := <-results; err != nil {
@@ -382,7 +354,6 @@ func TestCacheAwareManager_ConcurrentAccess(t *testing.T) {
 		}
 	}
 
-	// All operations should succeed
 	assert.Empty(t, errors, "Expected no errors in concurrent access")
 }
 
@@ -390,25 +361,19 @@ func TestCacheAwareManager_TTLExpiration(t *testing.T) {
 	ctx := context.Background()
 	mockStore := newMockPrimaryStore()
 
-	// Create cache manager with short TTL
 	shortTTLManager := NewCacheAwareManager(mockStore, 100*time.Millisecond)
 
-	// Create test schema
 	schema := createTestEntitySchema("user")
 	err := mockStore.CreateEntitySchema(ctx, schema)
 	require.NoError(t, err)
 
-	// Load into cache
 	_, err = shortTTLManager.GetEntitySchema(ctx, "user")
 	require.NoError(t, err)
 
-	// Verify cache contains the schema
 	assert.True(t, shortTTLManager.HasEntitySchema("user"))
 
-	// Wait for TTL expiration
 	time.Sleep(200 * time.Millisecond)
 
-	// Cache should be empty after cleanup
 	shortTTLManager.cleanup()
 	assert.False(t, shortTTLManager.HasEntitySchema("user"))
 }
@@ -418,11 +383,9 @@ func BenchmarkCacheAwareManager_GetEntitySchema(b *testing.B) {
 	mockStore := newMockPrimaryStore()
 	manager := NewCacheAwareManager(mockStore, 5*time.Minute)
 
-	// Create test schema
 	schema := createTestEntitySchema("user")
 	mockStore.CreateEntitySchema(ctx, schema)
 
-	// Pre-load cache
 	manager.GetEntitySchema(ctx, "user")
 
 	b.ResetTimer()
@@ -436,13 +399,12 @@ func BenchmarkCacheAwareManager_CacheMiss(b *testing.B) {
 	mockStore := newMockPrimaryStore()
 	manager := NewCacheAwareManager(mockStore, 5*time.Minute)
 
-	// Create test schema
 	schema := createTestEntitySchema("user")
 	mockStore.CreateEntitySchema(ctx, schema)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		// Clear cache before each iteration to force cache miss
+		
 		manager.InvalidateEntitySchema("user")
 		manager.GetEntitySchema(ctx, "user")
 	}

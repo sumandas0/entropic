@@ -8,7 +8,6 @@ import (
 	"github.com/typesense/typesense-go/typesense"
 )
 
-// Config holds Typesense configuration
 type Config struct {
 	ServerURL           string
 	APIKey              string
@@ -18,7 +17,6 @@ type Config struct {
 	HealthCheckInterval time.Duration
 }
 
-// DefaultConfig returns default Typesense configuration
 func DefaultConfig() *Config {
 	return &Config{
 		ConnectionTimeout:   5 * time.Second,
@@ -28,7 +26,6 @@ func DefaultConfig() *Config {
 	}
 }
 
-// Validate validates the configuration
 func (c *Config) Validate() error {
 	if c.ServerURL == "" {
 		return fmt.Errorf("server URL is required")
@@ -48,7 +45,6 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-// NewClient creates a new Typesense client with the given configuration
 func NewClient(config *Config) (*typesense.Client, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err
@@ -63,14 +59,12 @@ func NewClient(config *Config) (*typesense.Client, error) {
 	return client, nil
 }
 
-// HealthChecker provides health checking for Typesense
 type HealthChecker struct {
 	client   *typesense.Client
 	interval time.Duration
 	stopCh   chan struct{}
 }
 
-// NewHealthChecker creates a new health checker
 func NewHealthChecker(client *typesense.Client, interval time.Duration) *HealthChecker {
 	return &HealthChecker{
 		client:   client,
@@ -79,7 +73,6 @@ func NewHealthChecker(client *typesense.Client, interval time.Duration) *HealthC
 	}
 }
 
-// Start starts the health checking routine
 func (h *HealthChecker) Start(ctx context.Context) {
 	ticker := time.NewTicker(h.interval)
 	defer ticker.Stop()
@@ -88,7 +81,7 @@ func (h *HealthChecker) Start(ctx context.Context) {
 		select {
 		case <-ticker.C:
 			if err := h.check(ctx); err != nil {
-				// Log the error (you would use your logging framework here)
+				
 				fmt.Printf("Typesense health check failed: %v\n", err)
 			}
 		case <-h.stopCh:
@@ -99,12 +92,10 @@ func (h *HealthChecker) Start(ctx context.Context) {
 	}
 }
 
-// Stop stops the health checking routine
 func (h *HealthChecker) Stop() {
 	close(h.stopCh)
 }
 
-// check performs a single health check
 func (h *HealthChecker) check(ctx context.Context) error {
 	healthy, err := h.client.Health(ctx, 5*time.Second)
 	if err != nil {
@@ -118,17 +109,14 @@ func (h *HealthChecker) check(ctx context.Context) error {
 	return nil
 }
 
-// CollectionManager helps manage Typesense collections
 type CollectionManager struct {
 	client *typesense.Client
 }
 
-// NewCollectionManager creates a new collection manager
 func NewCollectionManager(client *typesense.Client) *CollectionManager {
 	return &CollectionManager{client: client}
 }
 
-// ListCollections lists all collections
 func (m *CollectionManager) ListCollections(ctx context.Context) ([]string, error) {
 	collections, err := m.client.Collections().Retrieve(ctx)
 	if err != nil {
@@ -143,7 +131,6 @@ func (m *CollectionManager) ListCollections(ctx context.Context) ([]string, erro
 	return names, nil
 }
 
-// CollectionExists checks if a collection exists
 func (m *CollectionManager) CollectionExists(ctx context.Context, name string) (bool, error) {
 	_, err := m.client.Collection(name).Retrieve(ctx)
 	if err != nil {
@@ -155,7 +142,6 @@ func (m *CollectionManager) CollectionExists(ctx context.Context, name string) (
 	return true, nil
 }
 
-// DropAllCollections drops all collections (use with caution!)
 func (m *CollectionManager) DropAllCollections(ctx context.Context) error {
 	collections, err := m.ListCollections(ctx)
 	if err != nil {
@@ -171,16 +157,14 @@ func (m *CollectionManager) DropAllCollections(ctx context.Context) error {
 	return nil
 }
 
-// Helper function to check if error is a not found error
 func isNotFoundError(err error) bool {
 	if err == nil {
 		return false
 	}
-	// Typesense returns 404 errors as strings containing "not found"
+	
 	return contains(err.Error(), "not found") || contains(err.Error(), "404")
 }
 
-// Helper function for case-insensitive string contains
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && 
 		(s == substr || 

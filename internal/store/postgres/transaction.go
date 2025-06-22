@@ -13,12 +13,10 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// PostgresTx implements the Transaction interface for PostgreSQL
 type PostgresTx struct {
 	tx pgx.Tx
 }
 
-// CreateEntity creates an entity within the transaction
 func (t *PostgresTx) CreateEntity(ctx context.Context, entity *models.Entity) error {
 	propertiesJSON, err := json.Marshal(entity.Properties)
 	if err != nil {
@@ -51,7 +49,6 @@ func (t *PostgresTx) CreateEntity(ctx context.Context, entity *models.Entity) er
 	return nil
 }
 
-// UpdateEntity updates an entity within the transaction
 func (t *PostgresTx) UpdateEntity(ctx context.Context, entity *models.Entity) error {
 	propertiesJSON, err := json.Marshal(entity.Properties)
 	if err != nil {
@@ -86,7 +83,6 @@ func (t *PostgresTx) UpdateEntity(ctx context.Context, entity *models.Entity) er
 	return nil
 }
 
-// DeleteEntity soft deletes an entity within the transaction
 func (t *PostgresTx) DeleteEntity(ctx context.Context, entityType string, id uuid.UUID) error {
 	query := `
 		UPDATE entities
@@ -108,7 +104,6 @@ func (t *PostgresTx) DeleteEntity(ctx context.Context, entityType string, id uui
 	return nil
 }
 
-// CreateRelation creates a relation within the transaction
 func (t *PostgresTx) CreateRelation(ctx context.Context, relation *models.Relation) error {
 	propertiesJSON, err := json.Marshal(relation.Properties)
 	if err != nil {
@@ -142,7 +137,6 @@ func (t *PostgresTx) CreateRelation(ctx context.Context, relation *models.Relati
 	return nil
 }
 
-// DeleteRelation soft deletes a relation within the transaction
 func (t *PostgresTx) DeleteRelation(ctx context.Context, id uuid.UUID) error {
 	query := `
 		UPDATE relations
@@ -163,7 +157,6 @@ func (t *PostgresTx) DeleteRelation(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
-// Commit commits the transaction
 func (t *PostgresTx) Commit() error {
 	err := t.tx.Commit(context.Background())
 	if err != nil {
@@ -172,11 +165,10 @@ func (t *PostgresTx) Commit() error {
 	return nil
 }
 
-// Rollback rolls back the transaction
 func (t *PostgresTx) Rollback() error {
 	err := t.tx.Rollback(context.Background())
 	if err != nil {
-		// If already rolled back, ignore the error
+		
 		if err == pgx.ErrTxClosed {
 			return nil
 		}
@@ -185,5 +177,4 @@ func (t *PostgresTx) Rollback() error {
 	return nil
 }
 
-// Ensure PostgresTx implements Transaction
 var _ store.Transaction = (*PostgresTx)(nil)

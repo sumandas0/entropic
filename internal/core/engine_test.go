@@ -29,7 +29,7 @@ func TestEngine_CreateEntitySchema(t *testing.T) {
 		},
 		{
 			name:      "duplicate schema",
-			schema:    testhelpers.CreateTestEntitySchema("user"), // Same as above
+			schema:    testhelpers.CreateTestEntitySchema("user"), 
 			wantError: true,
 		},
 	}
@@ -42,7 +42,6 @@ func TestEngine_CreateEntitySchema(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 
-				// Verify schema was stored
 				retrieved, err := env.Engine.GetEntitySchema(ctx, tt.schema.EntityType)
 				require.NoError(t, err)
 				assert.Equal(t, tt.schema.EntityType, retrieved.EntityType)
@@ -57,7 +56,6 @@ func TestEngine_CreateEntity(t *testing.T) {
 	env := testhelpers.SetupTestEnvironment(t, ctx)
 	defer env.Cleanup(ctx)
 
-	// Create test schema first
 	schema := testhelpers.CreateTestEntitySchema("user")
 	err := env.Engine.CreateEntitySchema(ctx, schema)
 	require.NoError(t, err)
@@ -92,12 +90,10 @@ func TestEngine_CreateEntity(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 
-				// Verify entity was stored in primary store
 				retrieved, err := env.Engine.GetEntity(ctx, tt.entity.EntityType, tt.entity.ID)
 				require.NoError(t, err)
 				testhelpers.AssertEntityEqual(t, tt.entity, retrieved)
 
-				// Wait for indexing and verify entity was indexed
 				testhelpers.WaitForIndexing(t, ctx, env.IndexStore, 2*time.Second)
 			}
 		})
@@ -109,17 +105,14 @@ func TestEngine_UpdateEntity(t *testing.T) {
 	env := testhelpers.SetupTestEnvironment(t, ctx)
 	defer env.Cleanup(ctx)
 
-	// Create test schema
 	schema := testhelpers.CreateTestEntitySchema("user")
 	err := env.Engine.CreateEntitySchema(ctx, schema)
 	require.NoError(t, err)
 
-	// Create original entity
 	original := testhelpers.CreateTestEntity("user", "test-user")
 	err = env.Engine.CreateEntity(ctx, original)
 	require.NoError(t, err)
 
-	// Update entity
 	updated := &models.Entity{
 		ID:         original.ID,
 		EntityType: original.EntityType,
@@ -135,7 +128,6 @@ func TestEngine_UpdateEntity(t *testing.T) {
 	err = env.Engine.UpdateEntity(ctx, updated)
 	require.NoError(t, err)
 
-	// Verify update
 	retrieved, err := env.Engine.GetEntity(ctx, updated.EntityType, updated.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "Updated Name", retrieved.Properties["name"])
@@ -148,21 +140,17 @@ func TestEngine_DeleteEntity(t *testing.T) {
 	env := testhelpers.SetupTestEnvironment(t, ctx)
 	defer env.Cleanup(ctx)
 
-	// Create test schema
 	schema := testhelpers.CreateTestEntitySchema("user")
 	err := env.Engine.CreateEntitySchema(ctx, schema)
 	require.NoError(t, err)
 
-	// Create entity
 	entity := testhelpers.CreateTestEntity("user", "test-user")
 	err = env.Engine.CreateEntity(ctx, entity)
 	require.NoError(t, err)
 
-	// Delete entity
 	err = env.Engine.DeleteEntity(ctx, entity.EntityType, entity.ID)
 	require.NoError(t, err)
 
-	// Verify deletion
 	_, err = env.Engine.GetEntity(ctx, entity.EntityType, entity.ID)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
@@ -173,7 +161,6 @@ func TestEngine_CreateRelationshipSchema(t *testing.T) {
 	env := testhelpers.SetupTestEnvironment(t, ctx)
 	defer env.Cleanup(ctx)
 
-	// Create entity schemas first
 	userSchema := testhelpers.CreateTestEntitySchema("user")
 	err := env.Engine.CreateEntitySchema(ctx, userSchema)
 	require.NoError(t, err)
@@ -182,12 +169,10 @@ func TestEngine_CreateRelationshipSchema(t *testing.T) {
 	err = env.Engine.CreateEntitySchema(ctx, orgSchema)
 	require.NoError(t, err)
 
-	// Create relationship schema
 	relationSchema := testhelpers.CreateTestRelationshipSchema("member_of", "user", "organization")
 	err = env.Engine.CreateRelationshipSchema(ctx, relationSchema)
 	require.NoError(t, err)
 
-	// Verify schema was stored
 	retrieved, err := env.Engine.GetRelationshipSchema(ctx, relationSchema.RelationshipType)
 	require.NoError(t, err)
 	assert.Equal(t, relationSchema.RelationshipType, retrieved.RelationshipType)
@@ -200,7 +185,6 @@ func TestEngine_CreateRelation(t *testing.T) {
 	env := testhelpers.SetupTestEnvironment(t, ctx)
 	defer env.Cleanup(ctx)
 
-	// Create schemas
 	userSchema := testhelpers.CreateTestEntitySchema("user")
 	err := env.Engine.CreateEntitySchema(ctx, userSchema)
 	require.NoError(t, err)
@@ -213,7 +197,6 @@ func TestEngine_CreateRelation(t *testing.T) {
 	err = env.Engine.CreateRelationshipSchema(ctx, relationSchema)
 	require.NoError(t, err)
 
-	// Create entities
 	user := testhelpers.CreateTestEntity("user", "test-user")
 	err = env.Engine.CreateEntity(ctx, user)
 	require.NoError(t, err)
@@ -222,12 +205,10 @@ func TestEngine_CreateRelation(t *testing.T) {
 	err = env.Engine.CreateEntity(ctx, org)
 	require.NoError(t, err)
 
-	// Create relation
 	relation := testhelpers.CreateTestRelation("member_of", user, org)
 	err = env.Engine.CreateRelation(ctx, relation)
 	require.NoError(t, err)
 
-	// Verify relation was stored
 	retrieved, err := env.Engine.GetRelation(ctx, relation.ID)
 	require.NoError(t, err)
 	testhelpers.AssertRelationEqual(t, relation, retrieved)
@@ -238,12 +219,10 @@ func TestEngine_SearchEntities(t *testing.T) {
 	env := testhelpers.SetupTestEnvironment(t, ctx)
 	defer env.Cleanup(ctx)
 
-	// Create test schema
 	schema := testhelpers.CreateTestEntitySchema("user")
 	err := env.Engine.CreateEntitySchema(ctx, schema)
 	require.NoError(t, err)
 
-	// Create test entities
 	entities := []*models.Entity{
 		testhelpers.CreateTestEntity("user", "john-doe"),
 		testhelpers.CreateTestEntity("user", "jane-smith"),
@@ -255,10 +234,8 @@ func TestEngine_SearchEntities(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	// Wait for indexing
 	testhelpers.WaitForIndexing(t, ctx, env.IndexStore, 2*time.Second)
 
-	// Search for entities
 	query := &models.SearchQuery{
 		EntityTypes: []string{"user"},
 		Query:       "john",
@@ -269,7 +246,6 @@ func TestEngine_SearchEntities(t *testing.T) {
 	require.NoError(t, err)
 	assert.Greater(t, len(results.Hits), 0)
 
-	// Verify search result contains expected entity
 	found := false
 	for _, hit := range results.Hits {
 		if hit.Properties["name"] == "john-doe" {
@@ -285,12 +261,10 @@ func TestEngine_VectorSearch(t *testing.T) {
 	env := testhelpers.SetupTestEnvironment(t, ctx)
 	defer env.Cleanup(ctx)
 
-	// Create test schema
 	schema := testhelpers.CreateTestEntitySchema("user")
 	err := env.Engine.CreateEntitySchema(ctx, schema)
 	require.NoError(t, err)
 
-	// Create test entities with embeddings
 	embedding1 := testhelpers.GenerateTestEmbedding(384)
 	embedding2 := testhelpers.GenerateTestEmbedding(384)
 
@@ -302,10 +276,8 @@ func TestEngine_VectorSearch(t *testing.T) {
 	err = env.Engine.CreateEntity(ctx, entity2)
 	require.NoError(t, err)
 
-	// Wait for indexing
 	testhelpers.WaitForIndexing(t, ctx, env.IndexStore, 2*time.Second)
 
-	// Perform vector search
 	query := &models.VectorQuery{
 		EntityTypes: []string{"user"},
 		Vector:      embedding1,
@@ -316,7 +288,6 @@ func TestEngine_VectorSearch(t *testing.T) {
 	require.NoError(t, err)
 	assert.Greater(t, len(results.Hits), 0)
 
-	// The first result should be the exact match
 	if len(results.Hits) > 0 {
 		assert.Equal(t, entity1.ID, results.Hits[0].ID)
 	}
@@ -327,26 +298,21 @@ func TestEngine_TwoPhaseCommit(t *testing.T) {
 	env := testhelpers.SetupTestEnvironment(t, ctx)
 	defer env.Cleanup(ctx)
 
-	// Create test schema
 	schema := testhelpers.CreateTestEntitySchema("user")
 	err := env.Engine.CreateEntitySchema(ctx, schema)
 	require.NoError(t, err)
 
 	entity := testhelpers.CreateTestEntity("user", "test-user")
 
-	// Test successful two-phase commit
 	err = env.Engine.CreateEntity(ctx, entity)
 	require.NoError(t, err)
 
-	// Verify entity exists in both stores
 	primaryEntity, err := env.PrimaryStore.GetEntity(ctx, entity.EntityType, entity.ID)
 	require.NoError(t, err)
 	assert.Equal(t, entity.URN, primaryEntity.URN)
 
-	// Wait for indexing
 	testhelpers.WaitForIndexing(t, ctx, env.IndexStore, 2*time.Second)
 
-	// Verify entity is searchable
 	query := &models.SearchQuery{
 		EntityTypes: []string{"user"},
 		Query:       entity.Properties["name"].(string),
@@ -363,12 +329,10 @@ func TestEngine_ConcurrentOperations(t *testing.T) {
 	env := testhelpers.SetupTestEnvironment(t, ctx)
 	defer env.Cleanup(ctx)
 
-	// Create test schema
 	schema := testhelpers.CreateTestEntitySchema("user")
 	err := env.Engine.CreateEntitySchema(ctx, schema)
 	require.NoError(t, err)
 
-	// Test concurrent entity creation
 	numEntities := 10
 	results := make(chan error, numEntities)
 
@@ -380,7 +344,6 @@ func TestEngine_ConcurrentOperations(t *testing.T) {
 		}(i)
 	}
 
-	// Collect results
 	var errors []error
 	for i := 0; i < numEntities; i++ {
 		if err := <-results; err != nil {
@@ -388,7 +351,6 @@ func TestEngine_ConcurrentOperations(t *testing.T) {
 		}
 	}
 
-	// All operations should succeed
 	assert.Empty(t, errors, "Expected no errors in concurrent operations")
 }
 
@@ -397,7 +359,6 @@ func BenchmarkEngine_CreateEntity(b *testing.B) {
 	env := testhelpers.SetupTestEnvironment(&testing.T{}, ctx)
 	defer env.Cleanup(ctx)
 
-	// Create test schema
 	schema := testhelpers.CreateTestEntitySchema("user")
 	env.Engine.CreateEntitySchema(ctx, schema)
 
@@ -414,11 +375,9 @@ func BenchmarkEngine_SearchEntities(b *testing.B) {
 	env := testhelpers.SetupTestEnvironment(&testing.T{}, ctx)
 	defer env.Cleanup(ctx)
 
-	// Create test schema and entities
 	schema := testhelpers.CreateTestEntitySchema("user")
 	env.Engine.CreateEntitySchema(ctx, schema)
 
-	// Create sample entities
 	for i := 0; i < 100; i++ {
 		entity := testhelpers.CreateTestEntity("user", testhelpers.RandomString(8))
 		entity.URN = testhelpers.RandomString(32)
@@ -431,7 +390,6 @@ func BenchmarkEngine_SearchEntities(b *testing.B) {
 		Limit:       10,
 	}
 
-	// Wait for indexing
 	time.Sleep(500 * time.Millisecond)
 
 	b.ResetTimer()

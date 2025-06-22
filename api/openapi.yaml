@@ -11,13 +11,11 @@ info:
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT
-
 servers:
   - url: http://localhost:8080/api/v1
     description: Local development server
   - url: https://api.entropic.io/v1
     description: Production server
-
 tags:
   - name: Health
     description: Health check and monitoring endpoints
@@ -29,9 +27,7 @@ tags:
     description: Schema definition and management
   - name: Search
     description: Search operations
-
 paths:
-  # Health Endpoints
   /health:
     get:
       tags:
@@ -52,7 +48,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
-
   /ready:
     get:
       tags:
@@ -77,7 +72,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-
   /metrics:
     get:
       tags:
@@ -92,8 +86,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MetricsResponse'
-
-  # Entity Endpoints
   /entities/{entityType}:
     post:
       tags:
@@ -122,7 +114,6 @@ paths:
           $ref: '#/components/responses/Conflict'
         '500':
           $ref: '#/components/responses/InternalError'
-
     get:
       tags:
         - Entities
@@ -144,7 +135,6 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '500':
           $ref: '#/components/responses/InternalError'
-
   /entities/{entityType}/{entityID}:
     get:
       tags:
@@ -166,7 +156,6 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalError'
-
     patch:
       tags:
         - Entities
@@ -195,7 +184,6 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalError'
-
     delete:
       tags:
         - Entities
@@ -212,7 +200,6 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalError'
-
   /entities/{entityType}/{entityID}/relations:
     get:
       tags:
@@ -242,8 +229,6 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalError'
-
-  # Relation Endpoints
   /relations:
     post:
       tags:
@@ -272,7 +257,6 @@ paths:
           $ref: '#/components/responses/Conflict'
         '500':
           $ref: '#/components/responses/InternalError'
-
   /relations/{relationID}:
     get:
       tags:
@@ -293,7 +277,6 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalError'
-
     delete:
       tags:
         - Relations
@@ -309,8 +292,6 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalError'
-
-  # Schema Endpoints
   /schemas/entities:
     post:
       tags:
@@ -337,7 +318,6 @@ paths:
           $ref: '#/components/responses/Conflict'
         '500':
           $ref: '#/components/responses/InternalError'
-
     get:
       tags:
         - Schemas
@@ -355,7 +335,6 @@ paths:
                   $ref: '#/components/schemas/EntitySchema'
         '500':
           $ref: '#/components/responses/InternalError'
-
   /schemas/entities/{entityType}:
     get:
       tags:
@@ -376,7 +355,6 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalError'
-
     put:
       tags:
         - Schemas
@@ -404,7 +382,6 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalError'
-
     delete:
       tags:
         - Schemas
@@ -420,7 +397,6 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalError'
-
   /schemas/relationships:
     post:
       tags:
@@ -447,7 +423,6 @@ paths:
           $ref: '#/components/responses/Conflict'
         '500':
           $ref: '#/components/responses/InternalError'
-
     get:
       tags:
         - Schemas
@@ -465,7 +440,6 @@ paths:
                   $ref: '#/components/schemas/RelationshipSchema'
         '500':
           $ref: '#/components/responses/InternalError'
-
   /schemas/relationships/{relationshipType}:
     get:
       tags:
@@ -486,7 +460,6 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalError'
-
     put:
       tags:
         - Schemas
@@ -514,7 +487,6 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalError'
-
     delete:
       tags:
         - Schemas
@@ -530,8 +502,6 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalError'
-
-  # Search Endpoints
   /search:
     post:
       tags:
@@ -556,7 +526,6 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '500':
           $ref: '#/components/responses/InternalError'
-
   /search/vector:
     post:
       tags:
@@ -581,7 +550,6 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '500':
           $ref: '#/components/responses/InternalError'
-
 components:
   parameters:
     entityType:
@@ -592,7 +560,6 @@ components:
       schema:
         type: string
         example: user
-
     entityID:
       name: entityID
       in: path
@@ -602,7 +569,6 @@ components:
         type: string
         format: uuid
         example: 550e8400-e29b-41d4-a716-446655440000
-
     relationID:
       name: relationID
       in: path
@@ -612,7 +578,6 @@ components:
         type: string
         format: uuid
         example: 550e8400-e29b-41d4-a716-446655440000
-
     relationshipType:
       name: relationshipType
       in: path
@@ -621,7 +586,6 @@ components:
       schema:
         type: string
         example: follows
-
     limit:
       name: limit
       in: query
@@ -631,7 +595,6 @@ components:
         minimum: 1
         maximum: 1000
         default: 100
-
     offset:
       name: offset
       in: query
@@ -640,9 +603,7 @@ components:
         type: integer
         minimum: 0
         default: 0
-
   schemas:
-    # Request/Response Schemas
     CreateEntityRequest:
       type: object
       required:
@@ -661,7 +622,6 @@ components:
             name: John Doe
             email: john@example.com
             age: 30
-
     UpdateEntityRequest:
       type: object
       required:
@@ -671,7 +631,6 @@ components:
           type: object
           description: Updated entity properties
           additionalProperties: true
-
     CreateRelationRequest:
       type: object
       required:
@@ -705,7 +664,6 @@ components:
           type: object
           description: Optional relationship properties
           additionalProperties: true
-
     Entity:
       type: object
       properties:
@@ -731,7 +689,6 @@ components:
           type: string
           format: date-time
           description: Last update timestamp
-
     Relation:
       type: object
       properties:
@@ -758,7 +715,6 @@ components:
         created_at:
           type: string
           format: date-time
-
     EntityListResponse:
       type: object
       properties:
@@ -775,8 +731,6 @@ components:
         offset:
           type: integer
           description: Number of items skipped
-
-    # Schema Definitions
     EntitySchema:
       type: object
       required:
@@ -814,7 +768,6 @@ components:
           description: Properties containing vectors
         denormalization_config:
           $ref: '#/components/schemas/DenormalizationConfig'
-
     RelationshipSchema:
       type: object
       required:
@@ -854,7 +807,6 @@ components:
             required:
               type: boolean
               default: false
-
     PropertySchema:
       type: object
       required:
@@ -886,7 +838,6 @@ components:
             dimensions:
               type: integer
               description: For vector types
-
     DenormalizationConfig:
       type: object
       properties:
@@ -904,8 +855,6 @@ components:
               direction:
                 type: string
                 enum: [from, to, both]
-
-    # Search Schemas
     SearchQuery:
       type: object
       required:
@@ -951,7 +900,6 @@ components:
         include_urn:
           type: boolean
           default: false
-
     VectorQuery:
       type: object
       required:
@@ -988,7 +936,6 @@ components:
         include_vectors:
           type: boolean
           default: false
-
     SearchResult:
       type: object
       properties:
@@ -1015,7 +962,6 @@ components:
           description: Search execution time
         query:
           description: Original query
-
     SearchHit:
       type: object
       properties:
@@ -1043,8 +989,6 @@ components:
           items:
             type: number
             format: float
-
-    # Health & Monitoring
     HealthResponse:
       type: object
       properties:
@@ -1060,7 +1004,6 @@ components:
               $ref: '#/components/schemas/ComponentHealth'
             cache:
               $ref: '#/components/schemas/ComponentHealth'
-
     ComponentHealth:
       type: object
       properties:
@@ -1071,7 +1014,6 @@ components:
           type: string
         error:
           type: string
-
     MetricsResponse:
       type: object
       properties:
@@ -1099,8 +1041,6 @@ components:
               type: integer
             average_duration:
               type: string
-
-    # Error Response
     ErrorResponse:
       type: object
       properties:
@@ -1114,7 +1054,6 @@ components:
           type: object
           description: Additional error details
           additionalProperties: true
-
   responses:
     BadRequest:
       description: Bad request
@@ -1128,7 +1067,6 @@ components:
             details:
               field: entity_type
               reason: Entity type must be alphanumeric
-
     NotFound:
       description: Resource not found
       content:
@@ -1138,7 +1076,6 @@ components:
           example:
             error: Entity not found
             code: NOT_FOUND
-
     Conflict:
       description: Resource conflict
       content:
@@ -1148,7 +1085,6 @@ components:
           example:
             error: URN already exists
             code: CONFLICT
-
     InternalError:
       description: Internal server error
       content:
@@ -1158,22 +1094,14 @@ components:
           example:
             error: Internal server error
             code: INTERNAL_ERROR
-
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
       description: JWT authentication token
-
     apiKey:
       type: apiKey
       in: header
       name: X-API-Key
       description: API key authentication
-
-# Security can be applied globally or per operation
-# Uncomment when authentication is implemented
-# security:
-#   - bearerAuth: []
-#   - apiKey: []

@@ -6,7 +6,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// SearchQuery represents a search query
 type SearchQuery struct {
 	EntityTypes []string               `json:"entity_types" validate:"required,min=1"`
 	Query       string                 `json:"query"`
@@ -18,7 +17,6 @@ type SearchQuery struct {
 	IncludeURN  bool                   `json:"include_urn"`
 }
 
-// VectorQuery represents a vector similarity search query
 type VectorQuery struct {
 	EntityTypes    []string               `json:"entity_types" validate:"required,min=1"`
 	Vector         []float32              `json:"vector" validate:"required"`
@@ -29,13 +27,11 @@ type VectorQuery struct {
 	IncludeVectors bool                   `json:"include_vectors"`
 }
 
-// SortOption defines sorting configuration
 type SortOption struct {
 	Field string    `json:"field" validate:"required"`
 	Order SortOrder `json:"order" validate:"required"`
 }
 
-// SortOrder defines sort order
 type SortOrder string
 
 const (
@@ -43,16 +39,14 @@ const (
 	SortDesc SortOrder = "desc"
 )
 
-// SearchResult represents search results
 type SearchResult struct {
 	Hits       []SearchHit            `json:"hits"`
 	TotalHits  int64                  `json:"total_hits"`
 	Facets     map[string][]FacetValue `json:"facets,omitempty"`
 	SearchTime time.Duration          `json:"search_time_ms"`
-	Query      interface{}            `json:"query"` // Original query for reference
+	Query      interface{}            `json:"query"` 
 }
 
-// SearchHit represents a single search result
 type SearchHit struct {
 	ID         uuid.UUID              `json:"id"`
 	EntityType string                 `json:"entity_type"`
@@ -63,13 +57,11 @@ type SearchHit struct {
 	Vector     []float32              `json:"vector,omitempty"`
 }
 
-// FacetValue represents a facet value with count
 type FacetValue struct {
 	Value string `json:"value"`
 	Count int64  `json:"count"`
 }
 
-// NewSearchQuery creates a new search query with defaults
 func NewSearchQuery(entityTypes []string, query string) *SearchQuery {
 	return &SearchQuery{
 		EntityTypes: entityTypes,
@@ -83,7 +75,6 @@ func NewSearchQuery(entityTypes []string, query string) *SearchQuery {
 	}
 }
 
-// NewVectorQuery creates a new vector query with defaults
 func NewVectorQuery(entityTypes []string, vector []float32, vectorField string) *VectorQuery {
 	return &VectorQuery{
 		EntityTypes:    entityTypes,
@@ -96,7 +87,6 @@ func NewVectorQuery(entityTypes []string, vector []float32, vectorField string) 
 	}
 }
 
-// AddFilter adds a filter to the search query
 func (q *SearchQuery) AddFilter(field string, value interface{}) {
 	if q.Filters == nil {
 		q.Filters = make(map[string]interface{})
@@ -104,7 +94,6 @@ func (q *SearchQuery) AddFilter(field string, value interface{}) {
 	q.Filters[field] = value
 }
 
-// AddSort adds a sort option to the search query
 func (q *SearchQuery) AddSort(field string, order SortOrder) {
 	q.Sort = append(q.Sort, SortOption{Field: field, Order: order})
 }

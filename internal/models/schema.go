@@ -6,7 +6,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// EntitySchema defines the schema for an entity type
 type EntitySchema struct {
 	ID         uuid.UUID      `json:"id" validate:"required"`
 	EntityType string         `json:"entity_type" validate:"required,min=1,max=100"`
@@ -17,31 +16,27 @@ type EntitySchema struct {
 	Version    int            `json:"version"`
 }
 
-// PropertySchema defines the schema for entity properties
 type PropertySchema map[string]PropertyDefinition
 
-// PropertyDefinition defines a single property
 type PropertyDefinition struct {
 	Type         string                 `json:"type" validate:"required,oneof=string number boolean datetime object array vector"`
 	Required     bool                   `json:"required"`
 	Description  string                 `json:"description"`
 	Default      interface{}            `json:"default,omitempty"`
 	Constraints  map[string]interface{} `json:"constraints,omitempty"`
-	VectorDim    int                    `json:"vector_dim,omitempty"` // For vector type
-	ElementType  string                 `json:"element_type,omitempty"` // For array type
-	ObjectSchema PropertySchema         `json:"object_schema,omitempty"` // For nested objects
+	VectorDim    int                    `json:"vector_dim,omitempty"` 
+	ElementType  string                 `json:"element_type,omitempty"` 
+	ObjectSchema PropertySchema         `json:"object_schema,omitempty"` 
 }
 
-// IndexConfig defines index configuration
 type IndexConfig struct {
 	Name       string   `json:"name" validate:"required"`
 	Fields     []string `json:"fields" validate:"required,min=1"`
 	Type       string   `json:"type" validate:"required,oneof=btree hash gin gist vector"`
 	Unique     bool     `json:"unique"`
-	VectorType string   `json:"vector_type,omitempty"` // For vector indexes: cosine, l2, ip
+	VectorType string   `json:"vector_type,omitempty"` 
 }
 
-// RelationshipSchema defines the schema for a relationship type
 type RelationshipSchema struct {
 	ID                     uuid.UUID              `json:"id" validate:"required"`
 	RelationshipType       string                 `json:"relationship_type" validate:"required,min=1,max=100"`
@@ -55,7 +50,6 @@ type RelationshipSchema struct {
 	Version                int                    `json:"version"`
 }
 
-// CardinalityType defines relationship cardinality
 type CardinalityType string
 
 const (
@@ -65,15 +59,13 @@ const (
 	ManyToMany CardinalityType = "many-to-many"
 )
 
-// DenormalizationConfig defines what properties to denormalize
 type DenormalizationConfig struct {
-	DenormalizeToFrom   []string `json:"denormalize_to_from"` // Properties from 'to' entity to copy to 'from'
-	DenormalizeFromTo   []string `json:"denormalize_from_to"` // Properties from 'from' entity to copy to 'to'
-	UpdateOnChange      bool     `json:"update_on_change"`     // Auto-update denormalized data
-	IncludeRelationData bool     `json:"include_relation_data"` // Include relation properties
+	DenormalizeToFrom   []string `json:"denormalize_to_from"` 
+	DenormalizeFromTo   []string `json:"denormalize_from_to"` 
+	UpdateOnChange      bool     `json:"update_on_change"`     
+	IncludeRelationData bool     `json:"include_relation_data"` 
 }
 
-// NewEntitySchema creates a new entity schema
 func NewEntitySchema(entityType string, properties PropertySchema) *EntitySchema {
 	now := time.Now()
 	return &EntitySchema{
@@ -87,7 +79,6 @@ func NewEntitySchema(entityType string, properties PropertySchema) *EntitySchema
 	}
 }
 
-// NewRelationshipSchema creates a new relationship schema
 func NewRelationshipSchema(relationshipType, fromEntityType, toEntityType string, 
 	cardinality CardinalityType) *RelationshipSchema {
 	now := time.Now()

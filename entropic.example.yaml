@@ -1,6 +1,3 @@
-# Entropic Configuration Example
-# Copy this file to entropic.yaml and modify as needed
-
 server:
   host: "0.0.0.0"
   port: 8080
@@ -15,7 +12,6 @@ server:
     exposed_headers: ["Link"]
     allow_credentials: false
     max_age: 300
-
 database:
   host: "localhost"
   port: 5432
@@ -28,7 +24,6 @@ database:
   conn_max_lifetime: "1h"
   conn_max_idle_time: "30m"
   migrate_on_start: true
-
 search:
   type: "typesense"
   url: "http://localhost:8108"
@@ -43,13 +38,11 @@ search:
     size: 100
     flush_interval: "5s"
     concurrency: 4
-
 cache:
   ttl: "5m"
   cleanup_interval: "1m"
-
 lock:
-  type: "memory"  # or "redis"
+  type: "memory"
   default_timeout: "30s"
   max_wait_time: "5m"
   redis:
@@ -58,17 +51,14 @@ lock:
     password: ""
     db: 0
     timeout: "5s"
-
 logging:
-  level: "info"  # debug, info, warn, error
-  format: "console"  # console, json
-  file: ""  # empty for stdout
-
+  level: "info"
+  format: "console"
+  file: ""
 metrics:
   enabled: true
   path: "/metrics"
   interval: "15s"
-
 security:
   rate_limit:
     enabled: true
@@ -76,5 +66,5 @@ security:
     period: "1m"
     burst_size: 10
   request_size:
-    max_body_size: 10485760  # 10MB
-    max_header_size: 8192    # 8KB
+    max_body_size: 10485760
+    max_header_size: 8192

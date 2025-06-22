@@ -43,19 +43,6 @@ type RelationResponse struct {
 	UpdatedAt      time.Time              `json:"updated_at"`
 }
 
-// CreateRelation creates a new relation
-// @Summary Create a new relation
-// @Description Creates a new relation between two entities
-// @Tags relations
-// @Accept json
-// @Produce json
-// @Param relation body RelationRequest true "Relation data"
-// @Success 201 {object} RelationResponse
-// @Failure 400 {object} middleware.ErrorResponse
-// @Failure 404 {object} middleware.ErrorResponse
-// @Failure 409 {object} middleware.ErrorResponse
-// @Failure 500 {object} middleware.ErrorResponse
-// @Router /api/v1/relations [post]
 func (h *RelationHandler) CreateRelation(w http.ResponseWriter, r *http.Request) {
 	var req RelationRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -99,16 +86,6 @@ func (h *RelationHandler) CreateRelation(w http.ResponseWriter, r *http.Request)
 	json.NewEncoder(w).Encode(response)
 }
 
-// GetRelation retrieves a relation by ID
-// @Summary Get a relation
-// @Description Retrieves a relation by its ID
-// @Tags relations
-// @Produce json
-// @Param relationID path string true "Relation ID"
-// @Success 200 {object} RelationResponse
-// @Failure 404 {object} middleware.ErrorResponse
-// @Failure 500 {object} middleware.ErrorResponse
-// @Router /api/v1/relations/{relationID} [get]
 func (h *RelationHandler) GetRelation(w http.ResponseWriter, r *http.Request) {
 	relationIDStr := chi.URLParam(r, "relationID")
 
@@ -133,15 +110,6 @@ func (h *RelationHandler) GetRelation(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-// DeleteRelation deletes a relation
-// @Summary Delete a relation
-// @Description Deletes a relation by its ID
-// @Tags relations
-// @Param relationID path string true "Relation ID"
-// @Success 204
-// @Failure 404 {object} middleware.ErrorResponse
-// @Failure 500 {object} middleware.ErrorResponse
-// @Router /api/v1/relations/{relationID} [delete]
 func (h *RelationHandler) DeleteRelation(w http.ResponseWriter, r *http.Request) {
 	relationIDStr := chi.URLParam(r, "relationID")
 

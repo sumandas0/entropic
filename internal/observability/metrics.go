@@ -11,7 +11,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
-// MetricsConfig holds configuration for Prometheus metrics
 type MetricsConfig struct {
 	Enabled    bool   `yaml:"enabled" mapstructure:"enabled"`
 	Path       string `yaml:"path" mapstructure:"path"`
@@ -20,63 +19,52 @@ type MetricsConfig struct {
 	Subsystem  string `yaml:"subsystem" mapstructure:"subsystem"`
 }
 
-// MetricsManager manages Prometheus metrics collection and exposition
 type MetricsManager struct {
 	config    MetricsConfig
 	registry  *prometheus.Registry
-	
-	// HTTP metrics
+
 	httpRequestsTotal     *prometheus.CounterVec
 	httpRequestDuration   *prometheus.HistogramVec
 	httpRequestSize       *prometheus.HistogramVec
 	httpResponseSize      *prometheus.HistogramVec
-	
-	// Entity metrics
+
 	entitiesTotal         *prometheus.CounterVec
 	entityOperations      *prometheus.CounterVec
 	entityOperationDuration *prometheus.HistogramVec
-	
-	// Relation metrics
+
 	relationsTotal        *prometheus.CounterVec
 	relationOperations    *prometheus.CounterVec
 	relationOperationDuration *prometheus.HistogramVec
-	
-	// Search metrics
+
 	searchOperations      *prometheus.CounterVec
 	searchDuration        *prometheus.HistogramVec
 	searchResults         *prometheus.HistogramVec
-	
-	// Cache metrics
+
 	cacheOperations       *prometheus.CounterVec
 	cacheHits             *prometheus.CounterVec
 	cacheMisses           *prometheus.CounterVec
 	cacheSize             prometheus.Gauge
-	
-	// Database metrics
+
 	dbConnections         prometheus.Gauge
 	dbConnectionsMax      prometheus.Gauge
 	dbOperations          *prometheus.CounterVec
 	dbOperationDuration   *prometheus.HistogramVec
-	
-	// Lock metrics
+
 	lockOperations        *prometheus.CounterVec
 	lockWaitDuration      *prometheus.HistogramVec
 	activeLocks           prometheus.Gauge
-	
-	// System metrics
+
 	uptimeSeconds         prometheus.Gauge
 	buildInfo             *prometheus.GaugeVec
 }
 
-// NewMetricsManager creates a new metrics manager with the given configuration
 func NewMetricsManager(config MetricsConfig) *MetricsManager {
 	if !config.Enabled {
 		return &MetricsManager{config: config}
 	}
 
 	registry := prometheus.NewRegistry()
-	
-	// Set default values
+
 	namespace := config.Namespace
 	if namespace == "" {
 		namespace = "entropic"
@@ -91,7 +79,6 @@ func NewMetricsManager(config MetricsConfig) *MetricsManager {
 		registry: registry,
 	}
 
-	// HTTP metrics
 	mm.httpRequestsTotal = promauto.With(registry).NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: namespace,
@@ -135,7 +122,6 @@ func NewMetricsManager(config MetricsConfig) *MetricsManager {
 		[]string{"method", "path"},
 	)
 
-	// Entity metrics
 	mm.entitiesTotal = promauto.With(registry).NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: namespace,
@@ -167,7 +153,6 @@ func NewMetricsManager(config MetricsConfig) *MetricsManager {
 		[]string{"operation", "entity_type"},
 	)
 
-	// Relation metrics
 	mm.relationsTotal = promauto.With(registry).NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: namespace,
@@ -199,7 +184,6 @@ func NewMetricsManager(config MetricsConfig) *MetricsManager {
 		[]string{"operation", "relation_type"},
 	)
 
-	// Search metrics
 	mm.searchOperations = promauto.With(registry).NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: namespace,
@@ -232,7 +216,6 @@ func NewMetricsManager(config MetricsConfig) *MetricsManager {
 		[]string{"search_type"},
 	)
 
-	// Cache metrics
 	mm.cacheOperations = promauto.With(registry).NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: namespace,
@@ -272,7 +255,6 @@ func NewMetricsManager(config MetricsConfig) *MetricsManager {
 		},
 	)
 
-	// Database metrics
 	mm.dbConnections = promauto.With(registry).NewGauge(
 		prometheus.GaugeOpts{
 			Namespace: namespace,
@@ -312,7 +294,6 @@ func NewMetricsManager(config MetricsConfig) *MetricsManager {
 		[]string{"operation", "table"},
 	)
 
-	// Lock metrics
 	mm.lockOperations = promauto.With(registry).NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: namespace,
@@ -343,7 +324,6 @@ func NewMetricsManager(config MetricsConfig) *MetricsManager {
 		},
 	)
 
-	// System metrics
 	mm.uptimeSeconds = promauto.With(registry).NewGauge(
 		prometheus.GaugeOpts{
 			Namespace: namespace,
@@ -366,8 +346,6 @@ func NewMetricsManager(config MetricsConfig) *MetricsManager {
 	return mm
 }
 
-// HTTP Metrics Methods
-
 func (mm *MetricsManager) RecordHTTPRequest(method, path string, statusCode int, duration time.Duration, requestSize, responseSize int64) {
 	if !mm.config.Enabled {
 		return
@@ -378,8 +356,6 @@ func (mm *MetricsManager) RecordHTTPRequest(method, path string, statusCode int,
 	mm.httpRequestSize.WithLabelValues(method, path).Observe(float64(requestSize))
 	mm.httpResponseSize.WithLabelValues(method, path).Observe(float64(responseSize))
 }
-
-// Entity Metrics Methods
 
 func (mm *MetricsManager) IncEntityCount(entityType string) {
 	if !mm.config.Enabled {
@@ -397,8 +373,6 @@ func (mm *MetricsManager) RecordEntityOperation(operation, entityType, status st
 	mm.entityOperationDuration.WithLabelValues(operation, entityType).Observe(duration.Seconds())
 }
 
-// Relation Metrics Methods
-
 func (mm *MetricsManager) IncRelationCount(relationType string) {
 	if !mm.config.Enabled {
 		return
@@ -415,8 +389,6 @@ func (mm *MetricsManager) RecordRelationOperation(operation, relationType, statu
 	mm.relationOperationDuration.WithLabelValues(operation, relationType).Observe(duration.Seconds())
 }
 
-// Search Metrics Methods
-
 func (mm *MetricsManager) RecordSearchOperation(searchType, status string, duration time.Duration, resultCount int) {
 	if !mm.config.Enabled {
 		return
@@ -426,8 +398,6 @@ func (mm *MetricsManager) RecordSearchOperation(searchType, status string, durat
 	mm.searchDuration.WithLabelValues(searchType).Observe(duration.Seconds())
 	mm.searchResults.WithLabelValues(searchType).Observe(float64(resultCount))
 }
-
-// Cache Metrics Methods
 
 func (mm *MetricsManager) RecordCacheOperation(operation, cacheType string) {
 	if !mm.config.Enabled {
@@ -457,8 +427,6 @@ func (mm *MetricsManager) SetCacheSize(size float64) {
 	mm.cacheSize.Set(size)
 }
 
-// Database Metrics Methods
-
 func (mm *MetricsManager) SetDatabaseConnections(active, max int) {
 	if !mm.config.Enabled {
 		return
@@ -476,8 +444,6 @@ func (mm *MetricsManager) RecordDatabaseOperation(operation, table, status strin
 	mm.dbOperationDuration.WithLabelValues(operation, table).Observe(duration.Seconds())
 }
 
-// Lock Metrics Methods
-
 func (mm *MetricsManager) RecordLockOperation(operation, status string, waitDuration time.Duration, lockType string) {
 	if !mm.config.Enabled {
 		return
@@ -494,8 +460,6 @@ func (mm *MetricsManager) SetActiveLocks(count int) {
 	mm.activeLocks.Set(float64(count))
 }
 
-// System Metrics Methods
-
 func (mm *MetricsManager) SetUptime(startTime time.Time) {
 	if !mm.config.Enabled {
 		return
@@ -510,7 +474,6 @@ func (mm *MetricsManager) SetBuildInfo(version, commit, buildTime string) {
 	mm.buildInfo.WithLabelValues(version, commit, buildTime).Set(1)
 }
 
-// Handler returns the Prometheus metrics handler
 func (mm *MetricsManager) Handler() http.Handler {
 	if !mm.config.Enabled {
 		return http.NotFoundHandler()
@@ -518,7 +481,6 @@ func (mm *MetricsManager) Handler() http.Handler {
 	return promhttp.HandlerFor(mm.registry, promhttp.HandlerOpts{})
 }
 
-// MetricsMiddleware creates middleware for automatic HTTP metrics collection
 func (mm *MetricsManager) MetricsMiddleware() func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -528,8 +490,7 @@ func (mm *MetricsManager) MetricsMiddleware() func(next http.Handler) http.Handl
 			}
 
 			start := time.Now()
-			
-			// Wrap response writer to capture metrics
+
 			wrapped := &metricsResponseWriter{ResponseWriter: w}
 			
 			next.ServeHTTP(wrapped, r)
@@ -569,12 +530,10 @@ func (mrw *metricsResponseWriter) Write(data []byte) (int, error) {
 	return size, err
 }
 
-// IsEnabled returns whether metrics collection is enabled
 func (mm *MetricsManager) IsEnabled() bool {
 	return mm.config.Enabled
 }
 
-// StartUptimeTracker starts a goroutine to continuously update uptime metrics
 func (mm *MetricsManager) StartUptimeTracker(ctx context.Context, startTime time.Time) {
 	if !mm.config.Enabled {
 		return

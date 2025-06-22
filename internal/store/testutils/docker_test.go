@@ -17,14 +17,12 @@ func TestSetupTestPostgres(t *testing.T) {
 	}
 	defer container.Cleanup()
 
-	// Test connection
 	db, err := sql.Open("pgx", container.URL)
 	if err != nil {
 		t.Fatalf("Failed to open connection: %v", err)
 	}
 	defer db.Close()
 
-	// Test query
 	var result int
 	err = db.QueryRow("SELECT 1").Scan(&result)
 	if err != nil {
@@ -35,7 +33,6 @@ func TestSetupTestPostgres(t *testing.T) {
 		t.Errorf("Expected 1, got %d", result)
 	}
 
-	// Test pgvector extension
 	_, err = db.Exec("CREATE EXTENSION IF NOT EXISTS vector")
 	if err != nil {
 		t.Logf("Warning: pgvector extension test failed: %v", err)
@@ -45,7 +42,7 @@ func TestSetupTestPostgres(t *testing.T) {
 }
 
 func TestSetupTestTypesense(t *testing.T) {
-	// Try setting up with manual retry to debug
+	
 	pool, err := dockertest.NewPool("")
 	if err != nil {
 		t.Fatalf("Could not construct pool: %v", err)
@@ -66,8 +63,7 @@ func TestSetupTestTypesense(t *testing.T) {
 	}
 	defer pool.Purge(resource)
 
-	// Get container logs
-	time.Sleep(5 * time.Second) // Let it start
+	time.Sleep(5 * time.Second) 
 
 	hostAndPort := resource.GetHostPort("8108/tcp")
 	url := fmt.Sprintf("http://%s", hostAndPort)

@@ -9,7 +9,6 @@ import (
 	"github.com/sumandas0/entropic/internal/store"
 )
 
-// Status represents the health status of a component
 type Status string
 
 const (
@@ -18,7 +17,6 @@ const (
 	StatusDegraded  Status = "degraded"
 )
 
-// ComponentHealth represents the health status of a single component
 type ComponentHealth struct {
 	Name      string            `json:"name"`
 	Status    Status            `json:"status"`
@@ -28,7 +26,6 @@ type ComponentHealth struct {
 	Details   map[string]string `json:"details,omitempty"`
 }
 
-// SystemHealth represents the overall system health
 type SystemHealth struct {
 	Status     Status                      `json:"status"`
 	Timestamp  time.Time                   `json:"timestamp"`
@@ -36,7 +33,6 @@ type SystemHealth struct {
 	Summary    HealthSummary               `json:"summary"`
 }
 
-// HealthSummary provides a summary of component health
 type HealthSummary struct {
 	Total     int `json:"total"`
 	Healthy   int `json:"healthy"`
@@ -44,7 +40,6 @@ type HealthSummary struct {
 	Degraded  int `json:"degraded"`
 }
 
-// HealthChecker manages health checks for various components
 type HealthChecker struct {
 	components map[string]HealthCheckFunc
 	results    map[string]ComponentHealth
@@ -52,10 +47,8 @@ type HealthChecker struct {
 	timeout    time.Duration
 }
 
-// HealthCheckFunc is a function that checks the health of a component
 type HealthCheckFunc func(ctx context.Context) ComponentHealth
 
-// NewHealthChecker creates a new health checker
 func NewHealthChecker(timeout time.Duration) *HealthChecker {
 	if timeout <= 0 {
 		timeout = 5 * time.Second
@@ -68,14 +61,12 @@ func NewHealthChecker(timeout time.Duration) *HealthChecker {
 	}
 }
 
-// RegisterComponent registers a health check function for a component
 func (hc *HealthChecker) RegisterComponent(name string, checkFunc HealthCheckFunc) {
 	hc.mutex.Lock()
 	defer hc.mutex.Unlock()
 	hc.components[name] = checkFunc
 }
 
-// RegisterStore registers a store component for health checking
 func (hc *HealthChecker) RegisterStore(name string, store interface{ Ping(context.Context) error }) {
 	checkFunc := func(ctx context.Context) ComponentHealth {
 		start := time.Now()
@@ -99,7 +90,6 @@ func (hc *HealthChecker) RegisterStore(name string, store interface{ Ping(contex
 	hc.RegisterComponent(name, checkFunc)
 }
 
-// Check performs health checks on all registered components
 func (hc *HealthChecker) Check(ctx context.Context) SystemHealth {
 	hc.mutex.RLock()
 	components := make(map[string]HealthCheckFunc, len(hc.components))
@@ -108,11 +98,9 @@ func (hc *HealthChecker) Check(ctx context.Context) SystemHealth {
 	}
 	hc.mutex.RUnlock()
 
-	// Create timeout context
 	checkCtx, cancel := context.WithTimeout(ctx, hc.timeout)
 	defer cancel()
 
-	// Run health checks concurrently
 	resultChan := make(chan ComponentHealth, len(components))
 	var wg sync.WaitGroup
 
@@ -120,8 +108,7 @@ func (hc *HealthChecker) Check(ctx context.Context) SystemHealth {
 		wg.Add(1)
 		go func(n string, cf HealthCheckFunc) {
 			defer wg.Done()
-			
-			// Run health check with timeout protection
+
 			done := make(chan ComponentHealth, 1)
 			go func() {
 				done <- cf(checkCtx)
@@ -131,7 +118,7 @@ func (hc *HealthChecker) Check(ctx context.Context) SystemHealth {
 			case result := <-done:
 				resultChan <- result
 			case <-checkCtx.Done():
-				// Timeout occurred
+				
 				resultChan <- ComponentHealth{
 					Name:      n,
 					Status:    StatusUnhealthy,
@@ -143,35 +130,29 @@ func (hc *HealthChecker) Check(ctx context.Context) SystemHealth {
 		}(name, checkFunc)
 	}
 
-	// Wait for all checks to complete
 	go func() {
 		wg.Wait()
 		close(resultChan)
 	}()
 
-	// Collect results
 	results := make(map[string]ComponentHealth)
 	for result := range resultChan {
 		results[result.Name] = result
 	}
 
-	// Update stored results
 	hc.mutex.Lock()
 	hc.results = results
 	hc.mutex.Unlock()
 
-	// Calculate overall status and summary
 	return hc.calculateSystemHealth(results)
 }
 
-// GetLastResults returns the last health check results
 func (hc *HealthChecker) GetLastResults() SystemHealth {
 	hc.mutex.RLock()
 	defer hc.mutex.RUnlock()
 	return hc.calculateSystemHealth(hc.results)
 }
 
-// calculateSystemHealth calculates the overall system health from component results
 func (hc *HealthChecker) calculateSystemHealth(results map[string]ComponentHealth) SystemHealth {
 	summary := HealthSummary{
 		Total: len(results),
@@ -188,7 +169,6 @@ func (hc *HealthChecker) calculateSystemHealth(results map[string]ComponentHealt
 		}
 	}
 
-	// Determine overall status
 	var overallStatus Status
 	if summary.Unhealthy > 0 {
 		overallStatus = StatusUnhealthy
@@ -206,7 +186,6 @@ func (hc *HealthChecker) calculateSystemHealth(results map[string]ComponentHealt
 	}
 }
 
-// StartPeriodicChecks starts periodic health checks
 func (hc *HealthChecker) StartPeriodicChecks(ctx context.Context, interval time.Duration) {
 	if interval <= 0 {
 		interval = 30 * time.Second
@@ -226,7 +205,6 @@ func (hc *HealthChecker) StartPeriodicChecks(ctx context.Context, interval time.
 	}()
 }
 
-// CreateDatabaseHealthCheck creates a health check function for database connectivity
 func CreateDatabaseHealthCheck(store store.PrimaryStore) HealthCheckFunc {
 	return func(ctx context.Context) ComponentHealth {
 		start := time.Now()
@@ -251,7 +229,6 @@ func CreateDatabaseHealthCheck(store store.PrimaryStore) HealthCheckFunc {
 	}
 }
 
-// CreateSearchHealthCheck creates a health check function for search engine connectivity
 func CreateSearchHealthCheck(store store.IndexStore) HealthCheckFunc {
 	return func(ctx context.Context) ComponentHealth {
 		start := time.Now()
@@ -262,7 +239,7 @@ func CreateSearchHealthCheck(store store.IndexStore) HealthCheckFunc {
 		}
 
 		if err := store.Ping(ctx); err != nil {
-			health.Status = StatusDegraded // Search is not critical
+			health.Status = StatusDegraded 
 			health.Message = fmt.Sprintf("Search engine ping failed: %v", err)
 		} else {
 			health.Status = StatusHealthy
@@ -276,7 +253,6 @@ func CreateSearchHealthCheck(store store.IndexStore) HealthCheckFunc {
 	}
 }
 
-// CreateMemoryHealthCheck creates a health check function for memory usage
 func CreateMemoryHealthCheck() HealthCheckFunc {
 	return func(ctx context.Context) ComponentHealth {
 		start := time.Now()
@@ -286,8 +262,6 @@ func CreateMemoryHealthCheck() HealthCheckFunc {
 			Details:   make(map[string]string),
 		}
 
-		// This would check memory usage in a real implementation
-		// For now, always return healthy
 		health.Status = StatusHealthy
 		health.Message = "Memory usage within normal limits"
 		health.Duration = time.Since(start)

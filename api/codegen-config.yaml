@@ -1,39 +1,21 @@
-# Configuration for oapi-codegen
-# This file configures how to generate Go code from the OpenAPI spec
-
 package: generated
 output: ../internal/generated/openapi.gen.go
 generate:
-  # Server-side code generation
-  - types       # Generate type definitions
-  - server      # Generate server interfaces
-  - spec        # Embed spec
-  - skip-prune  # Don't remove unused code
-
-# Client package configuration
+  - types
+  - server
+  - spec
+  - skip-prune
 client-package: client
 client-output: ../pkg/client/client.gen.go
 client-generate:
-  - types       # Generate type definitions
-  - client      # Generate client code
-
-# Additional options
+  - types
+  - client
 additional-imports:
   - package: github.com/google/uuid
     alias: ""
   - package: time
     alias: ""
-
-# Type mappings
 import-mapping:
   uuid.UUID: github.com/google/uuid
-
-# Exclude certain operations or paths if needed
-# exclude-schemas:
-#   - HealthResponse
-
-# Generate strict server interfaces
 strict-server: true
-
-# Generate embedded spec
 embed-spec: true

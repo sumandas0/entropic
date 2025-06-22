@@ -11,14 +11,12 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
-// PostgresTestContainer holds PostgreSQL test container resources
 type PostgresTestContainer struct {
 	Pool     *dockertest.Pool
 	Resource *dockertest.Resource
 	URL      string
 }
 
-// TypesenseTestContainer holds Typesense test container resources
 type TypesenseTestContainer struct {
 	Pool     *dockertest.Pool
 	Resource *dockertest.Resource
@@ -26,7 +24,6 @@ type TypesenseTestContainer struct {
 	APIKey   string
 }
 
-// SetupTestPostgres creates a PostgreSQL test container with pgvector
 func SetupTestPostgres() (*PostgresTestContainer, error) {
 	pool, err := dockertest.NewPool("")
 	if err != nil {
@@ -62,12 +59,10 @@ func SetupTestPostgres() (*PostgresTestContainer, error) {
 	hostAndPort := resource.GetHostPort("5432/tcp")
 	databaseUrl := fmt.Sprintf("postgres://postgres:postgres@%s/entropic_test?sslmode=disable", hostAndPort)
 
-	resource.Expire(120) // Tell Docker to hard kill the container in 120 seconds
+	resource.Expire(120) 
 
-	// Set max wait time to 120 seconds
 	pool.MaxWait = 120 * time.Second
 
-	// Wait for the database to be ready
 	if err = pool.Retry(func() error {
 		db, err := sql.Open("pgx", databaseUrl)
 		if err != nil {
@@ -76,12 +71,11 @@ func SetupTestPostgres() (*PostgresTestContainer, error) {
 		defer db.Close()
 		return db.Ping()
 	}); err != nil {
-		// Clean up on failure
+		
 		pool.Purge(resource)
 		return nil, fmt.Errorf("could not connect to database: %w", err)
 	}
 
-	// Create pgvector extension with superuser
 	db, err := sql.Open("pgx", databaseUrl)
 	if err != nil {
 		pool.Purge(resource)
@@ -89,11 +83,9 @@ func SetupTestPostgres() (*PostgresTestContainer, error) {
 	}
 	defer db.Close()
 
-	// First create the extension in template1 to make it available
 	_, err = db.Exec("CREATE EXTENSION IF NOT EXISTS vector")
 	if err != nil {
-		// If it fails, try without the extension (some tests might not need it)
-		// Log the error but don't fail
+
 		fmt.Printf("Warning: could not create vector extension: %v\n", err)
 	}
 
@@ -104,7 +96,6 @@ func SetupTestPostgres() (*PostgresTestContainer, error) {
 	}, nil
 }
 
-// Cleanup purges the PostgreSQL test container
 func (c *PostgresTestContainer) Cleanup() error {
 	if err := c.Pool.Purge(c.Resource); err != nil {
 		return fmt.Errorf("could not purge resource: %w", err)
@@ -112,7 +103,6 @@ func (c *PostgresTestContainer) Cleanup() error {
 	return nil
 }
 
-// SetupTestTypesense creates a Typesense test container
 func SetupTestTypesense() (*TypesenseTestContainer, error) {
 	pool, err := dockertest.NewPool("")
 	if err != nil {
@@ -152,19 +142,16 @@ func SetupTestTypesense() (*TypesenseTestContainer, error) {
 	
 	fmt.Printf("Typesense container started, URL: %s\n", url)
 
-	resource.Expire(120) // Tell Docker to hard kill the container in 120 seconds
+	resource.Expire(120) 
 
-	// Set max wait time to 120 seconds
 	pool.MaxWait = 120 * time.Second
 
-	// Wait for Typesense to be ready
 	if err = pool.Retry(func() error {
-		// Create a custom HTTP client with timeout
+		
 		client := &http.Client{
 			Timeout: 5 * time.Second,
 		}
-		
-		// Check if Typesense is ready by hitting the health endpoint
+
 		req, err := http.NewRequest("GET", fmt.Sprintf("%s/health", url), nil)
 		if err != nil {
 			return err
@@ -182,7 +169,7 @@ func SetupTestTypesense() (*TypesenseTestContainer, error) {
 		}
 		return nil
 	}); err != nil {
-		// Clean up on failure
+		
 		pool.Purge(resource)
 		return nil, fmt.Errorf("could not connect to typesense: %w", err)
 	}
@@ -195,7 +182,6 @@ func SetupTestTypesense() (*TypesenseTestContainer, error) {
 	}, nil
 }
 
-// Cleanup purges the Typesense test container
 func (c *TypesenseTestContainer) Cleanup() error {
 	if err := c.Pool.Purge(c.Resource); err != nil {
 		return fmt.Errorf("could not purge resource: %w", err)
@@ -203,7 +189,6 @@ func (c *TypesenseTestContainer) Cleanup() error {
 	return nil
 }
 
-// MustSetupTestPostgres creates a PostgreSQL test container and panics on error
 func MustSetupTestPostgres() *PostgresTestContainer {
 	container, err := SetupTestPostgres()
 	if err != nil {
@@ -212,7 +197,6 @@ func MustSetupTestPostgres() *PostgresTestContainer {
 	return container
 }
 
-// MustSetupTestTypesense creates a Typesense test container and panics on error
 func MustSetupTestTypesense() *TypesenseTestContainer {
 	container, err := SetupTestTypesense()
 	if err != nil {

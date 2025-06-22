@@ -13,35 +13,30 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Test fixtures
 var (
 	testContainer *testutils.TypesenseTestContainer
 	testStore     *TypesenseStore
 )
 
 func TestMain(m *testing.M) {
-	// Setup test container
+	
 	var err error
 	testContainer, err = testutils.SetupTestTypesense()
 	if err != nil {
 		panic(err)
 	}
 
-	// Create store
 	testStore, err = NewTypesenseStore(testContainer.URL, testContainer.APIKey)
 	if err != nil {
 		testContainer.Cleanup()
 		panic(err)
 	}
 
-	// Run tests
 	code := m.Run()
 
-	// Cleanup
 	testStore.Close()
 	testContainer.Cleanup()
 
-	// Exit with test code
 	if code != 0 {
 		panic("tests failed")
 	}
@@ -51,7 +46,7 @@ func TestTypesenseStore_IndexEntity(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("IndexEntity_Basic", func(t *testing.T) {
-		// Create test entity
+		
 		entity := &models.Entity{
 			ID:         uuid.New(),
 			EntityType: "user",
@@ -67,14 +62,11 @@ func TestTypesenseStore_IndexEntity(t *testing.T) {
 			UpdatedAt: time.Now(),
 		}
 
-		// Index entity
 		err := testStore.IndexEntity(ctx, entity)
 		require.NoError(t, err)
 
-		// Wait for indexing
 		time.Sleep(100 * time.Millisecond)
 
-		// Search for entity
 		query := &models.SearchQuery{
 			EntityTypes: []string{"user"},
 			Query:       "Test User",
@@ -85,7 +77,6 @@ func TestTypesenseStore_IndexEntity(t *testing.T) {
 		require.NoError(t, err)
 		assert.Greater(t, len(results.Hits), 0)
 
-		// Verify entity data
 		found := false
 		for _, hit := range results.Hits {
 			if hit.ID == entity.ID {
@@ -100,7 +91,7 @@ func TestTypesenseStore_IndexEntity(t *testing.T) {
 	})
 
 	t.Run("IndexEntity_WithVector", func(t *testing.T) {
-		// Create embedding
+		
 		embedding := make([]float32, 384)
 		for i := range embedding {
 			embedding[i] = float32(i) / 384.0
@@ -119,14 +110,11 @@ func TestTypesenseStore_IndexEntity(t *testing.T) {
 			UpdatedAt: time.Now(),
 		}
 
-		// Index entity
 		err := testStore.IndexEntity(ctx, entity)
 		require.NoError(t, err)
 
-		// Wait for indexing
 		time.Sleep(100 * time.Millisecond)
 
-		// Perform vector search
 		vectorQuery := &models.VectorQuery{
 			EntityTypes: []string{"document"},
 			Vector:      embedding,
@@ -139,14 +127,14 @@ func TestTypesenseStore_IndexEntity(t *testing.T) {
 		assert.Greater(t, len(results.Hits), 0)
 
 		if len(results.Hits) > 0 {
-			// The exact match should be the first result with highest score
+			
 			assert.Equal(t, entity.ID, results.Hits[0].ID)
 			assert.Greater(t, results.Hits[0].Score, float32(0.9))
 		}
 	})
 
 	t.Run("IndexEntity_Update", func(t *testing.T) {
-		// Create and index entity
+		
 		entity := &models.Entity{
 			ID:         uuid.New(),
 			EntityType: "user",
@@ -163,7 +151,6 @@ func TestTypesenseStore_IndexEntity(t *testing.T) {
 		require.NoError(t, err)
 		time.Sleep(100 * time.Millisecond)
 
-		// Update entity
 		entity.Properties["name"] = "Updated Name"
 		entity.Properties["email"] = "updated@example.com"
 		entity.UpdatedAt = time.Now()
@@ -172,7 +159,6 @@ func TestTypesenseStore_IndexEntity(t *testing.T) {
 		require.NoError(t, err)
 		time.Sleep(100 * time.Millisecond)
 
-		// Search for updated entity
 		query := &models.SearchQuery{
 			EntityTypes: []string{"user"},
 			Query:       "Updated Name",
@@ -195,7 +181,7 @@ func TestTypesenseStore_IndexEntity(t *testing.T) {
 	})
 
 	t.Run("IndexEntity_ComplexProperties", func(t *testing.T) {
-		// Test with nested objects and arrays
+		
 		entity := &models.Entity{
 			ID:         uuid.New(),
 			EntityType: "product",
@@ -234,7 +220,6 @@ func TestTypesenseStore_IndexEntity(t *testing.T) {
 		require.NoError(t, err)
 		time.Sleep(100 * time.Millisecond)
 
-		// Search for entity
 		query := &models.SearchQuery{
 			EntityTypes: []string{"product"},
 			Query:       "Complex Product",
@@ -251,7 +236,7 @@ func TestTypesenseStore_DeleteEntity(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("DeleteEntity_Success", func(t *testing.T) {
-		// Create and index entity
+		
 		entity := &models.Entity{
 			ID:         uuid.New(),
 			EntityType: "user",
@@ -267,12 +252,10 @@ func TestTypesenseStore_DeleteEntity(t *testing.T) {
 		require.NoError(t, err)
 		time.Sleep(100 * time.Millisecond)
 
-		// Delete entity
 		err = testStore.DeleteEntityIndex(ctx, entity.EntityType, entity.ID)
 		require.NoError(t, err)
 		time.Sleep(100 * time.Millisecond)
 
-		// Verify deletion
 		query := &models.SearchQuery{
 			EntityTypes: []string{"user"},
 			Query:       entity.URN,
@@ -282,7 +265,6 @@ func TestTypesenseStore_DeleteEntity(t *testing.T) {
 		results, err := testStore.Search(ctx, query)
 		require.NoError(t, err)
 
-		// Entity should not be found
 		found := false
 		for _, hit := range results.Hits {
 			if hit.ID == entity.ID {
@@ -294,9 +276,9 @@ func TestTypesenseStore_DeleteEntity(t *testing.T) {
 	})
 
 	t.Run("DeleteEntity_NonExistent", func(t *testing.T) {
-		// Try to delete non-existent entity
+		
 		err := testStore.DeleteEntityIndex(ctx, "user", uuid.New())
-		// Should not error for non-existent entities
+		
 		assert.NoError(t, err)
 	})
 }
@@ -304,7 +286,6 @@ func TestTypesenseStore_DeleteEntity(t *testing.T) {
 func TestTypesenseStore_Search(t *testing.T) {
 	ctx := context.Background()
 
-	// Setup test data
 	setupSearchTestData(t, ctx)
 
 	t.Run("Search_Basic", func(t *testing.T) {
@@ -360,8 +341,7 @@ func TestTypesenseStore_Search(t *testing.T) {
 		results, err := testStore.Search(ctx, query)
 		require.NoError(t, err)
 		assert.NotNil(t, results.Facets)
-		
-		// Check department facet
+
 		if deptFacet, ok := results.Facets["department"]; ok {
 			assert.Greater(t, len(deptFacet), 0)
 			for _, facetValue := range deptFacet {
@@ -385,7 +365,6 @@ func TestTypesenseStore_Search(t *testing.T) {
 		require.NoError(t, err)
 		assert.Greater(t, len(results.Hits), 1)
 
-		// Verify sorting
 		for i := 1; i < len(results.Hits); i++ {
 			prevAge, _ := results.Hits[i-1].Properties["age"].(float64)
 			currAge, _ := results.Hits[i].Properties["age"].(float64)
@@ -394,7 +373,7 @@ func TestTypesenseStore_Search(t *testing.T) {
 	})
 
 	t.Run("Search_Pagination", func(t *testing.T) {
-		// First page
+		
 		query1 := &models.SearchQuery{
 			EntityTypes: []string{"user"},
 			Query:       "*",
@@ -406,7 +385,6 @@ func TestTypesenseStore_Search(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, results1.Hits, 5)
 
-		// Second page
 		query2 := &models.SearchQuery{
 			EntityTypes: []string{"user"},
 			Query:       "*",
@@ -418,7 +396,6 @@ func TestTypesenseStore_Search(t *testing.T) {
 		require.NoError(t, err)
 		assert.Greater(t, len(results2.Hits), 0)
 
-		// Verify no overlap
 		page1IDs := make(map[uuid.UUID]bool)
 		for _, hit := range results1.Hits {
 			page1IDs[hit.ID] = true
@@ -430,7 +407,7 @@ func TestTypesenseStore_Search(t *testing.T) {
 	})
 
 	t.Run("Search_MultipleEntityTypes", func(t *testing.T) {
-		// Index some products
+		
 		for i := 0; i < 3; i++ {
 			product := &models.Entity{
 				ID:         uuid.New(),
@@ -457,7 +434,6 @@ func TestTypesenseStore_Search(t *testing.T) {
 		results, err := testStore.Search(ctx, query)
 		require.NoError(t, err)
 
-		// Check that we have both entity types
 		hasUser := false
 		hasProduct := false
 		for _, hit := range results.Hits {
@@ -492,11 +468,10 @@ func TestTypesenseStore_Search(t *testing.T) {
 func TestTypesenseStore_VectorSearch(t *testing.T) {
 	ctx := context.Background()
 
-	// Setup vector test data
 	setupVectorTestData(t, ctx)
 
 	t.Run("VectorSearch_Basic", func(t *testing.T) {
-		// Create query vector
+		
 		queryVector := make([]float32, 384)
 		for i := range queryVector {
 			queryVector[i] = float32(i) / 384.0
@@ -513,7 +488,6 @@ func TestTypesenseStore_VectorSearch(t *testing.T) {
 		require.NoError(t, err)
 		assert.Greater(t, len(results.Hits), 0)
 
-		// Results should be sorted by score descending
 		for i := 1; i < len(results.Hits); i++ {
 			assert.GreaterOrEqual(t, results.Hits[i-1].Score, results.Hits[i].Score)
 		}
@@ -593,8 +567,7 @@ func TestTypesenseStore_CollectionManagement(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("Collection_CreateIfNotExists", func(t *testing.T) {
-		// This should be handled internally by the store
-		// Test by indexing an entity with a new entity type
+
 		entity := &models.Entity{
 			ID:         uuid.New(),
 			EntityType: "test_collection_" + uuid.New().String()[:8],
@@ -608,8 +581,7 @@ func TestTypesenseStore_CollectionManagement(t *testing.T) {
 
 		err := testStore.IndexEntity(ctx, entity)
 		require.NoError(t, err)
-		
-		// Verify collection was created by searching
+
 		time.Sleep(100 * time.Millisecond)
 		
 		query := &models.SearchQuery{
@@ -625,8 +597,7 @@ func TestTypesenseStore_CollectionManagement(t *testing.T) {
 
 	t.Run("Collection_DeleteByType", func(t *testing.T) {
 		entityType := "temp_type_" + uuid.New().String()[:8]
-		
-		// Create multiple entities of the same type
+
 		for i := 0; i < 5; i++ {
 			entity := &models.Entity{
 				ID:         uuid.New(),
@@ -645,13 +616,11 @@ func TestTypesenseStore_CollectionManagement(t *testing.T) {
 		
 		time.Sleep(200 * time.Millisecond)
 
-		// Delete collection for this entity type
 		err := testStore.DeleteCollection(ctx, entityType)
 		require.NoError(t, err)
 		
 		time.Sleep(200 * time.Millisecond)
 
-		// Verify deletion
 		query := &models.SearchQuery{
 			EntityTypes: []string{entityType},
 			Query:       "*",
@@ -669,7 +638,7 @@ func TestTypesenseStore_ErrorHandling(t *testing.T) {
 
 	t.Run("Search_InvalidEntityType", func(t *testing.T) {
 		query := &models.SearchQuery{
-			EntityTypes: []string{}, // Empty entity types
+			EntityTypes: []string{}, 
 			Query:       "test",
 			Limit:       10,
 		}
@@ -679,7 +648,7 @@ func TestTypesenseStore_ErrorHandling(t *testing.T) {
 	})
 
 	t.Run("VectorSearch_InvalidDimensions", func(t *testing.T) {
-		// Index entity with 384-dim vector
+		
 		embedding := make([]float32, 384)
 		for i := range embedding {
 			embedding[i] = float32(i) / 384.0
@@ -701,8 +670,7 @@ func TestTypesenseStore_ErrorHandling(t *testing.T) {
 		require.NoError(t, err)
 		time.Sleep(100 * time.Millisecond)
 
-		// Search with wrong dimension vector
-		wrongVector := make([]float32, 128) // Wrong dimensions
+		wrongVector := make([]float32, 128) 
 		query := &models.VectorQuery{
 			EntityTypes: []string{"document"},
 			Vector:      wrongVector,
@@ -718,13 +686,13 @@ func TestTypesenseStore_ErrorHandling(t *testing.T) {
 		query := &models.SearchQuery{
 			EntityTypes: []string{"user"},
 			Query:       "*",
-			Limit:       0, // Invalid limit
+			Limit:       0, 
 		}
 
 		_, err := testStore.Search(ctx, query)
 		assert.Error(t, err)
 
-		query.Limit = 1001 // Exceeds max limit
+		query.Limit = 1001 
 		_, err = testStore.Search(ctx, query)
 		assert.Error(t, err)
 	})
@@ -761,7 +729,6 @@ func TestTypesenseStore_ConcurrentOperations(t *testing.T) {
 			}(i)
 		}
 
-		// Wait for all operations
 		successCount := 0
 		for i := 0; i < numGoroutines; i++ {
 			select {
@@ -778,7 +745,7 @@ func TestTypesenseStore_ConcurrentOperations(t *testing.T) {
 	})
 
 	t.Run("Concurrent_SearchOperations", func(t *testing.T) {
-		// Index test data first
+		
 		entity := &models.Entity{
 			ID:         uuid.New(),
 			EntityType: "user",
@@ -793,7 +760,6 @@ func TestTypesenseStore_ConcurrentOperations(t *testing.T) {
 		require.NoError(t, err)
 		time.Sleep(200 * time.Millisecond)
 
-		// Concurrent searches
 		numGoroutines := 20
 		errChan := make(chan error, numGoroutines)
 		resultsChan := make(chan *models.SearchResult, numGoroutines)
@@ -815,7 +781,6 @@ func TestTypesenseStore_ConcurrentOperations(t *testing.T) {
 			}(i)
 		}
 
-		// Collect results
 		successCount := 0
 		for i := 0; i < numGoroutines; i++ {
 			select {
@@ -832,8 +797,6 @@ func TestTypesenseStore_ConcurrentOperations(t *testing.T) {
 		assert.Equal(t, numGoroutines, successCount)
 	})
 }
-
-// Helper functions
 
 func setupSearchTestData(t *testing.T, ctx context.Context) {
 	departments := []string{"engineering", "sales", "marketing", "hr"}
@@ -858,8 +821,7 @@ func setupSearchTestData(t *testing.T, ctx context.Context) {
 		err := testStore.IndexEntity(ctx, entity)
 		require.NoError(t, err)
 	}
-	
-	// Wait for indexing
+
 	time.Sleep(200 * time.Millisecond)
 }
 
@@ -867,10 +829,10 @@ func setupVectorTestData(t *testing.T, ctx context.Context) {
 	categories := []string{"technical", "business", "general"}
 	
 	for i := 0; i < 10; i++ {
-		// Create varied embeddings
+		
 		embedding := make([]float32, 384)
 		for j := range embedding {
-			// Create different patterns for different documents
+			
 			embedding[j] = float32(j+i) / (384.0 + float32(i))
 		}
 
@@ -891,7 +853,6 @@ func setupVectorTestData(t *testing.T, ctx context.Context) {
 		err := testStore.IndexEntity(ctx, entity)
 		require.NoError(t, err)
 	}
-	
-	// Wait for indexing
+
 	time.Sleep(200 * time.Millisecond)
 }

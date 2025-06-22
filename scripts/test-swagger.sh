@@ -1,15 +1,8 @@
 #!/bin/bash
-
-# Test script for Swagger documentation
-
 echo "Testing Swagger documentation generation and serving..."
-
-# Colors for output
 GREEN='\033[0;32m'
 RED='\033[0;31m'
-NC='\033[0m' # No Color
-
-# Generate swagger docs
+NC='\033[0m'
 echo "Generating Swagger documentation..."
 if swag init -g cmd/server/main.go -o docs --parseDependency --parseInternal; then
     echo -e "${GREEN}✓ Swagger documentation generated successfully${NC}"
@@ -17,20 +10,15 @@ else
     echo -e "${RED}✗ Failed to generate Swagger documentation${NC}"
     exit 1
 fi
-
-# Check if docs were created
 if [ -f "docs/swagger.json" ] && [ -f "docs/swagger.yaml" ] && [ -f "docs/docs.go" ]; then
     echo -e "${GREEN}✓ All documentation files created${NC}"
 else
     echo -e "${RED}✗ Documentation files missing${NC}"
     exit 1
 fi
-
-# Show file sizes
 echo ""
 echo "Generated files:"
 ls -lh docs/
-
 echo ""
 echo "Swagger documentation is ready!"
 echo "To view the documentation:"
