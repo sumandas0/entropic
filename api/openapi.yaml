@@ -1,0 +1,1179 @@
+openapi: 3.0.3
+info:
+  title: Entropic Storage Engine API
+  description: |
+    Entropic is a flexible entity-relationship storage engine with dual-storage architecture.
+    It provides a graph-like data model with schema validation, full-text search, and vector similarity search capabilities.
+  version: 1.0.0
+  contact:
+    name: Entropic Team
+    email: support@entropic.io
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Local development server
+  - url: https://api.entropic.io/v1
+    description: Production server
+
+tags:
+  - name: Health
+    description: Health check and monitoring endpoints
+  - name: Entities
+    description: Entity management operations
+  - name: Relations
+    description: Relationship management operations
+  - name: Schemas
+    description: Schema definition and management
+  - name: Search
+    description: Search operations
+
+paths:
+  # Health Endpoints
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: Returns the health status of the service and its dependencies
+      operationId: getHealth
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: Service is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /ready:
+    get:
+      tags:
+        - Health
+      summary: Readiness check
+      description: Indicates if the service is ready to accept requests
+      operationId: getReady
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ready
+        '503':
+          description: Service is not ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /metrics:
+    get:
+      tags:
+        - Health
+      summary: Get metrics
+      description: Returns service metrics including cache and transaction statistics
+      operationId: getMetrics
+      responses:
+        '200':
+          description: Metrics retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricsResponse'
+
+  # Entity Endpoints
+  /entities/{entityType}:
+    post:
+      tags:
+        - Entities
+      summary: Create entity
+      description: Creates a new entity of the specified type
+      operationId: createEntity
+      parameters:
+        - $ref: '#/components/parameters/entityType'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEntityRequest'
+      responses:
+        '201':
+          description: Entity created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Entity'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    get:
+      tags:
+        - Entities
+      summary: List entities
+      description: Lists entities of the specified type with pagination
+      operationId: listEntities
+      parameters:
+        - $ref: '#/components/parameters/entityType'
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/offset'
+      responses:
+        '200':
+          description: Entities retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntityListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /entities/{entityType}/{entityID}:
+    get:
+      tags:
+        - Entities
+      summary: Get entity
+      description: Retrieves a specific entity by ID
+      operationId: getEntity
+      parameters:
+        - $ref: '#/components/parameters/entityType'
+        - $ref: '#/components/parameters/entityID'
+      responses:
+        '200':
+          description: Entity retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Entity'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    patch:
+      tags:
+        - Entities
+      summary: Update entity
+      description: Updates an existing entity's properties
+      operationId: updateEntity
+      parameters:
+        - $ref: '#/components/parameters/entityType'
+        - $ref: '#/components/parameters/entityID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateEntityRequest'
+      responses:
+        '200':
+          description: Entity updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Entity'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    delete:
+      tags:
+        - Entities
+      summary: Delete entity
+      description: Deletes an entity and optionally its relations
+      operationId: deleteEntity
+      parameters:
+        - $ref: '#/components/parameters/entityType'
+        - $ref: '#/components/parameters/entityID'
+      responses:
+        '204':
+          description: Entity deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /entities/{entityType}/{entityID}/relations:
+    get:
+      tags:
+        - Entities
+      summary: Get entity relations
+      description: Retrieves all relations for a specific entity
+      operationId: getEntityRelations
+      parameters:
+        - $ref: '#/components/parameters/entityType'
+        - $ref: '#/components/parameters/entityID'
+        - name: relation_types
+          in: query
+          description: Comma-separated list of relation types to filter
+          schema:
+            type: string
+            example: "follows,likes"
+      responses:
+        '200':
+          description: Relations retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Relation'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # Relation Endpoints
+  /relations:
+    post:
+      tags:
+        - Relations
+      summary: Create relation
+      description: Creates a new relation between two entities
+      operationId: createRelation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRelationRequest'
+      responses:
+        '201':
+          description: Relation created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Relation'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /relations/{relationID}:
+    get:
+      tags:
+        - Relations
+      summary: Get relation
+      description: Retrieves a specific relation by ID
+      operationId: getRelation
+      parameters:
+        - $ref: '#/components/parameters/relationID'
+      responses:
+        '200':
+          description: Relation retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Relation'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    delete:
+      tags:
+        - Relations
+      summary: Delete relation
+      description: Deletes a relation between entities
+      operationId: deleteRelation
+      parameters:
+        - $ref: '#/components/parameters/relationID'
+      responses:
+        '204':
+          description: Relation deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # Schema Endpoints
+  /schemas/entities:
+    post:
+      tags:
+        - Schemas
+      summary: Create entity schema
+      description: Defines a new entity type schema
+      operationId: createEntitySchema
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EntitySchema'
+      responses:
+        '201':
+          description: Schema created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntitySchema'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    get:
+      tags:
+        - Schemas
+      summary: List entity schemas
+      description: Lists all entity type schemas
+      operationId: listEntitySchemas
+      responses:
+        '200':
+          description: Schemas retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EntitySchema'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /schemas/entities/{entityType}:
+    get:
+      tags:
+        - Schemas
+      summary: Get entity schema
+      description: Retrieves a specific entity type schema
+      operationId: getEntitySchema
+      parameters:
+        - $ref: '#/components/parameters/entityType'
+      responses:
+        '200':
+          description: Schema retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntitySchema'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    put:
+      tags:
+        - Schemas
+      summary: Update entity schema
+      description: Updates an existing entity type schema
+      operationId: updateEntitySchema
+      parameters:
+        - $ref: '#/components/parameters/entityType'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EntitySchema'
+      responses:
+        '200':
+          description: Schema updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntitySchema'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    delete:
+      tags:
+        - Schemas
+      summary: Delete entity schema
+      description: Deletes an entity type schema
+      operationId: deleteEntitySchema
+      parameters:
+        - $ref: '#/components/parameters/entityType'
+      responses:
+        '204':
+          description: Schema deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /schemas/relationships:
+    post:
+      tags:
+        - Schemas
+      summary: Create relationship schema
+      description: Defines a new relationship type schema
+      operationId: createRelationshipSchema
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RelationshipSchema'
+      responses:
+        '201':
+          description: Schema created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RelationshipSchema'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    get:
+      tags:
+        - Schemas
+      summary: List relationship schemas
+      description: Lists all relationship type schemas
+      operationId: listRelationshipSchemas
+      responses:
+        '200':
+          description: Schemas retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RelationshipSchema'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /schemas/relationships/{relationshipType}:
+    get:
+      tags:
+        - Schemas
+      summary: Get relationship schema
+      description: Retrieves a specific relationship type schema
+      operationId: getRelationshipSchema
+      parameters:
+        - $ref: '#/components/parameters/relationshipType'
+      responses:
+        '200':
+          description: Schema retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RelationshipSchema'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    put:
+      tags:
+        - Schemas
+      summary: Update relationship schema
+      description: Updates an existing relationship type schema
+      operationId: updateRelationshipSchema
+      parameters:
+        - $ref: '#/components/parameters/relationshipType'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RelationshipSchema'
+      responses:
+        '200':
+          description: Schema updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RelationshipSchema'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    delete:
+      tags:
+        - Schemas
+      summary: Delete relationship schema
+      description: Deletes a relationship type schema
+      operationId: deleteRelationshipSchema
+      parameters:
+        - $ref: '#/components/parameters/relationshipType'
+      responses:
+        '204':
+          description: Schema deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # Search Endpoints
+  /search:
+    post:
+      tags:
+        - Search
+      summary: Text search
+      description: Performs full-text search across entities
+      operationId: searchEntities
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchQuery'
+      responses:
+        '200':
+          description: Search completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /search/vector:
+    post:
+      tags:
+        - Search
+      summary: Vector search
+      description: Performs vector similarity search
+      operationId: vectorSearchEntities
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VectorQuery'
+      responses:
+        '200':
+          description: Search completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  parameters:
+    entityType:
+      name: entityType
+      in: path
+      required: true
+      description: The type of entity
+      schema:
+        type: string
+        example: user
+
+    entityID:
+      name: entityID
+      in: path
+      required: true
+      description: The unique identifier of the entity
+      schema:
+        type: string
+        format: uuid
+        example: 550e8400-e29b-41d4-a716-446655440000
+
+    relationID:
+      name: relationID
+      in: path
+      required: true
+      description: The unique identifier of the relation
+      schema:
+        type: string
+        format: uuid
+        example: 550e8400-e29b-41d4-a716-446655440000
+
+    relationshipType:
+      name: relationshipType
+      in: path
+      required: true
+      description: The type of relationship
+      schema:
+        type: string
+        example: follows
+
+    limit:
+      name: limit
+      in: query
+      description: Maximum number of items to return
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 1000
+        default: 100
+
+    offset:
+      name: offset
+      in: query
+      description: Number of items to skip
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+
+  schemas:
+    # Request/Response Schemas
+    CreateEntityRequest:
+      type: object
+      required:
+        - urn
+        - properties
+      properties:
+        urn:
+          type: string
+          description: Unique Resource Name for the entity
+          example: urn:entropic:user:john-doe
+        properties:
+          type: object
+          description: Entity properties as key-value pairs
+          additionalProperties: true
+          example:
+            name: John Doe
+            email: john@example.com
+            age: 30
+
+    UpdateEntityRequest:
+      type: object
+      required:
+        - properties
+      properties:
+        properties:
+          type: object
+          description: Updated entity properties
+          additionalProperties: true
+
+    CreateRelationRequest:
+      type: object
+      required:
+        - relation_type
+        - from_entity_id
+        - from_entity_type
+        - to_entity_id
+        - to_entity_type
+      properties:
+        relation_type:
+          type: string
+          description: Type of relationship
+          example: follows
+        from_entity_id:
+          type: string
+          format: uuid
+          description: ID of the source entity
+        from_entity_type:
+          type: string
+          description: Type of the source entity
+          example: user
+        to_entity_id:
+          type: string
+          format: uuid
+          description: ID of the target entity
+        to_entity_type:
+          type: string
+          description: Type of the target entity
+          example: user
+        properties:
+          type: object
+          description: Optional relationship properties
+          additionalProperties: true
+
+    Entity:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique identifier
+        entity_type:
+          type: string
+          description: Type of the entity
+        urn:
+          type: string
+          description: Unique Resource Name
+        properties:
+          type: object
+          description: Entity properties
+          additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
+          description: Creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: Last update timestamp
+
+    Relation:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique identifier
+        relation_type:
+          type: string
+          description: Type of relationship
+        from_entity_id:
+          type: string
+          format: uuid
+        from_entity_type:
+          type: string
+        to_entity_id:
+          type: string
+          format: uuid
+        to_entity_type:
+          type: string
+        properties:
+          type: object
+          additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
+
+    EntityListResponse:
+      type: object
+      properties:
+        entities:
+          type: array
+          items:
+            $ref: '#/components/schemas/Entity'
+        total:
+          type: integer
+          description: Total number of entities
+        limit:
+          type: integer
+          description: Items per page
+        offset:
+          type: integer
+          description: Number of items skipped
+
+    # Schema Definitions
+    EntitySchema:
+      type: object
+      required:
+        - entity_type
+        - properties
+      properties:
+        entity_type:
+          type: string
+          description: The entity type identifier
+          example: user
+        properties:
+          type: object
+          description: Property definitions
+          additionalProperties:
+            $ref: '#/components/schemas/PropertySchema'
+        required_properties:
+          type: array
+          items:
+            type: string
+          description: List of required property names
+        unique_properties:
+          type: array
+          items:
+            type: string
+          description: List of properties that must be unique
+        indexed_properties:
+          type: array
+          items:
+            type: string
+          description: Properties to index for search
+        vector_properties:
+          type: array
+          items:
+            type: string
+          description: Properties containing vectors
+        denormalization_config:
+          $ref: '#/components/schemas/DenormalizationConfig'
+
+    RelationshipSchema:
+      type: object
+      required:
+        - relationship_type
+        - from_entity_types
+        - to_entity_types
+      properties:
+        relationship_type:
+          type: string
+          description: The relationship type identifier
+          example: follows
+        from_entity_types:
+          type: array
+          items:
+            type: string
+          description: Allowed source entity types
+        to_entity_types:
+          type: array
+          items:
+            type: string
+          description: Allowed target entity types
+        properties:
+          type: object
+          description: Property definitions for the relationship
+          additionalProperties:
+            $ref: '#/components/schemas/PropertySchema'
+        cardinality:
+          type: string
+          enum: [one-to-one, one-to-many, many-to-one, many-to-many]
+          default: many-to-many
+        constraints:
+          type: object
+          properties:
+            unique:
+              type: boolean
+              default: false
+            required:
+              type: boolean
+              default: false
+
+    PropertySchema:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          enum: [string, number, boolean, array, object, vector]
+        description:
+          type: string
+        default:
+          description: Default value for the property
+        validation:
+          type: object
+          description: Validation rules
+          properties:
+            min:
+              type: number
+            max:
+              type: number
+            pattern:
+              type: string
+            enum:
+              type: array
+            min_length:
+              type: integer
+            max_length:
+              type: integer
+            dimensions:
+              type: integer
+              description: For vector types
+
+    DenormalizationConfig:
+      type: object
+      properties:
+        denormalize_to:
+          type: array
+          items:
+            type: object
+            properties:
+              relation_type:
+                type: string
+              properties:
+                type: array
+                items:
+                  type: string
+              direction:
+                type: string
+                enum: [from, to, both]
+
+    # Search Schemas
+    SearchQuery:
+      type: object
+      required:
+        - entity_types
+        - query
+      properties:
+        entity_types:
+          type: array
+          items:
+            type: string
+          description: Entity types to search
+        query:
+          type: string
+          description: Search query string
+        filters:
+          type: object
+          additionalProperties: true
+          description: Additional filters
+        facets:
+          type: array
+          items:
+            type: string
+          description: Fields to facet on
+        sort:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              direction:
+                type: string
+                enum: [asc, desc]
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 1000
+          default: 100
+        offset:
+          type: integer
+          minimum: 0
+          default: 0
+        include_urn:
+          type: boolean
+          default: false
+
+    VectorQuery:
+      type: object
+      required:
+        - entity_types
+        - vector
+        - vector_field
+        - top_k
+      properties:
+        entity_types:
+          type: array
+          items:
+            type: string
+        vector:
+          type: array
+          items:
+            type: number
+            format: float
+        vector_field:
+          type: string
+          description: Field containing vectors
+        top_k:
+          type: integer
+          minimum: 1
+          maximum: 1000
+          description: Number of results
+        filters:
+          type: object
+          additionalProperties: true
+        min_score:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+        include_vectors:
+          type: boolean
+          default: false
+
+    SearchResult:
+      type: object
+      properties:
+        hits:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchHit'
+        total_hits:
+          type: integer
+          format: int64
+        facets:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: object
+              properties:
+                value:
+                  type: string
+                count:
+                  type: integer
+        search_time:
+          type: string
+          description: Search execution time
+        query:
+          description: Original query
+
+    SearchHit:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        entity_type:
+          type: string
+        urn:
+          type: string
+        score:
+          type: number
+          format: float
+        properties:
+          type: object
+          additionalProperties: true
+        highlights:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+        vector:
+          type: array
+          items:
+            type: number
+            format: float
+
+    # Health & Monitoring
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+        components:
+          type: object
+          properties:
+            postgres:
+              $ref: '#/components/schemas/ComponentHealth'
+            typesense:
+              $ref: '#/components/schemas/ComponentHealth'
+            cache:
+              $ref: '#/components/schemas/ComponentHealth'
+
+    ComponentHealth:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [up, down]
+        latency:
+          type: string
+        error:
+          type: string
+
+    MetricsResponse:
+      type: object
+      properties:
+        cache:
+          type: object
+          properties:
+            hit_rate:
+              type: number
+              format: float
+            miss_rate:
+              type: number
+              format: float
+            total_hits:
+              type: integer
+            total_misses:
+              type: integer
+        transactions:
+          type: object
+          properties:
+            active:
+              type: integer
+            completed:
+              type: integer
+            failed:
+              type: integer
+            average_duration:
+              type: string
+
+    # Error Response
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+        code:
+          type: string
+          description: Error code
+        details:
+          type: object
+          description: Additional error details
+          additionalProperties: true
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: Invalid request parameters
+            code: BAD_REQUEST
+            details:
+              field: entity_type
+              reason: Entity type must be alphanumeric
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: Entity not found
+            code: NOT_FOUND
+
+    Conflict:
+      description: Resource conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: URN already exists
+            code: CONFLICT
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: Internal server error
+            code: INTERNAL_ERROR
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT authentication token
+
+    apiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key authentication
+
+# Security can be applied globally or per operation
+# Uncomment when authentication is implemented
+# security:
+#   - bearerAuth: []
+#   - apiKey: []

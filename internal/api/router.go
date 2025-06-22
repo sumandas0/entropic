@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	httpSwagger "github.com/swaggo/http-swagger"
 )
 
 // Router sets up and configures the HTTP router
@@ -67,6 +68,11 @@ func (r *Router) SetupRoutes() http.Handler {
 
 	// Metrics endpoint
 	router.Get("/metrics", r.metrics)
+
+	// Swagger documentation
+	router.Get("/swagger/*", httpSwagger.Handler(
+		httpSwagger.URL("/swagger/doc.json"), // The url pointing to API definition
+	))
 
 	// API version prefix
 	router.Route("/api/v1", func(apiRouter chi.Router) {
@@ -135,6 +141,13 @@ func (r *Router) SetupRoutes() http.Handler {
 }
 
 // healthCheck returns the health status of the system
+// @Summary Health check
+// @Description Returns the health status of the service and its dependencies
+// @Tags health
+// @Produce json
+// @Success 200 {object} health.SystemHealth
+// @Failure 503 {object} health.SystemHealth
+// @Router /health [get]
 func (r *Router) healthCheck(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 	
@@ -170,6 +183,13 @@ func (r *Router) healthCheck(w http.ResponseWriter, req *http.Request) {
 }
 
 // readinessCheck returns the readiness status of the system
+// @Summary Readiness check
+// @Description Indicates if the service is ready to accept requests
+// @Tags health
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Failure 503 {string} string "Service not ready"
+// @Router /ready [get]
 func (r *Router) readinessCheck(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 	
@@ -190,6 +210,12 @@ func (r *Router) readinessCheck(w http.ResponseWriter, req *http.Request) {
 }
 
 // metrics returns system metrics
+// @Summary Get metrics
+// @Description Returns service metrics including cache and transaction statistics
+// @Tags health
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Router /metrics [get]
 func (r *Router) metrics(w http.ResponseWriter, req *http.Request) {
 	stats := r.engine.GetStats()
 

@@ -1,0 +1,1198 @@
+basePath: /api/v1
+definitions:
+  github_com_sumandas0_entropic_internal_api_middleware.ErrorDetail:
+    properties:
+      code:
+        type: string
+      details:
+        additionalProperties: true
+        type: object
+      message:
+        type: string
+      request_id:
+        type: string
+      timestamp:
+        type: string
+    type: object
+  github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse:
+    properties:
+      error:
+        $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorDetail'
+    type: object
+  github_com_sumandas0_entropic_internal_health.ComponentHealth:
+    properties:
+      details:
+        additionalProperties:
+          type: string
+        type: object
+      duration_ms:
+        $ref: '#/definitions/time.Duration'
+      last_check:
+        type: string
+      message:
+        type: string
+      name:
+        type: string
+      status:
+        $ref: '#/definitions/github_com_sumandas0_entropic_internal_health.Status'
+    type: object
+  github_com_sumandas0_entropic_internal_health.HealthSummary:
+    properties:
+      degraded:
+        type: integer
+      healthy:
+        type: integer
+      total:
+        type: integer
+      unhealthy:
+        type: integer
+    type: object
+  github_com_sumandas0_entropic_internal_health.Status:
+    enum:
+    - healthy
+    - unhealthy
+    - degraded
+    type: string
+    x-enum-varnames:
+    - StatusHealthy
+    - StatusUnhealthy
+    - StatusDegraded
+  github_com_sumandas0_entropic_internal_health.SystemHealth:
+    properties:
+      components:
+        additionalProperties:
+          $ref: '#/definitions/github_com_sumandas0_entropic_internal_health.ComponentHealth'
+        type: object
+      status:
+        $ref: '#/definitions/github_com_sumandas0_entropic_internal_health.Status'
+      summary:
+        $ref: '#/definitions/github_com_sumandas0_entropic_internal_health.HealthSummary'
+      timestamp:
+        type: string
+    type: object
+  github_com_sumandas0_entropic_internal_models.CardinalityType:
+    enum:
+    - one-to-one
+    - one-to-many
+    - many-to-one
+    - many-to-many
+    type: string
+    x-enum-varnames:
+    - OneToOne
+    - OneToMany
+    - ManyToOne
+    - ManyToMany
+  github_com_sumandas0_entropic_internal_models.DenormalizationConfig:
+    properties:
+      denormalize_from_to:
+        description: Properties from 'from' entity to copy to 'to'
+        items:
+          type: string
+        type: array
+      denormalize_to_from:
+        description: Properties from 'to' entity to copy to 'from'
+        items:
+          type: string
+        type: array
+      include_relation_data:
+        description: Include relation properties
+        type: boolean
+      update_on_change:
+        description: Auto-update denormalized data
+        type: boolean
+    type: object
+  github_com_sumandas0_entropic_internal_models.FacetValue:
+    properties:
+      count:
+        type: integer
+      value:
+        type: string
+    type: object
+  github_com_sumandas0_entropic_internal_models.IndexConfig:
+    properties:
+      fields:
+        items:
+          type: string
+        minItems: 1
+        type: array
+      name:
+        type: string
+      type:
+        enum:
+        - btree
+        - hash
+        - gin
+        - gist
+        - vector
+        type: string
+      unique:
+        type: boolean
+      vector_type:
+        description: 'For vector indexes: cosine, l2, ip'
+        type: string
+    required:
+    - fields
+    - name
+    - type
+    type: object
+  github_com_sumandas0_entropic_internal_models.PropertyDefinition:
+    properties:
+      constraints:
+        additionalProperties: true
+        type: object
+      default: {}
+      description:
+        type: string
+      element_type:
+        description: For array type
+        type: string
+      object_schema:
+        allOf:
+        - $ref: '#/definitions/github_com_sumandas0_entropic_internal_models.PropertySchema'
+        description: For nested objects
+      required:
+        type: boolean
+      type:
+        enum:
+        - string
+        - number
+        - boolean
+        - datetime
+        - object
+        - array
+        - vector
+        type: string
+      vector_dim:
+        description: For vector type
+        type: integer
+    required:
+    - type
+    type: object
+  github_com_sumandas0_entropic_internal_models.PropertySchema:
+    additionalProperties:
+      $ref: '#/definitions/github_com_sumandas0_entropic_internal_models.PropertyDefinition'
+    type: object
+  github_com_sumandas0_entropic_internal_models.SearchHit:
+    properties:
+      entity_type:
+        type: string
+      highlights:
+        additionalProperties:
+          items:
+            type: string
+          type: array
+        type: object
+      id:
+        type: string
+      properties:
+        additionalProperties: true
+        type: object
+      score:
+        type: number
+      urn:
+        type: string
+      vector:
+        items:
+          type: number
+        type: array
+    type: object
+  github_com_sumandas0_entropic_internal_models.SearchQuery:
+    properties:
+      entity_types:
+        items:
+          type: string
+        minItems: 1
+        type: array
+      facets:
+        items:
+          type: string
+        type: array
+      filters:
+        additionalProperties: true
+        type: object
+      include_urn:
+        type: boolean
+      limit:
+        maximum: 1000
+        minimum: 1
+        type: integer
+      offset:
+        minimum: 0
+        type: integer
+      query:
+        type: string
+      sort:
+        items:
+          $ref: '#/definitions/github_com_sumandas0_entropic_internal_models.SortOption'
+        type: array
+    required:
+    - entity_types
+    type: object
+  github_com_sumandas0_entropic_internal_models.SearchResult:
+    properties:
+      facets:
+        additionalProperties:
+          items:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_models.FacetValue'
+          type: array
+        type: object
+      hits:
+        items:
+          $ref: '#/definitions/github_com_sumandas0_entropic_internal_models.SearchHit'
+        type: array
+      query:
+        description: Original query for reference
+      search_time_ms:
+        $ref: '#/definitions/time.Duration'
+      total_hits:
+        type: integer
+    type: object
+  github_com_sumandas0_entropic_internal_models.SortOption:
+    properties:
+      field:
+        type: string
+      order:
+        $ref: '#/definitions/github_com_sumandas0_entropic_internal_models.SortOrder'
+    required:
+    - field
+    - order
+    type: object
+  github_com_sumandas0_entropic_internal_models.SortOrder:
+    enum:
+    - asc
+    - desc
+    type: string
+    x-enum-varnames:
+    - SortAsc
+    - SortDesc
+  github_com_sumandas0_entropic_internal_models.VectorQuery:
+    properties:
+      entity_types:
+        items:
+          type: string
+        minItems: 1
+        type: array
+      filters:
+        additionalProperties: true
+        type: object
+      include_vectors:
+        type: boolean
+      min_score:
+        type: number
+      top_k:
+        maximum: 1000
+        minimum: 1
+        type: integer
+      vector:
+        items:
+          type: number
+        type: array
+      vector_field:
+        type: string
+    required:
+    - entity_types
+    - top_k
+    - vector
+    - vector_field
+    type: object
+  internal_api_handlers.EntityListResponse:
+    properties:
+      entities:
+        items:
+          $ref: '#/definitions/internal_api_handlers.EntityResponse'
+        type: array
+      limit:
+        type: integer
+      offset:
+        type: integer
+      total:
+        type: integer
+    type: object
+  internal_api_handlers.EntityRequest:
+    properties:
+      properties:
+        additionalProperties: true
+        type: object
+      urn:
+        type: string
+    required:
+    - properties
+    - urn
+    type: object
+  internal_api_handlers.EntityResponse:
+    properties:
+      created_at:
+        type: string
+      entity_type:
+        type: string
+      id:
+        type: string
+      properties:
+        additionalProperties: true
+        type: object
+      updated_at:
+        type: string
+      urn:
+        type: string
+      version:
+        type: integer
+    type: object
+  internal_api_handlers.EntitySchemaRequest:
+    properties:
+      entity_type:
+        type: string
+      indexes:
+        items:
+          $ref: '#/definitions/github_com_sumandas0_entropic_internal_models.IndexConfig'
+        type: array
+      properties:
+        $ref: '#/definitions/github_com_sumandas0_entropic_internal_models.PropertySchema'
+    required:
+    - entity_type
+    - properties
+    type: object
+  internal_api_handlers.EntitySchemaResponse:
+    properties:
+      created_at:
+        type: string
+      entity_type:
+        type: string
+      id:
+        type: string
+      indexes:
+        items:
+          $ref: '#/definitions/github_com_sumandas0_entropic_internal_models.IndexConfig'
+        type: array
+      properties:
+        $ref: '#/definitions/github_com_sumandas0_entropic_internal_models.PropertySchema'
+      updated_at:
+        type: string
+      version:
+        type: integer
+    type: object
+  internal_api_handlers.RelationRequest:
+    properties:
+      from_entity_id:
+        type: string
+      from_entity_type:
+        type: string
+      properties:
+        additionalProperties: true
+        type: object
+      relation_type:
+        type: string
+      to_entity_id:
+        type: string
+      to_entity_type:
+        type: string
+    required:
+    - from_entity_id
+    - from_entity_type
+    - relation_type
+    - to_entity_id
+    - to_entity_type
+    type: object
+  internal_api_handlers.RelationResponse:
+    properties:
+      created_at:
+        type: string
+      from_entity_id:
+        type: string
+      from_entity_type:
+        type: string
+      id:
+        type: string
+      properties:
+        additionalProperties: true
+        type: object
+      relation_type:
+        type: string
+      to_entity_id:
+        type: string
+      to_entity_type:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  internal_api_handlers.RelationshipSchemaRequest:
+    properties:
+      cardinality:
+        $ref: '#/definitions/github_com_sumandas0_entropic_internal_models.CardinalityType'
+      denormalization_config:
+        $ref: '#/definitions/github_com_sumandas0_entropic_internal_models.DenormalizationConfig'
+      from_entity_type:
+        type: string
+      properties:
+        $ref: '#/definitions/github_com_sumandas0_entropic_internal_models.PropertySchema'
+      relationship_type:
+        type: string
+      to_entity_type:
+        type: string
+    required:
+    - cardinality
+    - from_entity_type
+    - relationship_type
+    - to_entity_type
+    type: object
+  internal_api_handlers.RelationshipSchemaResponse:
+    properties:
+      cardinality:
+        $ref: '#/definitions/github_com_sumandas0_entropic_internal_models.CardinalityType'
+      created_at:
+        type: string
+      denormalization_config:
+        $ref: '#/definitions/github_com_sumandas0_entropic_internal_models.DenormalizationConfig'
+      from_entity_type:
+        type: string
+      id:
+        type: string
+      properties:
+        $ref: '#/definitions/github_com_sumandas0_entropic_internal_models.PropertySchema'
+      relationship_type:
+        type: string
+      to_entity_type:
+        type: string
+      updated_at:
+        type: string
+      version:
+        type: integer
+    type: object
+  time.Duration:
+    enum:
+    - -9223372036854775808
+    - 9223372036854775807
+    - 1
+    - 1000
+    - 1000000
+    - 1000000000
+    - 60000000000
+    - 3600000000000
+    type: integer
+    x-enum-varnames:
+    - minDuration
+    - maxDuration
+    - Nanosecond
+    - Microsecond
+    - Millisecond
+    - Second
+    - Minute
+    - Hour
+host: localhost:8080
+info:
+  contact:
+    email: support@entropic.io
+    name: Entropic Team
+    url: http://entropic.io/support
+  description: Entropic is a flexible entity-relationship storage engine with dual-storage
+    architecture. It provides a graph-like data model with schema validation, full-text
+    search, and vector similarity search capabilities.
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  termsOfService: http://entropic.io/terms/
+  title: Entropic Storage Engine API
+  version: 1.0.0
+paths:
+  /api/v1/entities/{entityType}:
+    get:
+      description: Lists entities of the specified type with pagination
+      parameters:
+      - description: Entity Type
+        in: path
+        name: entityType
+        required: true
+        type: string
+      - description: 'Number of entities to return (default: 20, max: 100)'
+        in: query
+        name: limit
+        type: integer
+      - description: 'Number of entities to skip (default: 0)'
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.EntityListResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+      summary: List entities
+      tags:
+      - entities
+    post:
+      consumes:
+      - application/json
+      description: Creates a new entity of the specified type
+      parameters:
+      - description: Entity Type
+        in: path
+        name: entityType
+        required: true
+        type: string
+      - description: Entity data
+        in: body
+        name: entity
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api_handlers.EntityRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/internal_api_handlers.EntityResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+      summary: Create a new entity
+      tags:
+      - entities
+  /api/v1/entities/{entityType}/{entityID}:
+    delete:
+      description: Deletes an entity and all its relations
+      parameters:
+      - description: Entity Type
+        in: path
+        name: entityType
+        required: true
+        type: string
+      - description: Entity ID
+        in: path
+        name: entityID
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+      summary: Delete an entity
+      tags:
+      - entities
+    get:
+      description: Retrieves an entity by its type and ID
+      parameters:
+      - description: Entity Type
+        in: path
+        name: entityType
+        required: true
+        type: string
+      - description: Entity ID
+        in: path
+        name: entityID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.EntityResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+      summary: Get an entity
+      tags:
+      - entities
+    patch:
+      consumes:
+      - application/json
+      description: Updates an existing entity's properties
+      parameters:
+      - description: Entity Type
+        in: path
+        name: entityType
+        required: true
+        type: string
+      - description: Entity ID
+        in: path
+        name: entityID
+        required: true
+        type: string
+      - description: Updated entity data
+        in: body
+        name: entity
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api_handlers.EntityRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.EntityResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+      summary: Update an entity
+      tags:
+      - entities
+  /api/v1/entities/{entityType}/{entityID}/relations:
+    get:
+      description: Retrieves all relations involving the specified entity
+      parameters:
+      - description: Entity Type
+        in: path
+        name: entityType
+        required: true
+        type: string
+      - description: Entity ID
+        in: path
+        name: entityID
+        required: true
+        type: string
+      - description: Comma-separated list of relation types to filter
+        in: query
+        name: relation_types
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/internal_api_handlers.RelationResponse'
+            type: array
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+      summary: Get entity relations
+      tags:
+      - entities
+  /api/v1/relations:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new relation between two entities
+      parameters:
+      - description: Relation data
+        in: body
+        name: relation
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api_handlers.RelationRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/internal_api_handlers.RelationResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+      summary: Create a new relation
+      tags:
+      - relations
+  /api/v1/relations/{relationID}:
+    delete:
+      description: Deletes a relation by its ID
+      parameters:
+      - description: Relation ID
+        in: path
+        name: relationID
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+      summary: Delete a relation
+      tags:
+      - relations
+    get:
+      description: Retrieves a relation by its ID
+      parameters:
+      - description: Relation ID
+        in: path
+        name: relationID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.RelationResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+      summary: Get a relation
+      tags:
+      - relations
+  /api/v1/schemas/entities:
+    get:
+      description: Lists all entity schemas in the system
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/internal_api_handlers.EntitySchemaResponse'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+      summary: List entity schemas
+      tags:
+      - schemas
+    post:
+      consumes:
+      - application/json
+      description: Creates a new schema for an entity type
+      parameters:
+      - description: Entity schema data
+        in: body
+        name: schema
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api_handlers.EntitySchemaRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/internal_api_handlers.EntitySchemaResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+      summary: Create entity schema
+      tags:
+      - schemas
+  /api/v1/schemas/entities/{entityType}:
+    delete:
+      description: Deletes an entity schema if no entities of this type exist
+      parameters:
+      - description: Entity Type
+        in: path
+        name: entityType
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+      summary: Delete entity schema
+      tags:
+      - schemas
+    get:
+      description: Retrieves a schema for the specified entity type
+      parameters:
+      - description: Entity Type
+        in: path
+        name: entityType
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.EntitySchemaResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+      summary: Get entity schema
+      tags:
+      - schemas
+    put:
+      consumes:
+      - application/json
+      description: Updates an existing entity schema
+      parameters:
+      - description: Entity Type
+        in: path
+        name: entityType
+        required: true
+        type: string
+      - description: Updated entity schema data
+        in: body
+        name: schema
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api_handlers.EntitySchemaRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.EntitySchemaResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+      summary: Update entity schema
+      tags:
+      - schemas
+  /api/v1/schemas/relationships:
+    get:
+      description: Lists all relationship schemas in the system
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/internal_api_handlers.RelationshipSchemaResponse'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+      summary: List relationship schemas
+      tags:
+      - schemas
+    post:
+      consumes:
+      - application/json
+      description: Creates a new schema for a relationship type
+      parameters:
+      - description: Relationship schema data
+        in: body
+        name: schema
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api_handlers.RelationshipSchemaRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/internal_api_handlers.RelationshipSchemaResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+      summary: Create relationship schema
+      tags:
+      - schemas
+  /api/v1/schemas/relationships/{relationshipType}:
+    delete:
+      description: Deletes a relationship schema
+      parameters:
+      - description: Relationship Type
+        in: path
+        name: relationshipType
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+      summary: Delete relationship schema
+      tags:
+      - schemas
+    get:
+      description: Retrieves a schema for the specified relationship type
+      parameters:
+      - description: Relationship Type
+        in: path
+        name: relationshipType
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.RelationshipSchemaResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+      summary: Get relationship schema
+      tags:
+      - schemas
+    put:
+      consumes:
+      - application/json
+      description: Updates an existing relationship schema
+      parameters:
+      - description: Relationship Type
+        in: path
+        name: relationshipType
+        required: true
+        type: string
+      - description: Updated relationship schema data
+        in: body
+        name: schema
+        required: true
+        schema:
+          $ref: '#/definitions/internal_api_handlers.RelationshipSchemaRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_api_handlers.RelationshipSchemaResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+      summary: Update relationship schema
+      tags:
+      - schemas
+  /api/v1/search:
+    post:
+      consumes:
+      - application/json
+      description: Performs text search across entities
+      parameters:
+      - description: Search query
+        in: body
+        name: query
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_sumandas0_entropic_internal_models.SearchQuery'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_models.SearchResult'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+      summary: Search entities
+      tags:
+      - search
+  /api/v1/search/vector:
+    post:
+      consumes:
+      - application/json
+      description: Performs vector similarity search across entities
+      parameters:
+      - description: Vector search query
+        in: body
+        name: query
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_sumandas0_entropic_internal_models.VectorQuery'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_models.SearchResult'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse'
+      summary: Vector search entities
+      tags:
+      - search
+  /health:
+    get:
+      description: Returns the health status of the service and its dependencies
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_health.SystemHealth'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/github_com_sumandas0_entropic_internal_health.SystemHealth'
+      summary: Health check
+      tags:
+      - health
+  /metrics:
+    get:
+      description: Returns service metrics including cache and transaction statistics
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get metrics
+      tags:
+      - health
+  /ready:
+    get:
+      description: Indicates if the service is ready to accept requests
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "503":
+          description: Service not ready
+          schema:
+            type: string
+      summary: Readiness check
+      tags:
+      - health
+securityDefinitions:
+  ApiKeyAuth:
+    in: header
+    name: X-API-Key
+    type: apiKey
+  BasicAuth:
+    type: basic
+swagger: "2.0"

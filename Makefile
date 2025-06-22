@@ -1,280 +1,210 @@
-# Entropic Makefile
-# Provides common development tasks for the Entropic storage engine
-
-.PHONY: help build test test-unit test-integration test-benchmark clean deps fmt lint vet security run dev docker-build docker-up docker-down migrate backup restore
-
-# Default target
-.DEFAULT_GOAL := help
-
-# Colors for output
-RED=\033[0;31m
-GREEN=\033[0;32m
-YELLOW=\033[1;33m
-BLUE=\033[0;34m
-NC=\033[0m # No Color
+# Entropic Storage Engine Makefile
 
 # Variables
-BINARY_NAME=entropic-server
-BUILD_DIR=bin
-DOCKER_TAG=entropic/server:latest
-TEST_TIMEOUT=30m
+GOPATH ?= $(shell go env GOPATH)
+GOBIN ?= $(GOPATH)/bin
+GOLANGCI_LINT_VERSION := v1.54.2
+SWAG_VERSION := v1.16.2
+OAPI_CODEGEN_VERSION := v2.3.0
 
-# Help target
-help: ## Show this help message
-	@echo "$(BLUE)Entropic Storage Engine - Development Commands$(NC)"
-	@echo ""
-	@awk 'BEGIN {FS = ":.*##"; printf "Usage:\n  make $(YELLOW)<target>$(NC)\n\nTargets:\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  $(GREEN)%-15s$(NC) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+# Default target
+.PHONY: all
+all: build
 
-# Build targets
-build: ## Build the application binary
-	@echo "$(BLUE)Building Entropic server...$(NC)"
-	@mkdir -p $(BUILD_DIR)
-	go build -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/server
-	@echo "$(GREEN)Build completed: $(BUILD_DIR)/$(BINARY_NAME)$(NC)"
+# Build the application
+.PHONY: build
+build:
+	go build -o bin/entropic cmd/server/main.go
 
-build-race: ## Build with race detection enabled
-	@echo "$(BLUE)Building Entropic server with race detection...$(NC)"
-	@mkdir -p $(BUILD_DIR)
-	go build -race -o $(BUILD_DIR)/$(BINARY_NAME)-race ./cmd/server
-	@echo "$(GREEN)Race detection build completed: $(BUILD_DIR)/$(BINARY_NAME)-race$(NC)"
+# Run the application
+.PHONY: run
+run:
+	go run cmd/server/main.go
 
-# Dependency management
-deps: ## Download and verify dependencies
-	@echo "$(BLUE)Downloading dependencies...$(NC)"
-	go mod download
-	go mod verify
-	@echo "$(GREEN)Dependencies updated$(NC)"
+# Run tests
+.PHONY: test
+test:
+	go test -v -race -coverprofile=coverage.out ./...
 
-deps-update: ## Update all dependencies
-	@echo "$(BLUE)Updating dependencies...$(NC)"
-	go get -u ./...
-	go mod tidy
-	@echo "$(GREEN)Dependencies updated$(NC)"
+# Run unit tests only
+.PHONY: test-unit
+test-unit:
+	go test -v -race -short ./...
 
-# Testing targets
-test: test-unit test-integration ## Run all tests
-	@echo "$(GREEN)All tests completed$(NC)"
+# Run integration tests
+.PHONY: test-integration
+test-integration:
+	go test -v -race -run Integration ./tests/integration/...
 
-test-unit: ## Run unit tests
-	@echo "$(BLUE)Running unit tests...$(NC)"
-	go test -v -timeout=$(TEST_TIMEOUT) -race ./internal/...
+# Run benchmarks
+.PHONY: bench
+bench:
+	go test -bench=. -benchmem ./tests/benchmark/...
 
-test-integration: ## Run integration tests
-	@echo "$(BLUE)Running integration tests...$(NC)"
-	go test -v -timeout=$(TEST_TIMEOUT) -tags=integration ./tests/integration/...
-
-test-benchmark: ## Run benchmark tests
-	@echo "$(BLUE)Running benchmark tests...$(NC)"
-	go test -v -timeout=$(TEST_TIMEOUT) -bench=. -benchmem ./tests/benchmark/...
-
-test-coverage: ## Run tests with coverage report
-	@echo "$(BLUE)Running tests with coverage...$(NC)"
-	go test -v -timeout=$(TEST_TIMEOUT) -race -coverprofile=coverage.out ./internal/...
+# Coverage report
+.PHONY: coverage
+coverage: test
 	go tool cover -html=coverage.out -o coverage.html
-	@echo "$(GREEN)Coverage report generated: coverage.html$(NC)"
+	@echo "Coverage report generated: coverage.html"
 
-# Code quality targets
-fmt: ## Format Go code
-	@echo "$(BLUE)Formatting code...$(NC)"
+# Lint the code
+.PHONY: lint
+lint: install-lint
+	$(GOBIN)/golangci-lint run
+
+# Install linter
+.PHONY: install-lint
+install-lint:
+	@if ! command -v $(GOBIN)/golangci-lint &> /dev/null; then \
+		echo "Installing golangci-lint..."; \
+		curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(GOBIN) $(GOLANGCI_LINT_VERSION); \
+	fi
+
+# Format code
+.PHONY: fmt
+fmt:
 	go fmt ./...
-	@echo "$(GREEN)Code formatted$(NC)"
+	gofmt -s -w .
 
-lint: ## Run linter
-	@echo "$(BLUE)Running linter...$(NC)"
-	@if command -v golangci-lint >/dev/null 2>&1; then \
-		golangci-lint run ./...; \
-	else \
-		echo "$(YELLOW)golangci-lint not found, using go vet instead$(NC)"; \
-		go vet ./...; \
-	fi
-	@echo "$(GREEN)Linting completed$(NC)"
+# Clean build artifacts
+.PHONY: clean
+clean:
+	rm -rf bin/
+	rm -f coverage.out coverage.html
+	rm -rf docs/swagger/
 
-vet: ## Run go vet
-	@echo "$(BLUE)Running go vet...$(NC)"
-	go vet ./...
-	@echo "$(GREEN)Vet completed$(NC)"
+# Docker commands
+.PHONY: docker-build
+docker-build:
+	docker build -t entropic:latest .
 
-security: ## Run security checks
-	@echo "$(BLUE)Running security checks...$(NC)"
-	@if command -v gosec >/dev/null 2>&1; then \
-		gosec ./...; \
-	else \
-		echo "$(YELLOW)gosec not found, skipping security checks$(NC)"; \
-		echo "$(YELLOW)Install with: go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest$(NC)"; \
-	fi
-
-# Development targets
-run: build ## Run the application
-	@echo "$(BLUE)Starting Entropic server...$(NC)"
-	./$(BUILD_DIR)/$(BINARY_NAME)
-
-dev: ## Start development environment
-	@echo "$(BLUE)Starting development environment...$(NC)"
-	./scripts/deploy.sh dev
-
-dev-reset: ## Reset development environment
-	@echo "$(BLUE)Resetting development environment...$(NC)"
-	./scripts/deploy.sh clean -f
-	./scripts/deploy.sh dev
-
-# Docker targets
-docker-build: ## Build Docker image
-	@echo "$(BLUE)Building Docker image...$(NC)"
-	docker build -t $(DOCKER_TAG) .
-	@echo "$(GREEN)Docker image built: $(DOCKER_TAG)$(NC)"
-
-docker-up: ## Start Docker services
-	@echo "$(BLUE)Starting Docker services...$(NC)"
+.PHONY: docker-up
+docker-up:
 	docker-compose up -d
-	@echo "$(GREEN)Docker services started$(NC)"
 
-docker-down: ## Stop Docker services
-	@echo "$(BLUE)Stopping Docker services...$(NC)"
+.PHONY: docker-down
+docker-down:
 	docker-compose down
-	@echo "$(GREEN)Docker services stopped$(NC)"
 
-docker-logs: ## Show Docker service logs
-	@echo "$(BLUE)Showing Docker logs...$(NC)"
+.PHONY: docker-logs
+docker-logs:
 	docker-compose logs -f
 
-docker-test: ## Run tests in Docker
-	@echo "$(BLUE)Running tests in Docker...$(NC)"
-	docker-compose -f docker-compose.test.yml up --build --abort-on-container-exit
-	docker-compose -f docker-compose.test.yml down -v
-
-# Database targets
-migrate: ## Run database migrations
-	@echo "$(BLUE)Running database migrations...$(NC)"
-	@if [ -f "./$(BUILD_DIR)/$(BINARY_NAME)" ]; then \
-		./$(BUILD_DIR)/$(BINARY_NAME) migrate; \
-	else \
-		echo "$(RED)Binary not found. Run 'make build' first.$(NC)"; \
-		exit 1; \
+# OpenAPI/Swagger generation
+.PHONY: install-openapi-tools
+install-openapi-tools:
+	@echo "Installing OpenAPI tools..."
+	@if ! command -v $(GOBIN)/swag &> /dev/null; then \
+		go install github.com/swaggo/swag/cmd/swag@$(SWAG_VERSION); \
+	fi
+	@if ! command -v $(GOBIN)/oapi-codegen &> /dev/null; then \
+		go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@$(OAPI_CODEGEN_VERSION); \
+	fi
+	@if ! command -v swagger-cli &> /dev/null; then \
+		npm install -g @apidevtools/swagger-cli; \
 	fi
 
-migrate-status: ## Show migration status
-	@echo "$(BLUE)Checking migration status...$(NC)"
-	@if [ -f "./$(BUILD_DIR)/$(BINARY_NAME)" ]; then \
-		./$(BUILD_DIR)/$(BINARY_NAME) migrate --status; \
-	else \
-		echo "$(RED)Binary not found. Run 'make build' first.$(NC)"; \
-		exit 1; \
+# Generate OpenAPI documentation from code annotations
+.PHONY: openapi-gen
+openapi-gen: install-openapi-tools
+	@echo "Generating OpenAPI documentation from code..."
+	$(GOBIN)/swag init -g cmd/server/main.go -o docs/swagger --parseDependency --parseInternal
+
+# Validate OpenAPI spec
+.PHONY: openapi-validate
+openapi-validate:
+	@echo "Validating OpenAPI specification..."
+	swagger-cli validate api/openapi.yaml
+
+# Generate Go server code from OpenAPI spec
+.PHONY: openapi-server-gen
+openapi-server-gen: install-openapi-tools openapi-validate
+	@echo "Generating server interfaces from OpenAPI spec..."
+	$(GOBIN)/oapi-codegen -generate types,server,spec -package generated -o internal/generated/openapi_types.gen.go api/openapi.yaml
+
+# Generate Go client code from OpenAPI spec
+.PHONY: openapi-client-gen
+openapi-client-gen: install-openapi-tools openapi-validate
+	@echo "Generating client code from OpenAPI spec..."
+	$(GOBIN)/oapi-codegen -generate types,client -package client -o pkg/client/openapi_client.gen.go api/openapi.yaml
+
+# Generate all OpenAPI artifacts
+.PHONY: openapi-all
+openapi-all: openapi-validate openapi-gen openapi-server-gen openapi-client-gen
+	@echo "All OpenAPI artifacts generated successfully!"
+
+# Serve OpenAPI documentation locally
+.PHONY: openapi-serve
+openapi-serve:
+	@echo "Starting Swagger UI at http://localhost:8081"
+	docker run -p 8081:8080 -e SWAGGER_JSON=/api/openapi.yaml -v $(PWD)/api:/api swaggerapi/swagger-ui
+
+# Generate and update OpenAPI spec from code
+.PHONY: openapi-update
+openapi-update: openapi-gen
+	@echo "OpenAPI spec updated from code annotations"
+
+# Development setup
+.PHONY: dev-setup
+dev-setup: install-lint install-openapi-tools
+	@echo "Installing dependencies..."
+	go mod download
+	go mod tidy
+	@echo "Development environment ready!"
+
+# Run with hot reload (requires air)
+.PHONY: dev
+dev:
+	@if ! command -v air &> /dev/null; then \
+		echo "Installing air for hot reload..."; \
+		go install github.com/air-verse/air@latest; \
 	fi
+	air
 
-# Backup and restore targets
-backup: ## Create data backup
-	@echo "$(BLUE)Creating backup...$(NC)"
-	./scripts/deploy.sh backup
-	@echo "$(GREEN)Backup completed$(NC)"
+# Database migrations
+.PHONY: migrate-up
+migrate-up:
+	@echo "Running database migrations..."
+	go run cmd/migrate/main.go up
 
-restore: ## Restore from backup (requires BACKUP_DIR variable)
-	@echo "$(BLUE)Restoring from backup...$(NC)"
-	@if [ -z "$(BACKUP_DIR)" ]; then \
-		echo "$(RED)BACKUP_DIR variable is required$(NC)"; \
-		echo "$(YELLOW)Usage: make restore BACKUP_DIR=/path/to/backup$(NC)"; \
-		exit 1; \
-	fi
-	./scripts/deploy.sh restore $(BACKUP_DIR)
-	@echo "$(GREEN)Restore completed$(NC)"
+.PHONY: migrate-down
+migrate-down:
+	@echo "Rolling back database migrations..."
+	go run cmd/migrate/main.go down
 
-# Utility targets
-clean: ## Clean build artifacts and temporary files
-	@echo "$(BLUE)Cleaning build artifacts...$(NC)"
-	rm -rf $(BUILD_DIR)
-	rm -f coverage.out coverage.html
-	go clean ./...
-	@echo "$(GREEN)Clean completed$(NC)"
-
-clean-docker: ## Clean Docker resources
-	@echo "$(BLUE)Cleaning Docker resources...$(NC)"
-	docker-compose down -v --remove-orphans
-	docker system prune -f
-	@echo "$(GREEN)Docker cleanup completed$(NC)"
-
-install-tools: ## Install development tools
-	@echo "$(BLUE)Installing development tools...$(NC)"
-	go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-	go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
-	go install golang.org/x/tools/cmd/goimports@latest
-	@echo "$(GREEN)Development tools installed$(NC)"
-
-version: ## Show version information
-	@echo "$(BLUE)Entropic Storage Engine$(NC)"
-	@echo "Go version: $(shell go version)"
-	@echo "Build time: $(shell date)"
-	@if [ -f "./$(BUILD_DIR)/$(BINARY_NAME)" ]; then \
-		echo "Binary version: $(shell ./$(BUILD_DIR)/$(BINARY_NAME) version)"; \
-	else \
-		echo "Binary: Not built"; \
-	fi
-
-# Performance targets
-profile-cpu: ## Run CPU profiling
-	@echo "$(BLUE)Running CPU profiling...$(NC)"
-	go test -v -timeout=$(TEST_TIMEOUT) -cpuprofile=cpu.prof -bench=. ./tests/benchmark/...
-	@echo "$(GREEN)CPU profile saved to cpu.prof$(NC)"
-	@echo "$(YELLOW)View with: go tool pprof cpu.prof$(NC)"
-
-profile-mem: ## Run memory profiling
-	@echo "$(BLUE)Running memory profiling...$(NC)"
-	go test -v -timeout=$(TEST_TIMEOUT) -memprofile=mem.prof -bench=. ./tests/benchmark/...
-	@echo "$(GREEN)Memory profile saved to mem.prof$(NC)"
-	@echo "$(YELLOW)View with: go tool pprof mem.prof$(NC)"
-
-# CI targets
-ci: deps fmt vet lint test-unit test-integration ## Run CI pipeline
-	@echo "$(GREEN)CI pipeline completed successfully$(NC)"
-
-ci-full: ci test-benchmark security ## Run full CI pipeline including benchmarks and security
-	@echo "$(GREEN)Full CI pipeline completed successfully$(NC)"
-
-# Load testing targets
-load-test: ## Run load tests (requires k6)
-	@echo "$(BLUE)Running load tests...$(NC)"
-	@if command -v k6 >/dev/null 2>&1; then \
-		k6 run tests/load/entity_creation.js; \
-	else \
-		echo "$(YELLOW)k6 not found. Install from https://k6.io/docs/getting-started/installation/$(NC)"; \
-	fi
-
-# Documentation targets
-docs: ## Generate documentation
-	@echo "$(BLUE)Generating documentation...$(NC)"
-	@if command -v godoc >/dev/null 2>&1; then \
-		echo "$(GREEN)Starting documentation server at http://localhost:6060$(NC)"; \
-		godoc -http=:6060; \
-	else \
-		echo "$(YELLOW)godoc not found. Install with: go install golang.org/x/tools/cmd/godoc@latest$(NC)"; \
-	fi
-
-# Status targets
-status: ## Show service status
-	@echo "$(BLUE)Checking service status...$(NC)"
-	./scripts/deploy.sh status
-
-logs: ## Show application logs
-	@echo "$(BLUE)Showing application logs...$(NC)"
-	./scripts/deploy.sh logs entropic
-
-# Quick development commands
-quick-test: ## Quick test run (unit tests only, no race detection)
-	@echo "$(BLUE)Running quick tests...$(NC)"
-	go test -timeout=5m ./internal/...
-
-quick-build: ## Quick build (no race detection)
-	@echo "$(BLUE)Quick build...$(NC)"
-	@mkdir -p $(BUILD_DIR)
-	go build -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/server
-
-# Environment setup
-setup: install-tools deps ## Setup development environment
-	@echo "$(BLUE)Setting up development environment...$(NC)"
-	@if [ ! -f "entropic.yaml" ]; then \
-		cp entropic.example.yaml entropic.yaml; \
-		echo "$(GREEN)Created entropic.yaml from example$(NC)"; \
-	fi
-	@echo "$(GREEN)Development environment setup completed$(NC)"
-	@echo "$(YELLOW)Next steps:$(NC)"
-	@echo "  1. Review and modify entropic.yaml as needed"
-	@echo "  2. Run 'make dev' to start development environment"
-	@echo "  3. Run 'make test' to verify everything works"
+# Help target
+.PHONY: help
+help:
+	@echo "Available targets:"
+	@echo "  all                 - Build the application (default)"
+	@echo "  build              - Build the application binary"
+	@echo "  run                - Run the application"
+	@echo "  test               - Run all tests with coverage"
+	@echo "  test-unit          - Run unit tests only"
+	@echo "  test-integration   - Run integration tests"
+	@echo "  bench              - Run benchmarks"
+	@echo "  coverage           - Generate coverage report"
+	@echo "  lint               - Run linter"
+	@echo "  fmt                - Format code"
+	@echo "  clean              - Clean build artifacts"
+	@echo ""
+	@echo "Docker targets:"
+	@echo "  docker-build       - Build Docker image"
+	@echo "  docker-up          - Start services with docker-compose"
+	@echo "  docker-down        - Stop services"
+	@echo "  docker-logs        - View container logs"
+	@echo ""
+	@echo "OpenAPI targets:"
+	@echo "  openapi-gen        - Generate OpenAPI docs from code"
+	@echo "  openapi-validate   - Validate OpenAPI specification"
+	@echo "  openapi-server-gen - Generate server code from OpenAPI"
+	@echo "  openapi-client-gen - Generate client code from OpenAPI"
+	@echo "  openapi-all        - Generate all OpenAPI artifacts"
+	@echo "  openapi-serve      - Serve OpenAPI docs with Swagger UI"
+	@echo "  openapi-update     - Update OpenAPI spec from code"
+	@echo ""
+	@echo "Development targets:"
+	@echo "  dev-setup          - Setup development environment"
+	@echo "  dev                - Run with hot reload"
+	@echo "  migrate-up         - Run database migrations"
+	@echo "  migrate-down       - Rollback migrations"

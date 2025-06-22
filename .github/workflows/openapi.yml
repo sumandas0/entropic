@@ -1,0 +1,141 @@
+name: OpenAPI CI/CD
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'api/openapi.yaml'
+      - 'internal/api/**'
+      - 'cmd/server/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'api/openapi.yaml'
+      - 'internal/api/**'
+      - 'cmd/server/**'
+
+jobs:
+  validate:
+    name: Validate OpenAPI Spec
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Validate OpenAPI spec
+      uses: mermade/openapi-validator-action@v1
+      with:
+        definition: 'api/openapi.yaml'
+
+  generate-docs:
+    name: Generate API Documentation
+    runs-on: ubuntu-latest
+    needs: validate
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.24'
+    
+    - name: Install swag
+      run: go install github.com/swaggo/swag/cmd/swag@v1.16.2
+    
+    - name: Generate OpenAPI docs from code
+      run: |
+        swag init -g cmd/server/main.go -o docs/swagger --parseDependency --parseInternal
+    
+    - name: Upload swagger docs
+      uses: actions/upload-artifact@v4
+      with:
+        name: swagger-docs
+        path: docs/swagger/
+
+  generate-client:
+    name: Generate Client SDKs
+    runs-on: ubuntu-latest
+    needs: validate
+    strategy:
+      matrix:
+        language: [go, typescript, python]
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Generate ${{ matrix.language }} client
+      uses: openapi-generators/openapitools-generator-action@v1
+      with:
+        generator: ${{ matrix.language }}
+        openapi-file: api/openapi.yaml
+        output-dir: sdk/${{ matrix.language }}
+    
+    - name: Upload ${{ matrix.language }} SDK
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.language }}-sdk
+        path: sdk/${{ matrix.language }}/
+
+  lint-spec:
+    name: Lint OpenAPI Spec
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Lint OpenAPI spec
+      uses: stoplightio/spectral-action@v0.8.11
+      with:
+        file_glob: 'api/openapi.yaml'
+
+  publish-docs:
+    name: Publish API Documentation
+    runs-on: ubuntu-latest
+    needs: [validate, generate-docs]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Download swagger docs
+      uses: actions/download-artifact@v4
+      with:
+        name: swagger-docs
+        path: docs/swagger/
+    
+    - name: Deploy to GitHub Pages
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./docs/swagger
+        destination_dir: api-docs
+
+  check-breaking-changes:
+    name: Check for Breaking Changes
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Check for breaking changes
+      uses: oasdiff/oasdiff-action@main
+      with:
+        base: origin/${{ github.base_ref }}
+        revision: HEAD
+        spec-path: api/openapi.yaml
+        fail-on: breaking
+
+  generate-postman:
+    name: Generate Postman Collection
+    runs-on: ubuntu-latest
+    needs: validate
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Convert to Postman Collection
+      run: |
+        npx openapi-to-postmanv2 -s api/openapi.yaml -o api/postman-collection.json -p
+    
+    - name: Upload Postman collection
+      uses: actions/upload-artifact@v4
+      with:
+        name: postman-collection
+        path: api/postman-collection.json
