@@ -12,6 +12,7 @@ import (
 	"github.com/sumandas0/entropic/internal/lock"
 	"github.com/sumandas0/entropic/internal/models"
 	postgresstore "github.com/sumandas0/entropic/internal/store/postgres"
+	"github.com/sumandas0/entropic/internal/store/testutils"
 	"github.com/sumandas0/entropic/internal/store/typesense"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -349,4 +350,32 @@ func WaitForIndexing(t *testing.T, ctx context.Context, indexStore *typesense.Ty
 // RandomString generates a random string for testing
 func RandomString(length int) string {
 	return fmt.Sprintf("test_%s", uuid.New().String()[:length])
+}
+
+// SetupPostgresWithDockertest creates a PostgreSQL test container using our dockertest utilities
+func SetupPostgresWithDockertest(t *testing.T) (string, func()) {
+	container, err := testutils.SetupTestPostgres()
+	require.NoError(t, err)
+
+	cleanup := func() {
+		if err := container.Cleanup(); err != nil {
+			t.Logf("Failed to cleanup postgres container: %v", err)
+		}
+	}
+
+	return container.URL, cleanup
+}
+
+// SetupTypesenseWithDockertest creates a Typesense test container using our dockertest utilities  
+func SetupTypesenseWithDockertest(t *testing.T) (string, string, func()) {
+	container, err := testutils.SetupTestTypesense()
+	require.NoError(t, err)
+
+	cleanup := func() {
+		if err := container.Cleanup(); err != nil {
+			t.Logf("Failed to cleanup typesense container: %v", err)
+		}
+	}
+
+	return container.URL, container.APIKey, cleanup
 }

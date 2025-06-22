@@ -359,29 +359,70 @@ type SearchHit struct {
 
 ## Testing Strategy
 
+### Dockertest Implementation
+
+The project uses **dockertest** for integration testing with real databases instead of mocks. This ensures tests catch database-specific issues and verify actual behavior.
+
+#### Test Utilities
+Located in `internal/store/testutils/docker.go`:
+
+```go
+// Setup PostgreSQL with pgvector extension
+container, err := testutils.SetupTestPostgres()
+defer container.Cleanup()
+
+// Setup Typesense for search/indexing
+container, err := testutils.SetupTestTypesense()
+defer container.Cleanup()
+```
+
+#### Benefits of Dockertest
+- Tests run against real PostgreSQL with pgvector extension
+- Each test gets an isolated, clean database instance
+- Automatic cleanup after tests complete
+- No external database setup required
+- CI/CD friendly - works anywhere Docker is available
+- Catches database-specific issues (constraints, triggers, etc.)
+- Tests real transaction isolation and concurrency
+
 ### Unit Testing
 ```bash
-# Run all unit tests
+# Run all unit tests (uses dockertest for store tests)
 go test ./internal/...
 
 # Run with coverage
 go test -cover ./internal/...
 
 # Run specific package tests
-go test ./internal/store/postgres
+go test ./internal/store/postgres -count=1
 go test ./internal/cache
 ```
 
 ### Integration Testing
 ```bash
-# Start test environment
-docker-compose -f docker-compose.test.yml up -d
+# Run integration tests (uses dockertest)
+go test ./tests/integration/... -count=1
 
-# Run integration tests
-go test ./tests/integration/... -tags=integration
+# Run store adapter tests with real databases
+go test ./internal/store/postgres -count=1
+go test ./internal/store/typesense -count=1
+```
 
-# Clean up
-docker-compose -f docker-compose.test.yml down -v
+### Common Test Issues
+
+#### JSON Type Conversions
+When testing with real databases, JSON marshalling converts types:
+- Numbers become `float64` (not `int`)
+- Arrays become `[]interface{}` (not `[]string`)
+
+Handle this in tests by checking individual fields:
+```go
+// Instead of comparing entire properties map
+assert.Equal(t, entity.Properties, retrieved.Properties) // May fail
+
+// Compare individual fields with correct types
+assert.Equal(t, float64(30), retrieved.Properties["age"])
+assert.Equal(t, entity.Properties["name"], retrieved.Properties["name"])
 ```
 
 ### Load Testing
@@ -460,6 +501,11 @@ Analyze and optimize the entity creation workflow for better performance. Consid
 Add comprehensive debugging for the two-phase commit process, including detailed logging at each step and rollback scenarios.
 ```
 
+### Running Tests with Dockertest
+```
+Run the PostgreSQL adapter tests using dockertest to verify all database operations work correctly with a real database.
+```
+
 ## Best Practices
 
 1. **Error Handling**: Always wrap errors with context using `fmt.Errorf("context: %w", err)`
@@ -469,6 +515,7 @@ Add comprehensive debugging for the two-phase commit process, including detailed
 5. **Code Organization**: Follow standard Go project layout
 6. **Concurrency**: Use goroutines judiciously, always with proper synchronization
 7. **Resource Management**: Always close connections and release locks in defer statements
+8. **Less noise**: Use `logrus` or `zerolog` for structured logging, avoid using `fmt.Println` in production code, and don't use unnecessary comments that state the obvious
 
 ## Troubleshooting
 
