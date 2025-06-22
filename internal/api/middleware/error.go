@@ -10,16 +10,20 @@ import (
 	"github.com/sumandas0/entropic/pkg/utils"
 )
 
+// ErrorResponse represents the standard error response format
+// @Description Standard error response format for all API errors
 type ErrorResponse struct {
 	Error ErrorDetail `json:"error"`
 }
 
+// ErrorDetail contains detailed error information
+// @Description Detailed error information including code, message, and optional details
 type ErrorDetail struct {
-	Code      string                 `json:"code"`
-	Message   string                 `json:"message"`
-	Details   map[string]interface{} `json:"details,omitempty"`
-	Timestamp time.Time              `json:"timestamp"`
-	RequestID string                 `json:"request_id,omitempty"`
+	Code      string                 `json:"code" example:"NOT_FOUND"`
+	Message   string                 `json:"message" example:"Entity not found"`
+	Details   map[string]interface{} `json:"details,omitempty" swaggertype:"object"`
+	Timestamp time.Time              `json:"timestamp" example:"2023-01-01T00:00:00Z"`
+	RequestID string                 `json:"request_id,omitempty" example:"550e8400-e29b-41d4-a716-446655440000"`
 }
 
 func ErrorHandler() func(next http.Handler) http.Handler {

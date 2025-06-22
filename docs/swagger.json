@@ -1,33 +1,40 @@
 {
+    "schemes": [
+        "http",
+        "https"
+    ],
     "swagger": "2.0",
     "info": {
-        "description": "Entropic is a flexible entity-relationship storage engine with dual-storage architecture. It provides a graph-like data model with schema validation, full-text search, and vector similarity search capabilities.",
+        "description": "A next-generation storage engine with flexible entity-relationship model and dual-storage architecture",
         "title": "Entropic Storage Engine API",
-        "termsOfService": "http://entropic.io/terms/",
+        "termsOfService": "http://swagger.io/terms/",
         "contact": {
-            "name": "Entropic Team",
-            "url": "http://entropic.io/support",
+            "name": "API Support",
+            "url": "http://www.entropic.io/support",
             "email": "support@entropic.io"
         },
         "license": {
-            "name": "MIT",
-            "url": "https://opensource.org/licenses/MIT"
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0.html"
         },
-        "version": "1.0.0"
+        "version": "1.0"
     },
     "host": "localhost:8080",
     "basePath": "/api/v1",
     "paths": {
         "/api/v1/entities/{entityType}": {
             "get": {
-                "description": "Lists entities of the specified type with pagination",
+                "description": "Get a paginated list of entities of a specific type",
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "entities"
                 ],
-                "summary": "List entities",
+                "summary": "List entities of a specific type",
                 "parameters": [
                     {
                         "type": "string",
@@ -37,14 +44,19 @@
                         "required": true
                     },
                     {
+                        "maximum": 100,
+                        "minimum": 1,
                         "type": "integer",
-                        "description": "Number of entities to return (default: 20, max: 100)",
+                        "default": 20,
+                        "description": "Limit",
                         "name": "limit",
                         "in": "query"
                     },
                     {
+                        "minimum": 0,
                         "type": "integer",
-                        "description": "Number of entities to skip (default: 0)",
+                        "default": 0,
+                        "description": "Offset",
                         "name": "offset",
                         "in": "query"
                     }
@@ -53,25 +65,25 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_api_handlers.EntityListResponse"
+                            "$ref": "#/definitions/handlers.EntityListResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     }
                 }
             },
             "post": {
-                "description": "Creates a new entity of the specified type",
+                "description": "Create a new entity of the specified type",
                 "consumes": [
                     "application/json"
                 ],
@@ -96,7 +108,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_api_handlers.EntityRequest"
+                            "$ref": "#/definitions/handlers.EntityRequest"
                         }
                     }
                 ],
@@ -104,25 +116,25 @@
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/internal_api_handlers.EntityResponse"
+                            "$ref": "#/definitions/handlers.EntityResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     }
                 }
@@ -130,14 +142,17 @@
         },
         "/api/v1/entities/{entityType}/{entityID}": {
             "get": {
-                "description": "Retrieves an entity by its type and ID",
+                "description": "Get a specific entity by its type and ID",
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "entities"
                 ],
-                "summary": "Get an entity",
+                "summary": "Get an entity by ID",
                 "parameters": [
                     {
                         "type": "string",
@@ -148,6 +163,7 @@
                     },
                     {
                         "type": "string",
+                        "format": "uuid",
                         "description": "Entity ID",
                         "name": "entityID",
                         "in": "path",
@@ -158,25 +174,37 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_api_handlers.EntityResponse"
+                            "$ref": "#/definitions/handlers.EntityResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     }
                 }
             },
             "delete": {
-                "description": "Deletes an entity and all its relations",
+                "description": "Delete a specific entity by its type and ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
                 "tags": [
                     "entities"
                 ],
@@ -191,6 +219,7 @@
                     },
                     {
                         "type": "string",
+                        "format": "uuid",
                         "description": "Entity ID",
                         "name": "entityID",
                         "in": "path",
@@ -201,22 +230,28 @@
                     "204": {
                         "description": "No Content"
                     },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     }
                 }
             },
             "patch": {
-                "description": "Updates an existing entity's properties",
+                "description": "Update an existing entity's properties and/or URN",
                 "consumes": [
                     "application/json"
                 ],
@@ -237,18 +272,19 @@
                     },
                     {
                         "type": "string",
+                        "format": "uuid",
                         "description": "Entity ID",
                         "name": "entityID",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "Updated entity data",
+                        "description": "Entity update data",
                         "name": "entity",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_api_handlers.EntityRequest"
+                            "$ref": "#/definitions/handlers.EntityRequest"
                         }
                     }
                 ],
@@ -256,31 +292,31 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_api_handlers.EntityResponse"
+                            "$ref": "#/definitions/handlers.EntityResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     }
                 }
@@ -288,14 +324,17 @@
         },
         "/api/v1/entities/{entityType}/{entityID}/relations": {
             "get": {
-                "description": "Retrieves all relations involving the specified entity",
+                "description": "Get all relations for a specific entity, optionally filtered by relation types",
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "entities"
                 ],
-                "summary": "Get entity relations",
+                "summary": "Get relations for an entity",
                 "parameters": [
                     {
                         "type": "string",
@@ -306,6 +345,7 @@
                     },
                     {
                         "type": "string",
+                        "format": "uuid",
                         "description": "Entity ID",
                         "name": "entityID",
                         "in": "path",
@@ -324,20 +364,26 @@
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/internal_api_handlers.RelationResponse"
+                                "$ref": "#/definitions/handlers.RelationResponse"
                             }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     }
                 }
@@ -345,7 +391,7 @@
         },
         "/api/v1/relations": {
             "post": {
-                "description": "Creates a new relation between two entities",
+                "description": "Create a new relation between two entities",
                 "consumes": [
                     "application/json"
                 ],
@@ -363,7 +409,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_api_handlers.RelationRequest"
+                            "$ref": "#/definitions/handlers.RelationRequest"
                         }
                     }
                 ],
@@ -371,31 +417,31 @@
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/internal_api_handlers.RelationResponse"
+                            "$ref": "#/definitions/handlers.RelationResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     }
                 }
@@ -403,17 +449,21 @@
         },
         "/api/v1/relations/{relationID}": {
             "get": {
-                "description": "Retrieves a relation by its ID",
+                "description": "Get a specific relation by its ID",
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "relations"
                 ],
-                "summary": "Get a relation",
+                "summary": "Get a relation by ID",
                 "parameters": [
                     {
                         "type": "string",
+                        "format": "uuid",
                         "description": "Relation ID",
                         "name": "relationID",
                         "in": "path",
@@ -424,25 +474,37 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_api_handlers.RelationResponse"
+                            "$ref": "#/definitions/handlers.RelationResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     }
                 }
             },
             "delete": {
-                "description": "Deletes a relation by its ID",
+                "description": "Delete a specific relation by its ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
                 "tags": [
                     "relations"
                 ],
@@ -450,6 +512,7 @@
                 "parameters": [
                     {
                         "type": "string",
+                        "format": "uuid",
                         "description": "Relation ID",
                         "name": "relationID",
                         "in": "path",
@@ -460,16 +523,22 @@
                     "204": {
                         "description": "No Content"
                     },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     }
                 }
@@ -477,34 +546,7 @@
         },
         "/api/v1/schemas/entities": {
             "get": {
-                "description": "Lists all entity schemas in the system",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "schemas"
-                ],
-                "summary": "List entity schemas",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/internal_api_handlers.EntitySchemaResponse"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
-                        }
-                    }
-                }
-            },
-            "post": {
-                "description": "Creates a new schema for an entity type",
+                "description": "Get a list of all entity schemas in the system",
                 "consumes": [
                     "application/json"
                 ],
@@ -514,7 +556,37 @@
                 "tags": [
                     "schemas"
                 ],
-                "summary": "Create entity schema",
+                "summary": "List all entity schemas",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/handlers.EntitySchemaResponse"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Create a new schema for an entity type",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "schemas"
+                ],
+                "summary": "Create an entity schema",
                 "parameters": [
                     {
                         "description": "Entity schema data",
@@ -522,7 +594,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_api_handlers.EntitySchemaRequest"
+                            "$ref": "#/definitions/handlers.EntitySchemaRequest"
                         }
                     }
                 ],
@@ -530,25 +602,25 @@
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/internal_api_handlers.EntitySchemaResponse"
+                            "$ref": "#/definitions/handlers.EntitySchemaResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     }
                 }
@@ -556,46 +628,7 @@
         },
         "/api/v1/schemas/entities/{entityType}": {
             "get": {
-                "description": "Retrieves a schema for the specified entity type",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "schemas"
-                ],
-                "summary": "Get entity schema",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Entity Type",
-                        "name": "entityType",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/internal_api_handlers.EntitySchemaResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
-                        }
-                    }
-                }
-            },
-            "put": {
-                "description": "Updates an existing entity schema",
+                "description": "Get the schema for a specific entity type",
                 "consumes": [
                     "application/json"
                 ],
@@ -605,7 +638,55 @@
                 "tags": [
                     "schemas"
                 ],
-                "summary": "Update entity schema",
+                "summary": "Get an entity schema",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Entity Type",
+                        "name": "entityType",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.EntitySchemaResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Update the schema for an existing entity type",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "schemas"
+                ],
+                "summary": "Update an entity schema",
                 "parameters": [
                     {
                         "type": "string",
@@ -615,12 +696,12 @@
                         "required": true
                     },
                     {
-                        "description": "Updated entity schema data",
+                        "description": "Entity schema update data",
                         "name": "schema",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_api_handlers.EntitySchemaRequest"
+                            "$ref": "#/definitions/handlers.EntitySchemaRequest"
                         }
                     }
                 ],
@@ -628,35 +709,47 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_api_handlers.EntitySchemaResponse"
+                            "$ref": "#/definitions/handlers.EntitySchemaResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     }
                 }
             },
             "delete": {
-                "description": "Deletes an entity schema if no entities of this type exist",
+                "description": "Delete the schema for an entity type. This operation cannot be undone.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
                 "tags": [
                     "schemas"
                 ],
-                "summary": "Delete entity schema",
+                "summary": "Delete an entity schema",
                 "parameters": [
                     {
                         "type": "string",
@@ -673,19 +766,19 @@
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     }
                 }
@@ -693,34 +786,7 @@
         },
         "/api/v1/schemas/relationships": {
             "get": {
-                "description": "Lists all relationship schemas in the system",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "schemas"
-                ],
-                "summary": "List relationship schemas",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/internal_api_handlers.RelationshipSchemaResponse"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
-                        }
-                    }
-                }
-            },
-            "post": {
-                "description": "Creates a new schema for a relationship type",
+                "description": "Get a list of all relationship schemas in the system",
                 "consumes": [
                     "application/json"
                 ],
@@ -730,7 +796,37 @@
                 "tags": [
                     "schemas"
                 ],
-                "summary": "Create relationship schema",
+                "summary": "List all relationship schemas",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/handlers.RelationshipSchemaResponse"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Create a new schema for a relationship type",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "schemas"
+                ],
+                "summary": "Create a relationship schema",
                 "parameters": [
                     {
                         "description": "Relationship schema data",
@@ -738,7 +834,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_api_handlers.RelationshipSchemaRequest"
+                            "$ref": "#/definitions/handlers.RelationshipSchemaRequest"
                         }
                     }
                 ],
@@ -746,25 +842,25 @@
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/internal_api_handlers.RelationshipSchemaResponse"
+                            "$ref": "#/definitions/handlers.RelationshipSchemaResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     }
                 }
@@ -772,46 +868,7 @@
         },
         "/api/v1/schemas/relationships/{relationshipType}": {
             "get": {
-                "description": "Retrieves a schema for the specified relationship type",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "schemas"
-                ],
-                "summary": "Get relationship schema",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Relationship Type",
-                        "name": "relationshipType",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/internal_api_handlers.RelationshipSchemaResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
-                        }
-                    }
-                }
-            },
-            "put": {
-                "description": "Updates an existing relationship schema",
+                "description": "Get the schema for a specific relationship type",
                 "consumes": [
                     "application/json"
                 ],
@@ -821,7 +878,55 @@
                 "tags": [
                     "schemas"
                 ],
-                "summary": "Update relationship schema",
+                "summary": "Get a relationship schema",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Relationship Type",
+                        "name": "relationshipType",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.RelationshipSchemaResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Update the schema for an existing relationship type",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "schemas"
+                ],
+                "summary": "Update a relationship schema",
                 "parameters": [
                     {
                         "type": "string",
@@ -831,12 +936,12 @@
                         "required": true
                     },
                     {
-                        "description": "Updated relationship schema data",
+                        "description": "Relationship schema update data",
                         "name": "schema",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_api_handlers.RelationshipSchemaRequest"
+                            "$ref": "#/definitions/handlers.RelationshipSchemaRequest"
                         }
                     }
                 ],
@@ -844,35 +949,47 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/internal_api_handlers.RelationshipSchemaResponse"
+                            "$ref": "#/definitions/handlers.RelationshipSchemaResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     }
                 }
             },
             "delete": {
-                "description": "Deletes a relationship schema",
+                "description": "Delete the schema for a relationship type. This operation cannot be undone.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
                 "tags": [
                     "schemas"
                 ],
-                "summary": "Delete relationship schema",
+                "summary": "Delete a relationship schema",
                 "parameters": [
                     {
                         "type": "string",
@@ -886,16 +1003,22 @@
                     "204": {
                         "description": "No Content"
                     },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/middleware.ErrorResponse"
+                        }
+                    },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     }
                 }
@@ -903,7 +1026,7 @@
         },
         "/api/v1/search": {
             "post": {
-                "description": "Performs text search across entities",
+                "description": "Search for entities using text search with optional filters and facets",
                 "consumes": [
                     "application/json"
                 ],
@@ -921,7 +1044,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_models.SearchQuery"
+                            "$ref": "#/definitions/models.SearchQuery"
                         }
                     }
                 ],
@@ -929,19 +1052,19 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_models.SearchResult"
+                            "$ref": "#/definitions/models.SearchResult"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     }
                 }
@@ -949,7 +1072,7 @@
         },
         "/api/v1/search/vector": {
             "post": {
-                "description": "Performs vector similarity search across entities",
+                "description": "Search for entities using vector similarity",
                 "consumes": [
                     "application/json"
                 ],
@@ -959,7 +1082,7 @@
                 "tags": [
                     "search"
                 ],
-                "summary": "Vector search entities",
+                "summary": "Vector similarity search",
                 "parameters": [
                     {
                         "description": "Vector search query",
@@ -967,7 +1090,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_models.VectorQuery"
+                            "$ref": "#/definitions/models.VectorQuery"
                         }
                     }
                 ],
@@ -975,19 +1098,19 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_models.SearchResult"
+                            "$ref": "#/definitions/models.SearchResult"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse"
+                            "$ref": "#/definitions/middleware.ErrorResponse"
                         }
                     }
                 }
@@ -995,7 +1118,10 @@
         },
         "/health": {
             "get": {
-                "description": "Returns the health status of the service and its dependencies",
+                "description": "Check the health status of the service and its dependencies",
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -1005,15 +1131,17 @@
                 "summary": "Health check",
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Service is healthy",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_health.SystemHealth"
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     },
                     "503": {
-                        "description": "Service Unavailable",
+                        "description": "Service is unhealthy",
                         "schema": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_health.SystemHealth"
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     }
                 }
@@ -1021,17 +1149,20 @@
         },
         "/metrics": {
             "get": {
-                "description": "Returns service metrics including cache and transaction statistics",
+                "description": "Get performance metrics and statistics for the service",
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "health"
+                    "monitoring"
                 ],
-                "summary": "Get metrics",
+                "summary": "Get service metrics",
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Service metrics including cache stats, transaction stats, and timestamp",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
@@ -1042,7 +1173,10 @@
         },
         "/ready": {
             "get": {
-                "description": "Indicates if the service is ready to accept requests",
+                "description": "Check if the service is ready to accept requests",
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -1052,129 +1186,351 @@
                 "summary": "Readiness check",
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "Service is ready",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
                         }
                     },
                     "503": {
-                        "description": "Service not ready",
-                        "schema": {
-                            "type": "string"
-                        }
+                        "description": "Service is not ready"
                     }
                 }
             }
         }
     },
     "definitions": {
-        "github_com_sumandas0_entropic_internal_api_middleware.ErrorDetail": {
+        "handlers.EntityListResponse": {
+            "type": "object",
+            "properties": {
+                "entities": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.EntityResponse"
+                    }
+                },
+                "limit": {
+                    "type": "integer",
+                    "example": 10
+                },
+                "offset": {
+                    "type": "integer",
+                    "example": 0
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 100
+                }
+            }
+        },
+        "handlers.EntityRequest": {
+            "type": "object",
+            "required": [
+                "properties",
+                "urn"
+            ],
+            "properties": {
+                "properties": {
+                    "type": "object"
+                },
+                "urn": {
+                    "type": "string",
+                    "example": "urn:entropic:user:123"
+                }
+            }
+        },
+        "handlers.EntityResponse": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "example": "2023-01-01T00:00:00Z"
+                },
+                "entity_type": {
+                    "type": "string",
+                    "example": "user"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                },
+                "properties": {
+                    "type": "object"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "example": "2023-01-01T00:00:00Z"
+                },
+                "urn": {
+                    "type": "string",
+                    "example": "urn:entropic:user:123"
+                },
+                "version": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "handlers.EntitySchemaRequest": {
+            "type": "object",
+            "required": [
+                "entity_type",
+                "properties"
+            ],
+            "properties": {
+                "entity_type": {
+                    "type": "string",
+                    "example": "user"
+                },
+                "indexes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.IndexConfig"
+                    }
+                },
+                "properties": {
+                    "$ref": "#/definitions/models.PropertySchema"
+                }
+            }
+        },
+        "handlers.EntitySchemaResponse": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "example": "2023-01-01T00:00:00Z"
+                },
+                "entity_type": {
+                    "type": "string",
+                    "example": "user"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                },
+                "indexes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.IndexConfig"
+                    }
+                },
+                "properties": {
+                    "$ref": "#/definitions/models.PropertySchema"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "example": "2023-01-01T00:00:00Z"
+                },
+                "version": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "handlers.RelationRequest": {
+            "type": "object",
+            "required": [
+                "from_entity_id",
+                "from_entity_type",
+                "relation_type",
+                "to_entity_id",
+                "to_entity_type"
+            ],
+            "properties": {
+                "from_entity_id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                },
+                "from_entity_type": {
+                    "type": "string",
+                    "example": "user"
+                },
+                "properties": {
+                    "type": "object"
+                },
+                "relation_type": {
+                    "type": "string",
+                    "example": "owns"
+                },
+                "to_entity_id": {
+                    "type": "string",
+                    "example": "650e8400-e29b-41d4-a716-446655440001"
+                },
+                "to_entity_type": {
+                    "type": "string",
+                    "example": "document"
+                }
+            }
+        },
+        "handlers.RelationResponse": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "example": "2023-01-01T00:00:00Z"
+                },
+                "from_entity_id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                },
+                "from_entity_type": {
+                    "type": "string",
+                    "example": "user"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "750e8400-e29b-41d4-a716-446655440002"
+                },
+                "properties": {
+                    "type": "object"
+                },
+                "relation_type": {
+                    "type": "string",
+                    "example": "owns"
+                },
+                "to_entity_id": {
+                    "type": "string",
+                    "example": "650e8400-e29b-41d4-a716-446655440001"
+                },
+                "to_entity_type": {
+                    "type": "string",
+                    "example": "document"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "example": "2023-01-01T00:00:00Z"
+                }
+            }
+        },
+        "handlers.RelationshipSchemaRequest": {
+            "type": "object",
+            "required": [
+                "cardinality",
+                "from_entity_type",
+                "relationship_type",
+                "to_entity_type"
+            ],
+            "properties": {
+                "cardinality": {
+                    "enum": [
+                        "one-to-one",
+                        "one-to-many",
+                        "many-to-one",
+                        "many-to-many"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.CardinalityType"
+                        }
+                    ]
+                },
+                "denormalization_config": {
+                    "$ref": "#/definitions/models.DenormalizationConfig"
+                },
+                "from_entity_type": {
+                    "type": "string",
+                    "example": "user"
+                },
+                "properties": {
+                    "$ref": "#/definitions/models.PropertySchema"
+                },
+                "relationship_type": {
+                    "type": "string",
+                    "example": "owns"
+                },
+                "to_entity_type": {
+                    "type": "string",
+                    "example": "document"
+                }
+            }
+        },
+        "handlers.RelationshipSchemaResponse": {
+            "type": "object",
+            "properties": {
+                "cardinality": {
+                    "enum": [
+                        "one-to-one",
+                        "one-to-many",
+                        "many-to-one",
+                        "many-to-many"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.CardinalityType"
+                        }
+                    ]
+                },
+                "created_at": {
+                    "type": "string",
+                    "example": "2023-01-01T00:00:00Z"
+                },
+                "denormalization_config": {
+                    "$ref": "#/definitions/models.DenormalizationConfig"
+                },
+                "from_entity_type": {
+                    "type": "string",
+                    "example": "user"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                },
+                "properties": {
+                    "$ref": "#/definitions/models.PropertySchema"
+                },
+                "relationship_type": {
+                    "type": "string",
+                    "example": "owns"
+                },
+                "to_entity_type": {
+                    "type": "string",
+                    "example": "document"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "example": "2023-01-01T00:00:00Z"
+                },
+                "version": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "middleware.ErrorDetail": {
+            "description": "Detailed error information including code, message, and optional details",
             "type": "object",
             "properties": {
                 "code": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "NOT_FOUND"
                 },
                 "details": {
-                    "type": "object",
-                    "additionalProperties": true
+                    "type": "object"
                 },
                 "message": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "Entity not found"
                 },
                 "request_id": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
                 },
                 "timestamp": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "2023-01-01T00:00:00Z"
                 }
             }
         },
-        "github_com_sumandas0_entropic_internal_api_middleware.ErrorResponse": {
+        "middleware.ErrorResponse": {
+            "description": "Standard error response format for all API errors",
             "type": "object",
             "properties": {
                 "error": {
-                    "$ref": "#/definitions/github_com_sumandas0_entropic_internal_api_middleware.ErrorDetail"
+                    "$ref": "#/definitions/middleware.ErrorDetail"
                 }
             }
         },
-        "github_com_sumandas0_entropic_internal_health.ComponentHealth": {
-            "type": "object",
-            "properties": {
-                "details": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
-                },
-                "duration_ms": {
-                    "$ref": "#/definitions/time.Duration"
-                },
-                "last_check": {
-                    "type": "string"
-                },
-                "message": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "status": {
-                    "$ref": "#/definitions/github_com_sumandas0_entropic_internal_health.Status"
-                }
-            }
-        },
-        "github_com_sumandas0_entropic_internal_health.HealthSummary": {
-            "type": "object",
-            "properties": {
-                "degraded": {
-                    "type": "integer"
-                },
-                "healthy": {
-                    "type": "integer"
-                },
-                "total": {
-                    "type": "integer"
-                },
-                "unhealthy": {
-                    "type": "integer"
-                }
-            }
-        },
-        "github_com_sumandas0_entropic_internal_health.Status": {
-            "type": "string",
-            "enum": [
-                "healthy",
-                "unhealthy",
-                "degraded"
-            ],
-            "x-enum-varnames": [
-                "StatusHealthy",
-                "StatusUnhealthy",
-                "StatusDegraded"
-            ]
-        },
-        "github_com_sumandas0_entropic_internal_health.SystemHealth": {
-            "type": "object",
-            "properties": {
-                "components": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "$ref": "#/definitions/github_com_sumandas0_entropic_internal_health.ComponentHealth"
-                    }
-                },
-                "status": {
-                    "$ref": "#/definitions/github_com_sumandas0_entropic_internal_health.Status"
-                },
-                "summary": {
-                    "$ref": "#/definitions/github_com_sumandas0_entropic_internal_health.HealthSummary"
-                },
-                "timestamp": {
-                    "type": "string"
-                }
-            }
-        },
-        "github_com_sumandas0_entropic_internal_models.CardinalityType": {
+        "models.CardinalityType": {
             "type": "string",
             "enum": [
                 "one-to-one",
@@ -1189,45 +1545,40 @@
                 "ManyToMany"
             ]
         },
-        "github_com_sumandas0_entropic_internal_models.DenormalizationConfig": {
+        "models.DenormalizationConfig": {
             "type": "object",
             "properties": {
                 "denormalize_from_to": {
-                    "description": "Properties from 'from' entity to copy to 'to'",
                     "type": "array",
                     "items": {
                         "type": "string"
-                    }
+                    },
+                    "example": [
+                        "title",
+                        "status"
+                    ]
                 },
                 "denormalize_to_from": {
-                    "description": "Properties from 'to' entity to copy to 'from'",
                     "type": "array",
                     "items": {
                         "type": "string"
-                    }
+                    },
+                    "example": [
+                        "name",
+                        "email"
+                    ]
                 },
                 "include_relation_data": {
-                    "description": "Include relation properties",
-                    "type": "boolean"
+                    "type": "boolean",
+                    "example": false
                 },
                 "update_on_change": {
-                    "description": "Auto-update denormalized data",
-                    "type": "boolean"
+                    "type": "boolean",
+                    "example": true
                 }
             }
         },
-        "github_com_sumandas0_entropic_internal_models.FacetValue": {
-            "type": "object",
-            "properties": {
-                "count": {
-                    "type": "integer"
-                },
-                "value": {
-                    "type": "string"
-                }
-            }
-        },
-        "github_com_sumandas0_entropic_internal_models.IndexConfig": {
+        "models.IndexConfig": {
             "type": "object",
             "required": [
                 "fields",
@@ -1240,10 +1591,14 @@
                     "minItems": 1,
                     "items": {
                         "type": "string"
-                    }
+                    },
+                    "example": [
+                        "email"
+                    ]
                 },
                 "name": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "idx_user_email"
                 },
                 "type": {
                     "type": "string",
@@ -1253,45 +1608,45 @@
                         "gin",
                         "gist",
                         "vector"
-                    ]
+                    ],
+                    "example": "btree"
                 },
                 "unique": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "example": true
                 },
                 "vector_type": {
-                    "description": "For vector indexes: cosine, l2, ip",
-                    "type": "string"
+                    "type": "string",
+                    "example": "ivfflat"
                 }
             }
         },
-        "github_com_sumandas0_entropic_internal_models.PropertyDefinition": {
+        "models.PropertyDefinition": {
             "type": "object",
             "required": [
                 "type"
             ],
             "properties": {
                 "constraints": {
-                    "type": "object",
-                    "additionalProperties": true
+                    "type": "object"
                 },
-                "default": {},
+                "default": {
+                    "type": "object"
+                },
                 "description": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "User's full name"
                 },
                 "element_type": {
-                    "description": "For array type",
-                    "type": "string"
+                    "type": "string",
+                    "example": "string"
                 },
                 "object_schema": {
-                    "description": "For nested objects",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_models.PropertySchema"
-                        }
-                    ]
+                    "$ref": "#/definitions/models.PropertySchema"
                 },
                 "required": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "example": true
                 },
                 "type": {
                     "type": "string",
@@ -1303,47 +1658,45 @@
                         "object",
                         "array",
                         "vector"
-                    ]
+                    ],
+                    "example": "string"
                 },
                 "vector_dim": {
-                    "description": "For vector type",
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 512
                 }
             }
         },
-        "github_com_sumandas0_entropic_internal_models.PropertySchema": {
+        "models.PropertySchema": {
             "type": "object",
             "additionalProperties": {
-                "$ref": "#/definitions/github_com_sumandas0_entropic_internal_models.PropertyDefinition"
+                "$ref": "#/definitions/models.PropertyDefinition"
             }
         },
-        "github_com_sumandas0_entropic_internal_models.SearchHit": {
+        "models.SearchHit": {
             "type": "object",
             "properties": {
                 "entity_type": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "user"
                 },
                 "highlights": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        }
-                    }
+                    "type": "object"
                 },
                 "id": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
                 },
                 "properties": {
-                    "type": "object",
-                    "additionalProperties": true
+                    "type": "object"
                 },
                 "score": {
-                    "type": "number"
+                    "type": "number",
+                    "example": 0.95
                 },
                 "urn": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "urn:entropic:user:123"
                 },
                 "vector": {
                     "type": "array",
@@ -1353,7 +1706,7 @@
                 }
             }
         },
-        "github_com_sumandas0_entropic_internal_models.SearchQuery": {
+        "models.SearchQuery": {
             "type": "object",
             "required": [
                 "entity_types"
@@ -1364,71 +1717,78 @@
                     "minItems": 1,
                     "items": {
                         "type": "string"
-                    }
+                    },
+                    "example": [
+                        "user",
+                        "document"
+                    ]
                 },
                 "facets": {
                     "type": "array",
                     "items": {
                         "type": "string"
-                    }
+                    },
+                    "example": [
+                        "status",
+                        "type"
+                    ]
                 },
                 "filters": {
-                    "type": "object",
-                    "additionalProperties": true
+                    "type": "object"
                 },
                 "include_urn": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "example": true
                 },
                 "limit": {
                     "type": "integer",
                     "maximum": 1000,
-                    "minimum": 1
+                    "minimum": 1,
+                    "example": 20
                 },
                 "offset": {
                     "type": "integer",
-                    "minimum": 0
+                    "minimum": 0,
+                    "example": 0
                 },
                 "query": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "john doe"
                 },
                 "sort": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_sumandas0_entropic_internal_models.SortOption"
+                        "$ref": "#/definitions/models.SortOption"
                     }
                 }
             }
         },
-        "github_com_sumandas0_entropic_internal_models.SearchResult": {
+        "models.SearchResult": {
             "type": "object",
             "properties": {
                 "facets": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "array",
-                        "items": {
-                            "$ref": "#/definitions/github_com_sumandas0_entropic_internal_models.FacetValue"
-                        }
-                    }
+                    "type": "object"
                 },
                 "hits": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_sumandas0_entropic_internal_models.SearchHit"
+                        "$ref": "#/definitions/models.SearchHit"
                     }
                 },
                 "query": {
-                    "description": "Original query for reference"
+                    "type": "object"
                 },
                 "search_time_ms": {
-                    "$ref": "#/definitions/time.Duration"
+                    "type": "integer",
+                    "example": 15
                 },
                 "total_hits": {
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 100
                 }
             }
         },
-        "github_com_sumandas0_entropic_internal_models.SortOption": {
+        "models.SortOption": {
             "type": "object",
             "required": [
                 "field",
@@ -1436,14 +1796,23 @@
             ],
             "properties": {
                 "field": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "created_at"
                 },
                 "order": {
-                    "$ref": "#/definitions/github_com_sumandas0_entropic_internal_models.SortOrder"
+                    "enum": [
+                        "asc",
+                        "desc"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.SortOrder"
+                        }
+                    ]
                 }
             }
         },
-        "github_com_sumandas0_entropic_internal_models.SortOrder": {
+        "models.SortOrder": {
             "type": "string",
             "enum": [
                 "asc",
@@ -1454,7 +1823,7 @@
                 "SortDesc"
             ]
         },
-        "github_com_sumandas0_entropic_internal_models.VectorQuery": {
+        "models.VectorQuery": {
             "type": "object",
             "required": [
                 "entity_types",
@@ -1468,22 +1837,27 @@
                     "minItems": 1,
                     "items": {
                         "type": "string"
-                    }
+                    },
+                    "example": [
+                        "document"
+                    ]
                 },
                 "filters": {
-                    "type": "object",
-                    "additionalProperties": true
+                    "type": "object"
                 },
                 "include_vectors": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "example": false
                 },
                 "min_score": {
-                    "type": "number"
+                    "type": "number",
+                    "example": 0.7
                 },
                 "top_k": {
                     "type": "integer",
                     "maximum": 1000,
-                    "minimum": 1
+                    "minimum": 1,
+                    "example": 10
                 },
                 "vector": {
                     "type": "array",
@@ -1492,283 +1866,10 @@
                     }
                 },
                 "vector_field": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "embedding"
                 }
             }
-        },
-        "internal_api_handlers.EntityListResponse": {
-            "type": "object",
-            "properties": {
-                "entities": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/internal_api_handlers.EntityResponse"
-                    }
-                },
-                "limit": {
-                    "type": "integer"
-                },
-                "offset": {
-                    "type": "integer"
-                },
-                "total": {
-                    "type": "integer"
-                }
-            }
-        },
-        "internal_api_handlers.EntityRequest": {
-            "type": "object",
-            "required": [
-                "properties",
-                "urn"
-            ],
-            "properties": {
-                "properties": {
-                    "type": "object",
-                    "additionalProperties": true
-                },
-                "urn": {
-                    "type": "string"
-                }
-            }
-        },
-        "internal_api_handlers.EntityResponse": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "string"
-                },
-                "entity_type": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "properties": {
-                    "type": "object",
-                    "additionalProperties": true
-                },
-                "updated_at": {
-                    "type": "string"
-                },
-                "urn": {
-                    "type": "string"
-                },
-                "version": {
-                    "type": "integer"
-                }
-            }
-        },
-        "internal_api_handlers.EntitySchemaRequest": {
-            "type": "object",
-            "required": [
-                "entity_type",
-                "properties"
-            ],
-            "properties": {
-                "entity_type": {
-                    "type": "string"
-                },
-                "indexes": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_sumandas0_entropic_internal_models.IndexConfig"
-                    }
-                },
-                "properties": {
-                    "$ref": "#/definitions/github_com_sumandas0_entropic_internal_models.PropertySchema"
-                }
-            }
-        },
-        "internal_api_handlers.EntitySchemaResponse": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "string"
-                },
-                "entity_type": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "indexes": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_sumandas0_entropic_internal_models.IndexConfig"
-                    }
-                },
-                "properties": {
-                    "$ref": "#/definitions/github_com_sumandas0_entropic_internal_models.PropertySchema"
-                },
-                "updated_at": {
-                    "type": "string"
-                },
-                "version": {
-                    "type": "integer"
-                }
-            }
-        },
-        "internal_api_handlers.RelationRequest": {
-            "type": "object",
-            "required": [
-                "from_entity_id",
-                "from_entity_type",
-                "relation_type",
-                "to_entity_id",
-                "to_entity_type"
-            ],
-            "properties": {
-                "from_entity_id": {
-                    "type": "string"
-                },
-                "from_entity_type": {
-                    "type": "string"
-                },
-                "properties": {
-                    "type": "object",
-                    "additionalProperties": true
-                },
-                "relation_type": {
-                    "type": "string"
-                },
-                "to_entity_id": {
-                    "type": "string"
-                },
-                "to_entity_type": {
-                    "type": "string"
-                }
-            }
-        },
-        "internal_api_handlers.RelationResponse": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "string"
-                },
-                "from_entity_id": {
-                    "type": "string"
-                },
-                "from_entity_type": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "properties": {
-                    "type": "object",
-                    "additionalProperties": true
-                },
-                "relation_type": {
-                    "type": "string"
-                },
-                "to_entity_id": {
-                    "type": "string"
-                },
-                "to_entity_type": {
-                    "type": "string"
-                },
-                "updated_at": {
-                    "type": "string"
-                }
-            }
-        },
-        "internal_api_handlers.RelationshipSchemaRequest": {
-            "type": "object",
-            "required": [
-                "cardinality",
-                "from_entity_type",
-                "relationship_type",
-                "to_entity_type"
-            ],
-            "properties": {
-                "cardinality": {
-                    "$ref": "#/definitions/github_com_sumandas0_entropic_internal_models.CardinalityType"
-                },
-                "denormalization_config": {
-                    "$ref": "#/definitions/github_com_sumandas0_entropic_internal_models.DenormalizationConfig"
-                },
-                "from_entity_type": {
-                    "type": "string"
-                },
-                "properties": {
-                    "$ref": "#/definitions/github_com_sumandas0_entropic_internal_models.PropertySchema"
-                },
-                "relationship_type": {
-                    "type": "string"
-                },
-                "to_entity_type": {
-                    "type": "string"
-                }
-            }
-        },
-        "internal_api_handlers.RelationshipSchemaResponse": {
-            "type": "object",
-            "properties": {
-                "cardinality": {
-                    "$ref": "#/definitions/github_com_sumandas0_entropic_internal_models.CardinalityType"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "denormalization_config": {
-                    "$ref": "#/definitions/github_com_sumandas0_entropic_internal_models.DenormalizationConfig"
-                },
-                "from_entity_type": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "properties": {
-                    "$ref": "#/definitions/github_com_sumandas0_entropic_internal_models.PropertySchema"
-                },
-                "relationship_type": {
-                    "type": "string"
-                },
-                "to_entity_type": {
-                    "type": "string"
-                },
-                "updated_at": {
-                    "type": "string"
-                },
-                "version": {
-                    "type": "integer"
-                }
-            }
-        },
-        "time.Duration": {
-            "type": "integer",
-            "enum": [
-                -9223372036854775808,
-                9223372036854775807,
-                1,
-                1000,
-                1000000,
-                1000000000,
-                60000000000,
-                3600000000000
-            ],
-            "x-enum-varnames": [
-                "minDuration",
-                "maxDuration",
-                "Nanosecond",
-                "Microsecond",
-                "Millisecond",
-                "Second",
-                "Minute",
-                "Hour"
-            ]
-        }
-    },
-    "securityDefinitions": {
-        "ApiKeyAuth": {
-            "type": "apiKey",
-            "name": "X-API-Key",
-            "in": "header"
-        },
-        "BasicAuth": {
-            "type": "basic"
         }
     }
 }

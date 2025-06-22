@@ -541,6 +541,54 @@ Run the PostgreSQL adapter tests using dockertest to verify all database operati
    - Verify rollback handlers
    - Review error propagation
 
+## API Documentation
+
+### Swagger/OpenAPI Integration
+
+The Entropic API is fully documented using Swagger/OpenAPI annotations. All endpoints, request/response models, and error structures have comprehensive swagger annotations.
+
+#### Key Features:
+- **Automatic Documentation Generation**: Run `swag init -g cmd/server/main.go -o docs` to regenerate documentation
+- **Interactive API Explorer**: Swagger UI available for testing endpoints
+- **Type-Safe Client Generation**: Use the swagger spec to generate clients in any language
+- **Comprehensive Examples**: All models include example values for better understanding
+
+#### Swagger Annotations Added:
+1. **Main API Info** (`cmd/server/main.go`):
+   - Title, version, description
+   - Contact information
+   - License details
+   - Host and base path configuration
+
+2. **All API Endpoints** have:
+   - `@Summary` - Brief description
+   - `@Description` - Detailed explanation
+   - `@Tags` - API grouping
+   - `@Accept` / `@Produce` - Content types
+   - `@Param` - Path, query, and body parameters
+   - `@Success` / `@Failure` - Response codes and models
+   - `@Router` - Endpoint path and method
+
+3. **All Models** include:
+   - Field-level examples
+   - Validation constraints
+   - Enum values where applicable
+   - Proper type mappings (e.g., `swaggertype:"object"` for maps)
+
+#### Accessing the Documentation:
+- Swagger JSON: `/docs/swagger.json`
+- Swagger YAML: `/docs/swagger.yaml`
+- Generated Go code: `/docs/docs.go`
+
+#### Regenerating Documentation:
+```bash
+# Install swag if not already installed
+go install github.com/swaggo/swag/cmd/swag@latest
+
+# Generate/update documentation
+swag init -g cmd/server/main.go -o docs
+```
+
 ## Next Steps
 
 After implementing the base system:

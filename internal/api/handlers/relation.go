@@ -23,26 +23,39 @@ func NewRelationHandler(engine *core.Engine) *RelationHandler {
 }
 
 type RelationRequest struct {
-	RelationType     string                 `json:"relation_type" validate:"required"`
-	FromEntityID     uuid.UUID              `json:"from_entity_id" validate:"required"`
-	FromEntityType   string                 `json:"from_entity_type" validate:"required"`
-	ToEntityID       uuid.UUID              `json:"to_entity_id" validate:"required"`
-	ToEntityType     string                 `json:"to_entity_type" validate:"required"`
-	Properties       map[string]interface{} `json:"properties,omitempty"`
+	RelationType     string                 `json:"relation_type" validate:"required" example:"owns"`
+	FromEntityID     uuid.UUID              `json:"from_entity_id" validate:"required" example:"550e8400-e29b-41d4-a716-446655440000"`
+	FromEntityType   string                 `json:"from_entity_type" validate:"required" example:"user"`
+	ToEntityID       uuid.UUID              `json:"to_entity_id" validate:"required" example:"650e8400-e29b-41d4-a716-446655440001"`
+	ToEntityType     string                 `json:"to_entity_type" validate:"required" example:"document"`
+	Properties       map[string]interface{} `json:"properties,omitempty" swaggertype:"object"`
 }
 
 type RelationResponse struct {
-	ID             uuid.UUID              `json:"id"`
-	RelationType   string                 `json:"relation_type"`
-	FromEntityID   uuid.UUID              `json:"from_entity_id"`
-	FromEntityType string                 `json:"from_entity_type"`
-	ToEntityID     uuid.UUID              `json:"to_entity_id"`
-	ToEntityType   string                 `json:"to_entity_type"`
-	Properties     map[string]interface{} `json:"properties,omitempty"`
-	CreatedAt      time.Time              `json:"created_at"`
-	UpdatedAt      time.Time              `json:"updated_at"`
+	ID             uuid.UUID              `json:"id" example:"750e8400-e29b-41d4-a716-446655440002"`
+	RelationType   string                 `json:"relation_type" example:"owns"`
+	FromEntityID   uuid.UUID              `json:"from_entity_id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	FromEntityType string                 `json:"from_entity_type" example:"user"`
+	ToEntityID     uuid.UUID              `json:"to_entity_id" example:"650e8400-e29b-41d4-a716-446655440001"`
+	ToEntityType   string                 `json:"to_entity_type" example:"document"`
+	Properties     map[string]interface{} `json:"properties,omitempty" swaggertype:"object"`
+	CreatedAt      time.Time              `json:"created_at" example:"2023-01-01T00:00:00Z"`
+	UpdatedAt      time.Time              `json:"updated_at" example:"2023-01-01T00:00:00Z"`
 }
 
+// CreateRelation godoc
+// @Summary Create a new relation
+// @Description Create a new relation between two entities
+// @Tags relations
+// @Accept json
+// @Produce json
+// @Param relation body RelationRequest true "Relation data"
+// @Success 201 {object} RelationResponse
+// @Failure 400 {object} middleware.ErrorResponse
+// @Failure 404 {object} middleware.ErrorResponse
+// @Failure 409 {object} middleware.ErrorResponse
+// @Failure 500 {object} middleware.ErrorResponse
+// @Router /api/v1/relations [post]
 func (h *RelationHandler) CreateRelation(w http.ResponseWriter, r *http.Request) {
 	var req RelationRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -86,6 +99,18 @@ func (h *RelationHandler) CreateRelation(w http.ResponseWriter, r *http.Request)
 	json.NewEncoder(w).Encode(response)
 }
 
+// GetRelation godoc
+// @Summary Get a relation by ID
+// @Description Get a specific relation by its ID
+// @Tags relations
+// @Accept json
+// @Produce json
+// @Param relationID path string true "Relation ID" format(uuid)
+// @Success 200 {object} RelationResponse
+// @Failure 400 {object} middleware.ErrorResponse
+// @Failure 404 {object} middleware.ErrorResponse
+// @Failure 500 {object} middleware.ErrorResponse
+// @Router /api/v1/relations/{relationID} [get]
 func (h *RelationHandler) GetRelation(w http.ResponseWriter, r *http.Request) {
 	relationIDStr := chi.URLParam(r, "relationID")
 
@@ -110,6 +135,18 @@ func (h *RelationHandler) GetRelation(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
+// DeleteRelation godoc
+// @Summary Delete a relation
+// @Description Delete a specific relation by its ID
+// @Tags relations
+// @Accept json
+// @Produce json
+// @Param relationID path string true "Relation ID" format(uuid)
+// @Success 204 "No Content"
+// @Failure 400 {object} middleware.ErrorResponse
+// @Failure 404 {object} middleware.ErrorResponse
+// @Failure 500 {object} middleware.ErrorResponse
+// @Router /api/v1/relations/{relationID} [delete]
 func (h *RelationHandler) DeleteRelation(w http.ResponseWriter, r *http.Request) {
 	relationIDStr := chi.URLParam(r, "relationID")
 

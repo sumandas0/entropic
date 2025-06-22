@@ -123,6 +123,15 @@ func (r *Router) SetupRoutes() http.Handler {
 	return router
 }
 
+// healthCheck godoc
+// @Summary Health check
+// @Description Check the health status of the service and its dependencies
+// @Tags health
+// @Accept json
+// @Produce json
+// @Success 200 {object} map[string]interface{} "Service is healthy"
+// @Failure 503 {object} map[string]interface{} "Service is unhealthy"
+// @Router /health [get]
 func (r *Router) healthCheck(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
@@ -156,6 +165,15 @@ func (r *Router) healthCheck(w http.ResponseWriter, req *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
+// readinessCheck godoc
+// @Summary Readiness check
+// @Description Check if the service is ready to accept requests
+// @Tags health
+// @Accept json
+// @Produce json
+// @Success 200 {object} map[string]interface{} "Service is ready"
+// @Failure 503 "Service is not ready"
+// @Router /ready [get]
 func (r *Router) readinessCheck(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 
@@ -174,6 +192,14 @@ func (r *Router) readinessCheck(w http.ResponseWriter, req *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
+// metrics godoc
+// @Summary Get service metrics
+// @Description Get performance metrics and statistics for the service
+// @Tags monitoring
+// @Accept json
+// @Produce json
+// @Success 200 {object} map[string]interface{} "Service metrics including cache stats, transaction stats, and timestamp"
+// @Router /metrics [get]
 func (r *Router) metrics(w http.ResponseWriter, req *http.Request) {
 	stats := r.engine.GetStats()
 

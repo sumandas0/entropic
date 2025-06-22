@@ -7,15 +7,15 @@ import (
 )
 
 type Relation struct {
-	ID             uuid.UUID              `json:"id" validate:"required"`
-	RelationType   string                 `json:"relation_type" validate:"required,min=1,max=100"`
-	FromEntityID   uuid.UUID              `json:"from_entity_id" validate:"required"`
-	FromEntityType string                 `json:"from_entity_type" validate:"required,min=1,max=100"`
-	ToEntityID     uuid.UUID              `json:"to_entity_id" validate:"required"`
-	ToEntityType   string                 `json:"to_entity_type" validate:"required,min=1,max=100"`
-	Properties     map[string]interface{} `json:"properties"`
-	CreatedAt      time.Time              `json:"created_at"`
-	UpdatedAt      time.Time              `json:"updated_at"`
+	ID             uuid.UUID              `json:"id" validate:"required" example:"750e8400-e29b-41d4-a716-446655440002"`
+	RelationType   string                 `json:"relation_type" validate:"required,min=1,max=100" example:"owns"`
+	FromEntityID   uuid.UUID              `json:"from_entity_id" validate:"required" example:"550e8400-e29b-41d4-a716-446655440000"`
+	FromEntityType string                 `json:"from_entity_type" validate:"required,min=1,max=100" example:"user"`
+	ToEntityID     uuid.UUID              `json:"to_entity_id" validate:"required" example:"650e8400-e29b-41d4-a716-446655440001"`
+	ToEntityType   string                 `json:"to_entity_type" validate:"required,min=1,max=100" example:"document"`
+	Properties     map[string]interface{} `json:"properties" swaggertype:"object"`
+	CreatedAt      time.Time              `json:"created_at" example:"2023-01-01T00:00:00Z"`
+	UpdatedAt      time.Time              `json:"updated_at" example:"2023-01-01T00:00:00Z"`
 }
 
 func NewRelation(relationType string, fromEntityID uuid.UUID, fromEntityType string, 
@@ -35,9 +35,9 @@ func NewRelation(relationType string, fromEntityID uuid.UUID, fromEntityType str
 }
 
 type RelationReference struct {
-	EntityID   uuid.UUID `json:"entity_id"`
-	EntityType string    `json:"entity_type"`
-	URN        string    `json:"urn,omitempty"`
+	EntityID   uuid.UUID `json:"entity_id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	EntityType string    `json:"entity_type" example:"user"`
+	URN        string    `json:"urn,omitempty" example:"urn:entropic:user:123"`
 }
 
 func (r *Relation) GetFromReference() RelationReference {

@@ -29,6 +29,22 @@ var (
 	buildTime = "unknown"
 )
 
+// @title Entropic Storage Engine API
+// @version 1.0
+// @description A next-generation storage engine with flexible entity-relationship model and dual-storage architecture
+// @termsOfService http://swagger.io/terms/
+
+// @contact.name API Support
+// @contact.url http://www.entropic.io/support
+// @contact.email support@entropic.io
+
+// @license.name Apache 2.0
+// @license.url http://www.apache.org/licenses/LICENSE-2.0.html
+
+// @host localhost:8080
+// @BasePath /api/v1
+
+// @schemes http https
 func main() {
 	rootCmd := &cobra.Command{
 		Use:   "entropic-server",

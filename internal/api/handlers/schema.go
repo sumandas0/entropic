@@ -23,43 +23,55 @@ func NewSchemaHandler(engine *core.Engine) *SchemaHandler {
 }
 
 type EntitySchemaRequest struct {
-	EntityType string                   `json:"entity_type" validate:"required"`
+	EntityType string                   `json:"entity_type" validate:"required" example:"user"`
 	Properties models.PropertySchema    `json:"properties" validate:"required"`
 	Indexes    []models.IndexConfig     `json:"indexes,omitempty"`
 }
 
 type EntitySchemaResponse struct {
-	ID         uuid.UUID                `json:"id"`
-	EntityType string                   `json:"entity_type"`
+	ID         uuid.UUID                `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	EntityType string                   `json:"entity_type" example:"user"`
 	Properties models.PropertySchema    `json:"properties"`
 	Indexes    []models.IndexConfig     `json:"indexes"`
-	CreatedAt  time.Time                `json:"created_at"`
-	UpdatedAt  time.Time                `json:"updated_at"`
-	Version    int                      `json:"version"`
+	CreatedAt  time.Time                `json:"created_at" example:"2023-01-01T00:00:00Z"`
+	UpdatedAt  time.Time                `json:"updated_at" example:"2023-01-01T00:00:00Z"`
+	Version    int                      `json:"version" example:"1"`
 }
 
 type RelationshipSchemaRequest struct {
-	RelationshipType      string                        `json:"relationship_type" validate:"required"`
-	FromEntityType        string                        `json:"from_entity_type" validate:"required"`
-	ToEntityType          string                        `json:"to_entity_type" validate:"required"`
+	RelationshipType      string                        `json:"relationship_type" validate:"required" example:"owns"`
+	FromEntityType        string                        `json:"from_entity_type" validate:"required" example:"user"`
+	ToEntityType          string                        `json:"to_entity_type" validate:"required" example:"document"`
 	Properties            models.PropertySchema         `json:"properties,omitempty"`
-	Cardinality           models.CardinalityType        `json:"cardinality" validate:"required"`
+	Cardinality           models.CardinalityType        `json:"cardinality" validate:"required" enums:"one-to-one,one-to-many,many-to-one,many-to-many"`
 	DenormalizationConfig models.DenormalizationConfig `json:"denormalization_config,omitempty"`
 }
 
 type RelationshipSchemaResponse struct {
-	ID                    uuid.UUID                     `json:"id"`
-	RelationshipType      string                        `json:"relationship_type"`
-	FromEntityType        string                        `json:"from_entity_type"`
-	ToEntityType          string                        `json:"to_entity_type"`
+	ID                    uuid.UUID                     `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	RelationshipType      string                        `json:"relationship_type" example:"owns"`
+	FromEntityType        string                        `json:"from_entity_type" example:"user"`
+	ToEntityType          string                        `json:"to_entity_type" example:"document"`
 	Properties            models.PropertySchema         `json:"properties"`
-	Cardinality           models.CardinalityType        `json:"cardinality"`
+	Cardinality           models.CardinalityType        `json:"cardinality" enums:"one-to-one,one-to-many,many-to-one,many-to-many"`
 	DenormalizationConfig models.DenormalizationConfig `json:"denormalization_config"`
-	CreatedAt             time.Time                     `json:"created_at"`
-	UpdatedAt             time.Time                     `json:"updated_at"`
-	Version               int                           `json:"version"`
+	CreatedAt             time.Time                     `json:"created_at" example:"2023-01-01T00:00:00Z"`
+	UpdatedAt             time.Time                     `json:"updated_at" example:"2023-01-01T00:00:00Z"`
+	Version               int                           `json:"version" example:"1"`
 }
 
+// CreateEntitySchema godoc
+// @Summary Create an entity schema
+// @Description Create a new schema for an entity type
+// @Tags schemas
+// @Accept json
+// @Produce json
+// @Param schema body EntitySchemaRequest true "Entity schema data"
+// @Success 201 {object} EntitySchemaResponse
+// @Failure 400 {object} middleware.ErrorResponse
+// @Failure 409 {object} middleware.ErrorResponse
+// @Failure 500 {object} middleware.ErrorResponse
+// @Router /api/v1/schemas/entities [post]
 func (h *SchemaHandler) CreateEntitySchema(w http.ResponseWriter, r *http.Request) {
 	var req EntitySchemaRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -95,6 +107,18 @@ func (h *SchemaHandler) CreateEntitySchema(w http.ResponseWriter, r *http.Reques
 	json.NewEncoder(w).Encode(response)
 }
 
+// GetEntitySchema godoc
+// @Summary Get an entity schema
+// @Description Get the schema for a specific entity type
+// @Tags schemas
+// @Accept json
+// @Produce json
+// @Param entityType path string true "Entity Type"
+// @Success 200 {object} EntitySchemaResponse
+// @Failure 400 {object} middleware.ErrorResponse
+// @Failure 404 {object} middleware.ErrorResponse
+// @Failure 500 {object} middleware.ErrorResponse
+// @Router /api/v1/schemas/entities/{entityType} [get]
 func (h *SchemaHandler) GetEntitySchema(w http.ResponseWriter, r *http.Request) {
 	entityType := chi.URLParam(r, "entityType")
 	if entityType == "" {
@@ -115,6 +139,20 @@ func (h *SchemaHandler) GetEntitySchema(w http.ResponseWriter, r *http.Request) 
 	json.NewEncoder(w).Encode(response)
 }
 
+// UpdateEntitySchema godoc
+// @Summary Update an entity schema
+// @Description Update the schema for an existing entity type
+// @Tags schemas
+// @Accept json
+// @Produce json
+// @Param entityType path string true "Entity Type"
+// @Param schema body EntitySchemaRequest true "Entity schema update data"
+// @Success 200 {object} EntitySchemaResponse
+// @Failure 400 {object} middleware.ErrorResponse
+// @Failure 404 {object} middleware.ErrorResponse
+// @Failure 409 {object} middleware.ErrorResponse
+// @Failure 500 {object} middleware.ErrorResponse
+// @Router /api/v1/schemas/entities/{entityType} [put]
 func (h *SchemaHandler) UpdateEntitySchema(w http.ResponseWriter, r *http.Request) {
 	entityType := chi.URLParam(r, "entityType")
 	if entityType == "" {
@@ -154,6 +192,18 @@ func (h *SchemaHandler) UpdateEntitySchema(w http.ResponseWriter, r *http.Reques
 	json.NewEncoder(w).Encode(response)
 }
 
+// DeleteEntitySchema godoc
+// @Summary Delete an entity schema
+// @Description Delete the schema for an entity type. This operation cannot be undone.
+// @Tags schemas
+// @Accept json
+// @Produce json
+// @Param entityType path string true "Entity Type"
+// @Success 204 "No Content"
+// @Failure 400 {object} middleware.ErrorResponse
+// @Failure 404 {object} middleware.ErrorResponse
+// @Failure 500 {object} middleware.ErrorResponse
+// @Router /api/v1/schemas/entities/{entityType} [delete]
 func (h *SchemaHandler) DeleteEntitySchema(w http.ResponseWriter, r *http.Request) {
 	entityType := chi.URLParam(r, "entityType")
 	if entityType == "" {
@@ -170,6 +220,15 @@ func (h *SchemaHandler) DeleteEntitySchema(w http.ResponseWriter, r *http.Reques
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// ListEntitySchemas godoc
+// @Summary List all entity schemas
+// @Description Get a list of all entity schemas in the system
+// @Tags schemas
+// @Accept json
+// @Produce json
+// @Success 200 {array} EntitySchemaResponse
+// @Failure 500 {object} middleware.ErrorResponse
+// @Router /api/v1/schemas/entities [get]
 func (h *SchemaHandler) ListEntitySchemas(w http.ResponseWriter, r *http.Request) {
 	schemas, err := h.engine.ListEntitySchemas(r.Context())
 	if err != nil {
@@ -188,6 +247,18 @@ func (h *SchemaHandler) ListEntitySchemas(w http.ResponseWriter, r *http.Request
 	json.NewEncoder(w).Encode(responses)
 }
 
+// CreateRelationshipSchema godoc
+// @Summary Create a relationship schema
+// @Description Create a new schema for a relationship type
+// @Tags schemas
+// @Accept json
+// @Produce json
+// @Param schema body RelationshipSchemaRequest true "Relationship schema data"
+// @Success 201 {object} RelationshipSchemaResponse
+// @Failure 400 {object} middleware.ErrorResponse
+// @Failure 409 {object} middleware.ErrorResponse
+// @Failure 500 {object} middleware.ErrorResponse
+// @Router /api/v1/schemas/relationships [post]
 func (h *SchemaHandler) CreateRelationshipSchema(w http.ResponseWriter, r *http.Request) {
 	var req RelationshipSchemaRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -238,6 +309,18 @@ func (h *SchemaHandler) CreateRelationshipSchema(w http.ResponseWriter, r *http.
 	json.NewEncoder(w).Encode(response)
 }
 
+// GetRelationshipSchema godoc
+// @Summary Get a relationship schema
+// @Description Get the schema for a specific relationship type
+// @Tags schemas
+// @Accept json
+// @Produce json
+// @Param relationshipType path string true "Relationship Type"
+// @Success 200 {object} RelationshipSchemaResponse
+// @Failure 400 {object} middleware.ErrorResponse
+// @Failure 404 {object} middleware.ErrorResponse
+// @Failure 500 {object} middleware.ErrorResponse
+// @Router /api/v1/schemas/relationships/{relationshipType} [get]
 func (h *SchemaHandler) GetRelationshipSchema(w http.ResponseWriter, r *http.Request) {
 	relationshipType := chi.URLParam(r, "relationshipType")
 	if relationshipType == "" {
@@ -258,6 +341,20 @@ func (h *SchemaHandler) GetRelationshipSchema(w http.ResponseWriter, r *http.Req
 	json.NewEncoder(w).Encode(response)
 }
 
+// UpdateRelationshipSchema godoc
+// @Summary Update a relationship schema
+// @Description Update the schema for an existing relationship type
+// @Tags schemas
+// @Accept json
+// @Produce json
+// @Param relationshipType path string true "Relationship Type"
+// @Param schema body RelationshipSchemaRequest true "Relationship schema update data"
+// @Success 200 {object} RelationshipSchemaResponse
+// @Failure 400 {object} middleware.ErrorResponse
+// @Failure 404 {object} middleware.ErrorResponse
+// @Failure 409 {object} middleware.ErrorResponse
+// @Failure 500 {object} middleware.ErrorResponse
+// @Router /api/v1/schemas/relationships/{relationshipType} [put]
 func (h *SchemaHandler) UpdateRelationshipSchema(w http.ResponseWriter, r *http.Request) {
 	relationshipType := chi.URLParam(r, "relationshipType")
 	if relationshipType == "" {
@@ -300,6 +397,18 @@ func (h *SchemaHandler) UpdateRelationshipSchema(w http.ResponseWriter, r *http.
 	json.NewEncoder(w).Encode(response)
 }
 
+// DeleteRelationshipSchema godoc
+// @Summary Delete a relationship schema
+// @Description Delete the schema for a relationship type. This operation cannot be undone.
+// @Tags schemas
+// @Accept json
+// @Produce json
+// @Param relationshipType path string true "Relationship Type"
+// @Success 204 "No Content"
+// @Failure 400 {object} middleware.ErrorResponse
+// @Failure 404 {object} middleware.ErrorResponse
+// @Failure 500 {object} middleware.ErrorResponse
+// @Router /api/v1/schemas/relationships/{relationshipType} [delete]
 func (h *SchemaHandler) DeleteRelationshipSchema(w http.ResponseWriter, r *http.Request) {
 	relationshipType := chi.URLParam(r, "relationshipType")
 	if relationshipType == "" {
@@ -316,6 +425,15 @@ func (h *SchemaHandler) DeleteRelationshipSchema(w http.ResponseWriter, r *http.
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// ListRelationshipSchemas godoc
+// @Summary List all relationship schemas
+// @Description Get a list of all relationship schemas in the system
+// @Tags schemas
+// @Accept json
+// @Produce json
+// @Success 200 {array} RelationshipSchemaResponse
+// @Failure 500 {object} middleware.ErrorResponse
+// @Router /api/v1/schemas/relationships [get]
 func (h *SchemaHandler) ListRelationshipSchemas(w http.ResponseWriter, r *http.Request) {
 	schemas, err := h.engine.ListRelationshipSchemas(r.Context())
 	if err != nil {

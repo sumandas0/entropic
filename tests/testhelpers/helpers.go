@@ -56,11 +56,20 @@ func SetupTestContainers(t *testing.T, ctx context.Context) *TestContainers {
 	require.NoError(t, err)
 
 	typesenseReq := testcontainers.ContainerRequest{
-		Image:        "typesense/typesense:28.0",
+		Image:        "typesense/typesense:26.0",
 		ExposedPorts: []string{"8108/tcp"},
 		Env: map[string]string{
 			"TYPESENSE_DATA_DIR": "/data",
 			"TYPESENSE_API_KEY":  "test-key",
+			"TYPESENSE_ENABLE_CORS": "true",
+		},
+		Cmd: []string{
+			"--data-dir=/data",
+			"--api-key=test-key",
+			"--enable-cors",
+		},
+		Tmpfs: map[string]string{
+			"/data": "rw",
 		},
 		WaitingFor: wait.ForHTTP("/health").WithPort("8108/tcp").WithStartupTimeout(60 * time.Second),
 	}
@@ -68,6 +77,7 @@ func SetupTestContainers(t *testing.T, ctx context.Context) *TestContainers {
 	typesenseContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: typesenseReq,
 		Started:          true,
+		ProviderType:     testcontainers.ProviderDocker,
 	})
 	require.NoError(t, err)
 

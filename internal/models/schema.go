@@ -7,47 +7,47 @@ import (
 )
 
 type EntitySchema struct {
-	ID         uuid.UUID      `json:"id" validate:"required"`
-	EntityType string         `json:"entity_type" validate:"required,min=1,max=100"`
+	ID         uuid.UUID      `json:"id" validate:"required" example:"550e8400-e29b-41d4-a716-446655440000"`
+	EntityType string         `json:"entity_type" validate:"required,min=1,max=100" example:"user"`
 	Properties PropertySchema `json:"properties" validate:"required"`
 	Indexes    []IndexConfig  `json:"indexes"`
-	CreatedAt  time.Time      `json:"created_at"`
-	UpdatedAt  time.Time      `json:"updated_at"`
-	Version    int            `json:"version"`
+	CreatedAt  time.Time      `json:"created_at" example:"2023-01-01T00:00:00Z"`
+	UpdatedAt  time.Time      `json:"updated_at" example:"2023-01-01T00:00:00Z"`
+	Version    int            `json:"version" example:"1"`
 }
 
 type PropertySchema map[string]PropertyDefinition
 
 type PropertyDefinition struct {
-	Type         string                 `json:"type" validate:"required,oneof=string number boolean datetime object array vector"`
-	Required     bool                   `json:"required"`
-	Description  string                 `json:"description"`
-	Default      interface{}            `json:"default,omitempty"`
-	Constraints  map[string]interface{} `json:"constraints,omitempty"`
-	VectorDim    int                    `json:"vector_dim,omitempty"` 
-	ElementType  string                 `json:"element_type,omitempty"` 
+	Type         string                 `json:"type" validate:"required,oneof=string number boolean datetime object array vector" example:"string"`
+	Required     bool                   `json:"required" example:"true"`
+	Description  string                 `json:"description" example:"User's full name"`
+	Default      interface{}            `json:"default,omitempty" swaggertype:"object"`
+	Constraints  map[string]interface{} `json:"constraints,omitempty" swaggertype:"object"`
+	VectorDim    int                    `json:"vector_dim,omitempty" example:"512"` 
+	ElementType  string                 `json:"element_type,omitempty" example:"string"` 
 	ObjectSchema PropertySchema         `json:"object_schema,omitempty"` 
 }
 
 type IndexConfig struct {
-	Name       string   `json:"name" validate:"required"`
-	Fields     []string `json:"fields" validate:"required,min=1"`
-	Type       string   `json:"type" validate:"required,oneof=btree hash gin gist vector"`
-	Unique     bool     `json:"unique"`
-	VectorType string   `json:"vector_type,omitempty"` 
+	Name       string   `json:"name" validate:"required" example:"idx_user_email"`
+	Fields     []string `json:"fields" validate:"required,min=1" example:"email"`
+	Type       string   `json:"type" validate:"required,oneof=btree hash gin gist vector" example:"btree"`
+	Unique     bool     `json:"unique" example:"true"`
+	VectorType string   `json:"vector_type,omitempty" example:"ivfflat"` 
 }
 
 type RelationshipSchema struct {
-	ID                     uuid.UUID              `json:"id" validate:"required"`
-	RelationshipType       string                 `json:"relationship_type" validate:"required,min=1,max=100"`
-	FromEntityType         string                 `json:"from_entity_type" validate:"required,min=1,max=100"`
-	ToEntityType           string                 `json:"to_entity_type" validate:"required,min=1,max=100"`
+	ID                     uuid.UUID              `json:"id" validate:"required" example:"550e8400-e29b-41d4-a716-446655440000"`
+	RelationshipType       string                 `json:"relationship_type" validate:"required,min=1,max=100" example:"owns"`
+	FromEntityType         string                 `json:"from_entity_type" validate:"required,min=1,max=100" example:"user"`
+	ToEntityType           string                 `json:"to_entity_type" validate:"required,min=1,max=100" example:"document"`
 	Properties             PropertySchema         `json:"properties"`
-	Cardinality            CardinalityType        `json:"cardinality" validate:"required"`
+	Cardinality            CardinalityType        `json:"cardinality" validate:"required" enums:"one-to-one,one-to-many,many-to-one,many-to-many"`
 	DenormalizationConfig  DenormalizationConfig  `json:"denormalization_config"`
-	CreatedAt              time.Time              `json:"created_at"`
-	UpdatedAt              time.Time              `json:"updated_at"`
-	Version                int                    `json:"version"`
+	CreatedAt              time.Time              `json:"created_at" example:"2023-01-01T00:00:00Z"`
+	UpdatedAt              time.Time              `json:"updated_at" example:"2023-01-01T00:00:00Z"`
+	Version                int                    `json:"version" example:"1"`
 }
 
 type CardinalityType string
@@ -60,10 +60,10 @@ const (
 )
 
 type DenormalizationConfig struct {
-	DenormalizeToFrom   []string `json:"denormalize_to_from"` 
-	DenormalizeFromTo   []string `json:"denormalize_from_to"` 
-	UpdateOnChange      bool     `json:"update_on_change"`     
-	IncludeRelationData bool     `json:"include_relation_data"` 
+	DenormalizeToFrom   []string `json:"denormalize_to_from" example:"name,email"` 
+	DenormalizeFromTo   []string `json:"denormalize_from_to" example:"title,status"` 
+	UpdateOnChange      bool     `json:"update_on_change" example:"true"`     
+	IncludeRelationData bool     `json:"include_relation_data" example:"false"` 
 }
 
 func NewEntitySchema(entityType string, properties PropertySchema) *EntitySchema {

@@ -32,10 +32,10 @@ const (
 )
 
 type AppError struct {
-	Code    string
-	Message string
-	Err     error
-	Details map[string]interface{}
+	Code    string                 `json:"code" example:"NOT_FOUND"`
+	Message string                 `json:"message" example:"Entity not found"`
+	Err     error                  `json:"-"`
+	Details map[string]interface{} `json:"details,omitempty" swaggertype:"object"`
 }
 
 func (e *AppError) Error() string {

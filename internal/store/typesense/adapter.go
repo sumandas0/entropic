@@ -412,7 +412,7 @@ func (s *TypesenseStore) convertSearchResult(tsResult *api.SearchResult, query i
 	result := &models.SearchResult{
 		Hits:       make([]models.SearchHit, 0, len(*tsResult.Hits)),
 		TotalHits:  int64(*tsResult.Found),
-		SearchTime: searchTime,
+		SearchTime: searchTime.Milliseconds(),
 		Query:      query,
 	}
 
@@ -521,7 +521,7 @@ func (s *TypesenseStore) multiSearch(ctx context.Context, query *models.SearchQu
 	mergedResult := &models.SearchResult{
 		Hits:       []models.SearchHit{},
 		TotalHits:  0,
-		SearchTime: time.Since(startTime),
+		SearchTime: time.Since(startTime).Milliseconds(),
 		Query:      query,
 		Facets:     make(map[string][]models.FacetValue),
 	}
@@ -620,7 +620,7 @@ func (s *TypesenseStore) multiVectorSearch(ctx context.Context, query *models.Ve
 	return &models.SearchResult{
 		Hits:       sortedHits,
 		TotalHits:  int64(len(sortedHits)),
-		SearchTime: time.Since(startTime),
+		SearchTime: time.Since(startTime).Milliseconds(),
 		Query:      query,
 	}, nil
 }
