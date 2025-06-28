@@ -5,11 +5,11 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/sumandas0/entropic/internal/api/middleware"
 	"github.com/sumandas0/entropic/internal/core"
 	"github.com/sumandas0/entropic/internal/models"
-	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 )
 
 type SchemaHandler struct {
@@ -23,41 +23,41 @@ func NewSchemaHandler(engine *core.Engine) *SchemaHandler {
 }
 
 type EntitySchemaRequest struct {
-	EntityType string                   `json:"entity_type" validate:"required" example:"user"`
-	Properties models.PropertySchema    `json:"properties" validate:"required"`
-	Indexes    []models.IndexConfig     `json:"indexes,omitempty"`
+	EntityType string                `json:"entity_type" validate:"required" example:"user"`
+	Properties models.PropertySchema `json:"properties" validate:"required"`
+	Indexes    []models.IndexConfig  `json:"indexes,omitempty"`
 }
 
 type EntitySchemaResponse struct {
-	ID         uuid.UUID                `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
-	EntityType string                   `json:"entity_type" example:"user"`
-	Properties models.PropertySchema    `json:"properties"`
-	Indexes    []models.IndexConfig     `json:"indexes"`
-	CreatedAt  time.Time                `json:"created_at" example:"2023-01-01T00:00:00Z"`
-	UpdatedAt  time.Time                `json:"updated_at" example:"2023-01-01T00:00:00Z"`
-	Version    int                      `json:"version" example:"1"`
+	ID         uuid.UUID             `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	EntityType string                `json:"entity_type" example:"user"`
+	Properties models.PropertySchema `json:"properties"`
+	Indexes    []models.IndexConfig  `json:"indexes"`
+	CreatedAt  time.Time             `json:"created_at" example:"2023-01-01T00:00:00Z"`
+	UpdatedAt  time.Time             `json:"updated_at" example:"2023-01-01T00:00:00Z"`
+	Version    int                   `json:"version" example:"1"`
 }
 
 type RelationshipSchemaRequest struct {
-	RelationshipType      string                        `json:"relationship_type" validate:"required" example:"owns"`
-	FromEntityType        string                        `json:"from_entity_type" validate:"required" example:"user"`
-	ToEntityType          string                        `json:"to_entity_type" validate:"required" example:"document"`
-	Properties            models.PropertySchema         `json:"properties,omitempty"`
-	Cardinality           models.CardinalityType        `json:"cardinality" validate:"required" enums:"one-to-one,one-to-many,many-to-one,many-to-many"`
+	RelationshipType      string                       `json:"relationship_type" validate:"required" example:"owns"`
+	FromEntityType        string                       `json:"from_entity_type" validate:"required" example:"user"`
+	ToEntityType          string                       `json:"to_entity_type" validate:"required" example:"document"`
+	Properties            models.PropertySchema        `json:"properties,omitempty"`
+	Cardinality           models.CardinalityType       `json:"cardinality" validate:"required" enums:"one-to-one,one-to-many,many-to-one,many-to-many"`
 	DenormalizationConfig models.DenormalizationConfig `json:"denormalization_config,omitempty"`
 }
 
 type RelationshipSchemaResponse struct {
-	ID                    uuid.UUID                     `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
-	RelationshipType      string                        `json:"relationship_type" example:"owns"`
-	FromEntityType        string                        `json:"from_entity_type" example:"user"`
-	ToEntityType          string                        `json:"to_entity_type" example:"document"`
-	Properties            models.PropertySchema         `json:"properties"`
-	Cardinality           models.CardinalityType        `json:"cardinality" enums:"one-to-one,one-to-many,many-to-one,many-to-many"`
+	ID                    uuid.UUID                    `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	RelationshipType      string                       `json:"relationship_type" example:"owns"`
+	FromEntityType        string                       `json:"from_entity_type" example:"user"`
+	ToEntityType          string                       `json:"to_entity_type" example:"document"`
+	Properties            models.PropertySchema        `json:"properties"`
+	Cardinality           models.CardinalityType       `json:"cardinality" enums:"one-to-one,one-to-many,many-to-one,many-to-many"`
 	DenormalizationConfig models.DenormalizationConfig `json:"denormalization_config"`
-	CreatedAt             time.Time                     `json:"created_at" example:"2023-01-01T00:00:00Z"`
-	UpdatedAt             time.Time                     `json:"updated_at" example:"2023-01-01T00:00:00Z"`
-	Version               int                           `json:"version" example:"1"`
+	CreatedAt             time.Time                    `json:"created_at" example:"2023-01-01T00:00:00Z"`
+	UpdatedAt             time.Time                    `json:"updated_at" example:"2023-01-01T00:00:00Z"`
+	Version               int                          `json:"version" example:"1"`
 }
 
 // CreateEntitySchema godoc
@@ -75,7 +75,7 @@ type RelationshipSchemaResponse struct {
 func (h *SchemaHandler) CreateEntitySchema(w http.ResponseWriter, r *http.Request) {
 	var req EntitySchemaRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		middleware.SendValidationError(w, r, "invalid request body", map[string]interface{}{
+		middleware.SendValidationError(w, r, "invalid request body", map[string]any{
 			"error": err.Error(),
 		})
 		return
@@ -162,7 +162,7 @@ func (h *SchemaHandler) UpdateEntitySchema(w http.ResponseWriter, r *http.Reques
 
 	var req EntitySchemaRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		middleware.SendValidationError(w, r, "invalid request body", map[string]interface{}{
+		middleware.SendValidationError(w, r, "invalid request body", map[string]any{
 			"error": err.Error(),
 		})
 		return
@@ -262,7 +262,7 @@ func (h *SchemaHandler) ListEntitySchemas(w http.ResponseWriter, r *http.Request
 func (h *SchemaHandler) CreateRelationshipSchema(w http.ResponseWriter, r *http.Request) {
 	var req RelationshipSchemaRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		middleware.SendValidationError(w, r, "invalid request body", map[string]interface{}{
+		middleware.SendValidationError(w, r, "invalid request body", map[string]any{
 			"error": err.Error(),
 		})
 		return
@@ -291,7 +291,7 @@ func (h *SchemaHandler) CreateRelationshipSchema(w http.ResponseWriter, r *http.
 		req.ToEntityType,
 		req.Cardinality,
 	)
-	
+
 	if req.Properties != nil {
 		schema.Properties = req.Properties
 	}
@@ -364,7 +364,7 @@ func (h *SchemaHandler) UpdateRelationshipSchema(w http.ResponseWriter, r *http.
 
 	var req RelationshipSchemaRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		middleware.SendValidationError(w, r, "invalid request body", map[string]interface{}{
+		middleware.SendValidationError(w, r, "invalid request body", map[string]any{
 			"error": err.Error(),
 		})
 		return

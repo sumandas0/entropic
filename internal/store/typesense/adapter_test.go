@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sumandas0/entropic/internal/models"
-	"github.com/sumandas0/entropic/internal/store/testutils"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/sumandas0/entropic/internal/models"
+	"github.com/sumandas0/entropic/internal/store/testutils"
 )
 
 var (
@@ -19,7 +19,7 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	
+
 	var err error
 	testContainer, err = testutils.SetupTestTypesense()
 	if err != nil {
@@ -46,17 +46,17 @@ func TestTypesenseStore_IndexEntity(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("IndexEntity_Basic", func(t *testing.T) {
-		
+
 		entity := &models.Entity{
 			ID:         uuid.New(),
 			EntityType: "user",
 			URN:        "test:user:" + uuid.New().String(),
-			Properties: map[string]interface{}{
-				"name":        "Test User",
-				"email":       "test@example.com",
-				"age":         30,
-				"tags":        []string{"test", "user"},
-				"active":      true,
+			Properties: map[string]any{
+				"name":   "Test User",
+				"email":  "test@example.com",
+				"age":    30,
+				"tags":   []string{"test", "user"},
+				"active": true,
 			},
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
@@ -91,7 +91,7 @@ func TestTypesenseStore_IndexEntity(t *testing.T) {
 	})
 
 	t.Run("IndexEntity_WithVector", func(t *testing.T) {
-		
+
 		embedding := make([]float32, 384)
 		for i := range embedding {
 			embedding[i] = float32(i) / 384.0
@@ -101,7 +101,7 @@ func TestTypesenseStore_IndexEntity(t *testing.T) {
 			ID:         uuid.New(),
 			EntityType: "document",
 			URN:        "test:document:" + uuid.New().String(),
-			Properties: map[string]interface{}{
+			Properties: map[string]any{
 				"title":     "Vector Document",
 				"content":   "This is a document with vector embedding",
 				"embedding": embedding,
@@ -127,19 +127,19 @@ func TestTypesenseStore_IndexEntity(t *testing.T) {
 		assert.Greater(t, len(results.Hits), 0)
 
 		if len(results.Hits) > 0 {
-			
+
 			assert.Equal(t, entity.ID, results.Hits[0].ID)
 			assert.Greater(t, results.Hits[0].Score, float32(0.9))
 		}
 	})
 
 	t.Run("IndexEntity_Update", func(t *testing.T) {
-		
+
 		entity := &models.Entity{
 			ID:         uuid.New(),
 			EntityType: "user",
 			URN:        "test:user:update-" + uuid.New().String(),
-			Properties: map[string]interface{}{
+			Properties: map[string]any{
 				"name":  "Original Name",
 				"email": "original@example.com",
 			},
@@ -167,7 +167,7 @@ func TestTypesenseStore_IndexEntity(t *testing.T) {
 
 		results, err := testStore.Search(ctx, query)
 		require.NoError(t, err)
-		
+
 		found := false
 		for _, hit := range results.Hits {
 			if hit.ID == entity.ID {
@@ -181,25 +181,25 @@ func TestTypesenseStore_IndexEntity(t *testing.T) {
 	})
 
 	t.Run("IndexEntity_ComplexProperties", func(t *testing.T) {
-		
+
 		entity := &models.Entity{
 			ID:         uuid.New(),
 			EntityType: "product",
 			URN:        "test:product:" + uuid.New().String(),
-			Properties: map[string]interface{}{
+			Properties: map[string]any{
 				"name":        "Complex Product",
 				"description": "A product with complex properties",
 				"price":       99.99,
 				"categories":  []string{"electronics", "computers", "laptops"},
-				"specs": map[string]interface{}{
-					"cpu":    "Intel i7",
-					"ram":    16,
-					"storage": map[string]interface{}{
+				"specs": map[string]any{
+					"cpu": "Intel i7",
+					"ram": 16,
+					"storage": map[string]any{
 						"type":     "SSD",
 						"capacity": "512GB",
 					},
 				},
-				"reviews": []map[string]interface{}{
+				"reviews": []map[string]any{
 					{
 						"user":   "user1",
 						"rating": 5,
@@ -236,12 +236,12 @@ func TestTypesenseStore_DeleteEntity(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("DeleteEntity_Success", func(t *testing.T) {
-		
+
 		entity := &models.Entity{
 			ID:         uuid.New(),
 			EntityType: "user",
 			URN:        "test:user:delete-" + uuid.New().String(),
-			Properties: map[string]interface{}{
+			Properties: map[string]any{
 				"name": "To Be Deleted",
 			},
 			CreatedAt: time.Now(),
@@ -276,9 +276,9 @@ func TestTypesenseStore_DeleteEntity(t *testing.T) {
 	})
 
 	t.Run("DeleteEntity_NonExistent", func(t *testing.T) {
-		
+
 		err := testStore.DeleteEntityIndex(ctx, "user", uuid.New())
-		
+
 		assert.NoError(t, err)
 	})
 }
@@ -299,7 +299,7 @@ func TestTypesenseStore_Search(t *testing.T) {
 		require.NoError(t, err)
 		assert.Greater(t, len(results.Hits), 0)
 		assert.Greater(t, results.TotalHits, int64(0))
-		
+
 		for _, hit := range results.Hits {
 			assert.Equal(t, "user", hit.EntityType)
 			assert.Contains(t, fmt.Sprintf("%v", hit.Properties["name"]), "John")
@@ -310,8 +310,8 @@ func TestTypesenseStore_Search(t *testing.T) {
 		query := &models.SearchQuery{
 			EntityTypes: []string{"user"},
 			Query:       "*",
-			Filters: map[string]interface{}{
-				"age": map[string]interface{}{
+			Filters: map[string]any{
+				"age": map[string]any{
 					">=": 25,
 					"<=": 35,
 				},
@@ -321,7 +321,7 @@ func TestTypesenseStore_Search(t *testing.T) {
 
 		results, err := testStore.Search(ctx, query)
 		require.NoError(t, err)
-		
+
 		for _, hit := range results.Hits {
 			age, ok := hit.Properties["age"].(float64)
 			assert.True(t, ok, "age should be a number")
@@ -373,7 +373,7 @@ func TestTypesenseStore_Search(t *testing.T) {
 	})
 
 	t.Run("Search_Pagination", func(t *testing.T) {
-		
+
 		query1 := &models.SearchQuery{
 			EntityTypes: []string{"user"},
 			Query:       "*",
@@ -407,13 +407,13 @@ func TestTypesenseStore_Search(t *testing.T) {
 	})
 
 	t.Run("Search_MultipleEntityTypes", func(t *testing.T) {
-		
+
 		for i := 0; i < 3; i++ {
 			product := &models.Entity{
 				ID:         uuid.New(),
 				EntityType: "product",
 				URN:        fmt.Sprintf("test:product:search-%d", i),
-				Properties: map[string]interface{}{
+				Properties: map[string]any{
 					"name":  fmt.Sprintf("Product %d", i),
 					"price": float64(i * 10),
 				},
@@ -458,7 +458,7 @@ func TestTypesenseStore_Search(t *testing.T) {
 
 		results, err := testStore.Search(ctx, query)
 		require.NoError(t, err)
-		
+
 		for _, hit := range results.Hits {
 			assert.NotEmpty(t, hit.URN, "URN should be included when requested")
 		}
@@ -471,7 +471,7 @@ func TestTypesenseStore_VectorSearch(t *testing.T) {
 	setupVectorTestData(t, ctx)
 
 	t.Run("VectorSearch_Basic", func(t *testing.T) {
-		
+
 		queryVector := make([]float32, 384)
 		for i := range queryVector {
 			queryVector[i] = float32(i) / 384.0
@@ -504,14 +504,14 @@ func TestTypesenseStore_VectorSearch(t *testing.T) {
 			Vector:      queryVector,
 			VectorField: "embedding",
 			TopK:        10,
-			Filters: map[string]interface{}{
+			Filters: map[string]any{
 				"category": "technical",
 			},
 		}
 
 		results, err := testStore.VectorSearch(ctx, query)
 		require.NoError(t, err)
-		
+
 		for _, hit := range results.Hits {
 			assert.Equal(t, "technical", hit.Properties["category"])
 		}
@@ -533,7 +533,7 @@ func TestTypesenseStore_VectorSearch(t *testing.T) {
 
 		results, err := testStore.VectorSearch(ctx, query)
 		require.NoError(t, err)
-		
+
 		for _, hit := range results.Hits {
 			assert.GreaterOrEqual(t, hit.Score, float32(0.5))
 		}
@@ -555,7 +555,7 @@ func TestTypesenseStore_VectorSearch(t *testing.T) {
 
 		results, err := testStore.VectorSearch(ctx, query)
 		require.NoError(t, err)
-		
+
 		for _, hit := range results.Hits {
 			assert.NotNil(t, hit.Vector)
 			assert.Len(t, hit.Vector, 384)
@@ -572,7 +572,7 @@ func TestTypesenseStore_CollectionManagement(t *testing.T) {
 			ID:         uuid.New(),
 			EntityType: "test_collection_" + uuid.New().String()[:8],
 			URN:        "test:collection:" + uuid.New().String(),
-			Properties: map[string]interface{}{
+			Properties: map[string]any{
 				"name": "Test Collection Entity",
 			},
 			CreatedAt: time.Now(),
@@ -583,7 +583,7 @@ func TestTypesenseStore_CollectionManagement(t *testing.T) {
 		require.NoError(t, err)
 
 		time.Sleep(100 * time.Millisecond)
-		
+
 		query := &models.SearchQuery{
 			EntityTypes: []string{entity.EntityType},
 			Query:       "*",
@@ -603,7 +603,7 @@ func TestTypesenseStore_CollectionManagement(t *testing.T) {
 				ID:         uuid.New(),
 				EntityType: entityType,
 				URN:        fmt.Sprintf("test:temp:%d", i),
-				Properties: map[string]interface{}{
+				Properties: map[string]any{
 					"name":  fmt.Sprintf("Temp Entity %d", i),
 					"index": i,
 				},
@@ -613,12 +613,12 @@ func TestTypesenseStore_CollectionManagement(t *testing.T) {
 			err := testStore.IndexEntity(ctx, entity)
 			require.NoError(t, err)
 		}
-		
+
 		time.Sleep(200 * time.Millisecond)
 
 		err := testStore.DeleteCollection(ctx, entityType)
 		require.NoError(t, err)
-		
+
 		time.Sleep(200 * time.Millisecond)
 
 		query := &models.SearchQuery{
@@ -638,7 +638,7 @@ func TestTypesenseStore_ErrorHandling(t *testing.T) {
 
 	t.Run("Search_InvalidEntityType", func(t *testing.T) {
 		query := &models.SearchQuery{
-			EntityTypes: []string{}, 
+			EntityTypes: []string{},
 			Query:       "test",
 			Limit:       10,
 		}
@@ -648,7 +648,7 @@ func TestTypesenseStore_ErrorHandling(t *testing.T) {
 	})
 
 	t.Run("VectorSearch_InvalidDimensions", func(t *testing.T) {
-		
+
 		embedding := make([]float32, 384)
 		for i := range embedding {
 			embedding[i] = float32(i) / 384.0
@@ -658,7 +658,7 @@ func TestTypesenseStore_ErrorHandling(t *testing.T) {
 			ID:         uuid.New(),
 			EntityType: "document",
 			URN:        "test:document:wrong-dim",
-			Properties: map[string]interface{}{
+			Properties: map[string]any{
 				"title":     "Test Doc",
 				"embedding": embedding,
 			},
@@ -670,7 +670,7 @@ func TestTypesenseStore_ErrorHandling(t *testing.T) {
 		require.NoError(t, err)
 		time.Sleep(100 * time.Millisecond)
 
-		wrongVector := make([]float32, 128) 
+		wrongVector := make([]float32, 128)
 		query := &models.VectorQuery{
 			EntityTypes: []string{"document"},
 			Vector:      wrongVector,
@@ -686,13 +686,13 @@ func TestTypesenseStore_ErrorHandling(t *testing.T) {
 		query := &models.SearchQuery{
 			EntityTypes: []string{"user"},
 			Query:       "*",
-			Limit:       0, 
+			Limit:       0,
 		}
 
 		_, err := testStore.Search(ctx, query)
 		assert.Error(t, err)
 
-		query.Limit = 1001 
+		query.Limit = 1001
 		_, err = testStore.Search(ctx, query)
 		assert.Error(t, err)
 	})
@@ -712,7 +712,7 @@ func TestTypesenseStore_ConcurrentOperations(t *testing.T) {
 					ID:         uuid.New(),
 					EntityType: "user",
 					URN:        fmt.Sprintf("test:concurrent:%d-%s", index, uuid.New().String()),
-					Properties: map[string]interface{}{
+					Properties: map[string]any{
 						"name":  fmt.Sprintf("Concurrent User %d", index),
 						"index": index,
 					},
@@ -745,12 +745,12 @@ func TestTypesenseStore_ConcurrentOperations(t *testing.T) {
 	})
 
 	t.Run("Concurrent_SearchOperations", func(t *testing.T) {
-		
+
 		entity := &models.Entity{
 			ID:         uuid.New(),
 			EntityType: "user",
 			URN:        "test:concurrent:search",
-			Properties: map[string]interface{}{
+			Properties: map[string]any{
 				"name": "Search Target",
 			},
 			CreatedAt: time.Now(),
@@ -800,13 +800,13 @@ func TestTypesenseStore_ConcurrentOperations(t *testing.T) {
 
 func setupSearchTestData(t *testing.T, ctx context.Context) {
 	departments := []string{"engineering", "sales", "marketing", "hr"}
-	
+
 	for i := 0; i < 20; i++ {
 		entity := &models.Entity{
 			ID:         uuid.New(),
 			EntityType: "user",
 			URN:        fmt.Sprintf("test:user:search-%d", i),
-			Properties: map[string]interface{}{
+			Properties: map[string]any{
 				"name":       fmt.Sprintf("John Doe %d", i),
 				"email":      fmt.Sprintf("john.doe%d@example.com", i),
 				"age":        20 + (i % 30),
@@ -827,12 +827,12 @@ func setupSearchTestData(t *testing.T, ctx context.Context) {
 
 func setupVectorTestData(t *testing.T, ctx context.Context) {
 	categories := []string{"technical", "business", "general"}
-	
+
 	for i := 0; i < 10; i++ {
-		
+
 		embedding := make([]float32, 384)
 		for j := range embedding {
-			
+
 			embedding[j] = float32(j+i) / (384.0 + float32(i))
 		}
 
@@ -840,7 +840,7 @@ func setupVectorTestData(t *testing.T, ctx context.Context) {
 			ID:         uuid.New(),
 			EntityType: "document",
 			URN:        fmt.Sprintf("test:document:vector-%d", i),
-			Properties: map[string]interface{}{
+			Properties: map[string]any{
 				"title":     fmt.Sprintf("Document %d", i),
 				"content":   fmt.Sprintf("This is the content of document %d", i),
 				"category":  categories[i%len(categories)],

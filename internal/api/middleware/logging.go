@@ -40,7 +40,7 @@ type StructuredLoggerEntry struct {
 	request *http.Request
 }
 
-func (l *StructuredLoggerEntry) Write(status, bytes int, header http.Header, elapsed time.Duration, extra interface{}) {
+func (l *StructuredLoggerEntry) Write(status, bytes int, header http.Header, elapsed time.Duration, extra any) {
 	fmt.Printf("[INFO] %s \"%s %s\" %d %d %v\n",
 		time.Now().Format(time.RFC3339),
 		l.request.Method,
@@ -51,7 +51,7 @@ func (l *StructuredLoggerEntry) Write(status, bytes int, header http.Header, ela
 	)
 }
 
-func (l *StructuredLoggerEntry) Panic(v interface{}, stack []byte) {
+func (l *StructuredLoggerEntry) Panic(v any, stack []byte) {
 	fmt.Printf("[ERROR] %s PANIC: %v\nStack:\n%s\n",
 		time.Now().Format(time.RFC3339),
 		v,

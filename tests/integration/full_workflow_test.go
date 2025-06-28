@@ -5,11 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sumandas0/entropic/internal/models"
-	"github.com/sumandas0/entropic/tests/testhelpers"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/sumandas0/entropic/internal/models"
+	"github.com/sumandas0/entropic/tests/testhelpers"
 )
 
 func TestFullWorkflow_EntityLifecycle(t *testing.T) {
@@ -52,11 +52,11 @@ func TestFullWorkflow_EntityLifecycle(t *testing.T) {
 	}
 	assert.True(t, found, "Created entity should be found in search results")
 
-	updatedProperties := map[string]interface{}{
+	updatedProperties := map[string]any{
 		"name":        "john-doe-updated",
 		"description": "Updated user description",
 		"tags":        []string{"updated", "test", "user"},
-		"metadata": map[string]interface{}{
+		"metadata": map[string]any{
 			"updated_by": "test",
 			"version":    2,
 		},
@@ -152,7 +152,7 @@ func TestFullWorkflow_RelationshipLifecycle(t *testing.T) {
 	testhelpers.AssertRelationEqual(t, relation, retrievedRelation)
 
 	if relationSchema.DenormalizationConfig.DenormalizeToFrom != nil {
-		
+
 		retrievedOrg, err := env.Engine.GetEntity(ctx, org.EntityType, org.ID)
 		require.NoError(t, err)
 
@@ -216,7 +216,7 @@ func TestFullWorkflow_VectorSearchLifecycle(t *testing.T) {
 
 	vectorQuery := &models.VectorQuery{
 		EntityTypes: []string{"document"},
-		Vector:      embedding1, 
+		Vector:      embedding1,
 		VectorField: "embedding",
 		TopK:        5,
 	}
@@ -234,7 +234,7 @@ func TestFullWorkflow_VectorSearchLifecycle(t *testing.T) {
 		ID:         doc1.ID,
 		EntityType: doc1.EntityType,
 		URN:        doc1.URN,
-		Properties: map[string]interface{}{
+		Properties: map[string]any{
 			"name":        doc1.Properties["name"],
 			"description": "Updated document with new embedding",
 			"embedding":   newEmbedding,
@@ -280,7 +280,7 @@ func TestFullWorkflow_ConcurrentOperations(t *testing.T) {
 		go func(index int) {
 			entity := testhelpers.CreateTestEntity("user", testhelpers.RandomString(8))
 			entity.URN = testhelpers.RandomString(32)
-			
+
 			err := env.Engine.CreateEntity(ctx, entity)
 			if err != nil {
 				errorChan <- err
@@ -333,8 +333,8 @@ func TestFullWorkflow_TransactionRollback(t *testing.T) {
 		ID:         uuid.New(),
 		EntityType: "user",
 		URN:        "test:user:invalid",
-		Properties: map[string]interface{}{
-			"name": 123, 
+		Properties: map[string]any{
+			"name": 123,
 		},
 	}
 
@@ -396,7 +396,7 @@ func TestFullWorkflow_SchemaEvolution(t *testing.T) {
 		ID:         uuid.New(),
 		EntityType: "user",
 		URN:        "test:user:new-schema",
-		Properties: map[string]interface{}{
+		Properties: map[string]any{
 			"name":        "New User",
 			"description": "User with new schema",
 			"email":       "user@example.com",

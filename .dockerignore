@@ -4,8 +4,9 @@
 
 # Documentation
 README.md
-docs/
+# docs/ # Need this for swagger docs
 *.md
+!docs/docs.go
 
 # Development files
 .env

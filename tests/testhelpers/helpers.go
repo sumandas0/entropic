@@ -59,8 +59,8 @@ func SetupTestContainers(t *testing.T, ctx context.Context) *TestContainers {
 		Image:        "typesense/typesense:26.0",
 		ExposedPorts: []string{"8108/tcp"},
 		Env: map[string]string{
-			"TYPESENSE_DATA_DIR": "/data",
-			"TYPESENSE_API_KEY":  "test-key",
+			"TYPESENSE_DATA_DIR":    "/data",
+			"TYPESENSE_API_KEY":     "test-key",
 			"TYPESENSE_ENABLE_CORS": "true",
 		},
 		Cmd: []string{
@@ -262,11 +262,11 @@ func CreateTestRelationshipSchema(relationshipType, fromType, toType string) *mo
 }
 
 func CreateTestEntity(entityType, name string) *models.Entity {
-	properties := map[string]interface{}{
+	properties := map[string]any{
 		"name":        name,
 		"description": fmt.Sprintf("Test %s entity", name),
 		"tags":        []string{"test", "example"},
-		"metadata": map[string]interface{}{
+		"metadata": map[string]any{
 			"created_by": "test",
 			"test_flag":  true,
 		},
@@ -283,9 +283,9 @@ func CreateTestEntityWithEmbedding(entityType, name string, embedding []float32)
 }
 
 func CreateTestRelation(relationType string, from, to *models.Entity) *models.Relation {
-	properties := map[string]interface{}{
+	properties := map[string]any{
 		"weight": 1.0,
-		"metadata": map[string]interface{}{
+		"metadata": map[string]any{
 			"created_by": "test",
 		},
 	}

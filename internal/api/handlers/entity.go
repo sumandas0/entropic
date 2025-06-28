@@ -6,11 +6,11 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/sumandas0/entropic/internal/api/middleware"
 	"github.com/sumandas0/entropic/internal/core"
 	"github.com/sumandas0/entropic/internal/models"
-	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 )
 
 type EntityHandler struct {
@@ -24,18 +24,18 @@ func NewEntityHandler(engine *core.Engine) *EntityHandler {
 }
 
 type EntityRequest struct {
-	URN        string                 `json:"urn" validate:"required" example:"urn:entropic:user:123"`
-	Properties map[string]interface{} `json:"properties" validate:"required" swaggertype:"object"`
+	URN        string         `json:"urn" validate:"required" example:"urn:entropic:user:123"`
+	Properties map[string]any `json:"properties" validate:"required" swaggertype:"object"`
 }
 
 type EntityResponse struct {
-	ID         uuid.UUID              `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
-	EntityType string                 `json:"entity_type" example:"user"`
-	URN        string                 `json:"urn" example:"urn:entropic:user:123"`
-	Properties map[string]interface{} `json:"properties" swaggertype:"object"`
-	CreatedAt  time.Time              `json:"created_at" example:"2023-01-01T00:00:00Z"`
-	UpdatedAt  time.Time              `json:"updated_at" example:"2023-01-01T00:00:00Z"`
-	Version    int                    `json:"version" example:"1"`
+	ID         uuid.UUID      `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	EntityType string         `json:"entity_type" example:"user"`
+	URN        string         `json:"urn" example:"urn:entropic:user:123"`
+	Properties map[string]any `json:"properties" swaggertype:"object"`
+	CreatedAt  time.Time      `json:"created_at" example:"2023-01-01T00:00:00Z"`
+	UpdatedAt  time.Time      `json:"updated_at" example:"2023-01-01T00:00:00Z"`
+	Version    int            `json:"version" example:"1"`
 }
 
 type EntityListResponse struct {
@@ -67,7 +67,7 @@ func (h *EntityHandler) CreateEntity(w http.ResponseWriter, r *http.Request) {
 
 	var req EntityRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		middleware.SendValidationError(w, r, "invalid request body", map[string]interface{}{
+		middleware.SendValidationError(w, r, "invalid request body", map[string]any{
 			"error": err.Error(),
 		})
 		return
@@ -106,7 +106,7 @@ func (h *EntityHandler) GetEntity(w http.ResponseWriter, r *http.Request) {
 
 	entityID, err := uuid.Parse(entityIDStr)
 	if err != nil {
-		middleware.SendValidationError(w, r, "invalid entity ID", map[string]interface{}{
+		middleware.SendValidationError(w, r, "invalid entity ID", map[string]any{
 			"entity_id": entityIDStr,
 		})
 		return
@@ -146,7 +146,7 @@ func (h *EntityHandler) UpdateEntity(w http.ResponseWriter, r *http.Request) {
 
 	entityID, err := uuid.Parse(entityIDStr)
 	if err != nil {
-		middleware.SendValidationError(w, r, "invalid entity ID", map[string]interface{}{
+		middleware.SendValidationError(w, r, "invalid entity ID", map[string]any{
 			"entity_id": entityIDStr,
 		})
 		return
@@ -154,7 +154,7 @@ func (h *EntityHandler) UpdateEntity(w http.ResponseWriter, r *http.Request) {
 
 	var req EntityRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		middleware.SendValidationError(w, r, "invalid request body", map[string]interface{}{
+		middleware.SendValidationError(w, r, "invalid request body", map[string]any{
 			"error": err.Error(),
 		})
 		return
@@ -203,7 +203,7 @@ func (h *EntityHandler) DeleteEntity(w http.ResponseWriter, r *http.Request) {
 
 	entityID, err := uuid.Parse(entityIDStr)
 	if err != nil {
-		middleware.SendValidationError(w, r, "invalid entity ID", map[string]interface{}{
+		middleware.SendValidationError(w, r, "invalid entity ID", map[string]any{
 			"entity_id": entityIDStr,
 		})
 		return
@@ -262,7 +262,7 @@ func (h *EntityHandler) ListEntities(w http.ResponseWriter, r *http.Request) {
 
 	response := EntityListResponse{
 		Entities: responses,
-		Total:    len(responses), 
+		Total:    len(responses),
 		Limit:    limit,
 		Offset:   offset,
 	}
@@ -291,7 +291,7 @@ func (h *EntityHandler) GetEntityRelations(w http.ResponseWriter, r *http.Reques
 
 	entityID, err := uuid.Parse(entityIDStr)
 	if err != nil {
-		middleware.SendValidationError(w, r, "invalid entity ID", map[string]interface{}{
+		middleware.SendValidationError(w, r, "invalid entity ID", map[string]any{
 			"entity_id": entityIDStr,
 		})
 		return
@@ -333,7 +333,7 @@ func (h *EntityHandler) GetEntityRelations(w http.ResponseWriter, r *http.Reques
 func (h *EntityHandler) Search(w http.ResponseWriter, r *http.Request) {
 	var query models.SearchQuery
 	if err := json.NewDecoder(r.Body).Decode(&query); err != nil {
-		middleware.SendValidationError(w, r, "invalid search query", map[string]interface{}{
+		middleware.SendValidationError(w, r, "invalid search query", map[string]any{
 			"error": err.Error(),
 		})
 		return
@@ -377,7 +377,7 @@ func (h *EntityHandler) Search(w http.ResponseWriter, r *http.Request) {
 func (h *EntityHandler) VectorSearch(w http.ResponseWriter, r *http.Request) {
 	var query models.VectorQuery
 	if err := json.NewDecoder(r.Body).Decode(&query); err != nil {
-		middleware.SendValidationError(w, r, "invalid vector search query", map[string]interface{}{
+		middleware.SendValidationError(w, r, "invalid vector search query", map[string]any{
 			"error": err.Error(),
 		})
 		return

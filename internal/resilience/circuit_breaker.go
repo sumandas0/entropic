@@ -62,11 +62,11 @@ func (cbm *CircuitBreakerManager) GetBreaker(serviceName string) *gobreaker.Circ
 			return counts.ConsecutiveFailures >= cbm.config.FailureThreshold
 		},
 		OnStateChange: func(name string, from gobreaker.State, to gobreaker.State) {
-			
+
 			fmt.Printf("Circuit breaker %s changed from %s to %s\n", name, from, to)
 		},
 		IsSuccessful: func(err error) bool {
-			
+
 			return err == nil
 		},
 	}
@@ -77,7 +77,7 @@ func (cbm *CircuitBreakerManager) GetBreaker(serviceName string) *gobreaker.Circ
 	return breaker
 }
 
-func (cbm *CircuitBreakerManager) Execute(serviceName string, fn func() (interface{}, error)) (interface{}, error) {
+func (cbm *CircuitBreakerManager) Execute(serviceName string, fn func() (any, error)) (any, error) {
 	if !cbm.config.Enabled {
 		return fn()
 	}
@@ -90,7 +90,7 @@ func (cbm *CircuitBreakerManager) Execute(serviceName string, fn func() (interfa
 	return breaker.Execute(fn)
 }
 
-func (cbm *CircuitBreakerManager) ExecuteWithContext(ctx context.Context, serviceName string, fn func(context.Context) (interface{}, error)) (interface{}, error) {
+func (cbm *CircuitBreakerManager) ExecuteWithContext(ctx context.Context, serviceName string, fn func(context.Context) (any, error)) (any, error) {
 	if !cbm.config.Enabled {
 		return fn(ctx)
 	}
@@ -106,7 +106,7 @@ func (cbm *CircuitBreakerManager) ExecuteWithContext(ctx context.Context, servic
 	default:
 	}
 
-	return breaker.Execute(func() (interface{}, error) {
+	return breaker.Execute(func() (any, error) {
 		return fn(ctx)
 	})
 }
@@ -147,7 +147,7 @@ func NewDatabaseCircuitBreaker(manager *CircuitBreakerManager) *DatabaseCircuitB
 	}
 }
 
-func (dcb *DatabaseCircuitBreaker) Execute(ctx context.Context, operation string, fn func(context.Context) (interface{}, error)) (interface{}, error) {
+func (dcb *DatabaseCircuitBreaker) Execute(ctx context.Context, operation string, fn func(context.Context) (any, error)) (any, error) {
 	serviceName := fmt.Sprintf("database-%s", operation)
 	return dcb.manager.ExecuteWithContext(ctx, serviceName, fn)
 }
@@ -162,7 +162,7 @@ func NewSearchCircuitBreaker(manager *CircuitBreakerManager) *SearchCircuitBreak
 	}
 }
 
-func (scb *SearchCircuitBreaker) Execute(ctx context.Context, searchType string, fn func(context.Context) (interface{}, error)) (interface{}, error) {
+func (scb *SearchCircuitBreaker) Execute(ctx context.Context, searchType string, fn func(context.Context) (any, error)) (any, error) {
 	serviceName := fmt.Sprintf("search-%s", searchType)
 	return scb.manager.ExecuteWithContext(ctx, serviceName, fn)
 }
@@ -177,7 +177,7 @@ func NewCacheCircuitBreaker(manager *CircuitBreakerManager) *CacheCircuitBreaker
 	}
 }
 
-func (ccb *CacheCircuitBreaker) Execute(ctx context.Context, operation string, fn func(context.Context) (interface{}, error)) (interface{}, error) {
+func (ccb *CacheCircuitBreaker) Execute(ctx context.Context, operation string, fn func(context.Context) (any, error)) (any, error) {
 	serviceName := fmt.Sprintf("cache-%s", operation)
 	return ccb.manager.ExecuteWithContext(ctx, serviceName, fn)
 }
@@ -192,7 +192,7 @@ func NewExternalServiceCircuitBreaker(manager *CircuitBreakerManager) *ExternalS
 	}
 }
 
-func (escb *ExternalServiceCircuitBreaker) Execute(ctx context.Context, serviceName string, fn func(context.Context) (interface{}, error)) (interface{}, error) {
+func (escb *ExternalServiceCircuitBreaker) Execute(ctx context.Context, serviceName string, fn func(context.Context) (any, error)) (any, error) {
 	return escb.manager.ExecuteWithContext(ctx, serviceName, fn)
 }
 
@@ -223,19 +223,19 @@ func (cbm *CircuitBreakerManager) CircuitBreakerMiddleware(serviceName string) f
 				return
 			}
 
-			_, err := cbm.ExecuteWithContext(r.Context(), serviceName, func(ctx context.Context) (interface{}, error) {
-				
+			_, err := cbm.ExecuteWithContext(r.Context(), serviceName, func(ctx context.Context) (any, error) {
+
 				recorder := &responseRecorder{
 					ResponseWriter: w,
 					statusCode:     200,
 				}
-				
+
 				next.ServeHTTP(recorder, r.WithContext(ctx))
 
 				if recorder.statusCode >= 500 {
 					return nil, fmt.Errorf("HTTP %d", recorder.statusCode)
 				}
-				
+
 				return nil, nil
 			})
 
@@ -267,27 +267,27 @@ func NewCircuitBreakerHealthCheck(manager *CircuitBreakerManager) *CircuitBreake
 	}
 }
 
-func (cbhc *CircuitBreakerHealthCheck) Check(ctx context.Context) map[string]interface{} {
+func (cbhc *CircuitBreakerHealthCheck) Check(ctx context.Context) map[string]any {
 	cbhc.manager.mutex.RLock()
 	defer cbhc.manager.mutex.RUnlock()
 
-	status := make(map[string]interface{})
-	
+	status := make(map[string]any)
+
 	for name, breaker := range cbhc.manager.breakers {
 		state := breaker.State()
 		counts := breaker.Counts()
-		
-		status[name] = map[string]interface{}{
-			"state":               state.String(),
-			"requests":            counts.Requests,
-			"total_successes":     counts.TotalSuccesses,
-			"total_failures":      counts.TotalFailures,
+
+		status[name] = map[string]any{
+			"state":                 state.String(),
+			"requests":              counts.Requests,
+			"total_successes":       counts.TotalSuccesses,
+			"total_failures":        counts.TotalFailures,
 			"consecutive_successes": counts.ConsecutiveSuccesses,
 			"consecutive_failures":  counts.ConsecutiveFailures,
 		}
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"circuit_breakers": status,
 		"enabled":          cbhc.manager.config.Enabled,
 	}

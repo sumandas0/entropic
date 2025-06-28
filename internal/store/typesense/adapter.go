@@ -54,7 +54,7 @@ func (s *TypesenseStore) IndexEntity(ctx context.Context, entity *models.Entity)
 }
 
 func (s *TypesenseStore) UpdateEntityIndex(ctx context.Context, entity *models.Entity) error {
-	
+
 	return s.IndexEntity(ctx, entity)
 }
 
@@ -63,9 +63,9 @@ func (s *TypesenseStore) DeleteEntityIndex(ctx context.Context, entityType strin
 
 	_, err := s.client.Collection(collectionName).Document(id.String()).Delete(ctx)
 	if err != nil {
-		
+
 		if strings.Contains(err.Error(), "not found") {
-			return nil 
+			return nil
 		}
 		return fmt.Errorf("failed to delete entity from index: %w", err)
 	}
@@ -86,7 +86,7 @@ func (s *TypesenseStore) Search(ctx context.Context, query *models.SearchQuery) 
 
 	searchParams := &api.SearchCollectionParams{
 		Q:       query.Query,
-		QueryBy: "*", 
+		QueryBy: "*",
 		Page:    pointer.Int(query.Offset/query.Limit + 1),
 		PerPage: pointer.Int(query.Limit),
 	}
@@ -130,12 +130,12 @@ func (s *TypesenseStore) VectorSearch(ctx context.Context, query *models.VectorQ
 	vectorStr := s.vectorToString(query.Vector)
 
 	searchParams := &api.SearchCollectionParams{
-		Q:             "*", 
+		Q:             "*",
 		VectorQuery:   pointer.String(fmt.Sprintf("%s:(%s, k:%d)", query.VectorField, vectorStr, query.TopK)),
 		Page:          pointer.Int(1),
 		PerPage:       pointer.Int(query.TopK),
 		IncludeFields: pointer.String("*"),
-		ExcludeFields: pointer.String(""), 
+		ExcludeFields: pointer.String(""),
 	}
 
 	if len(query.Filters) > 0 {
@@ -206,9 +206,9 @@ func (s *TypesenseStore) CreateCollection(ctx context.Context, entityType string
 
 	_, err := s.client.Collections().Create(ctx, collectionSchema)
 	if err != nil {
-		
+
 		if strings.Contains(err.Error(), "already exists") {
-			
+
 			return s.UpdateCollection(ctx, entityType, schema)
 		}
 		return fmt.Errorf("failed to create collection: %w", err)
@@ -223,7 +223,7 @@ func (s *TypesenseStore) UpdateCollection(ctx context.Context, entityType string
 	existingCollection, err := s.client.Collection(collectionName).Retrieve(ctx)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
-			
+
 			return s.CreateCollection(ctx, entityType, schema)
 		}
 		return fmt.Errorf("failed to retrieve collection: %w", err)
@@ -257,7 +257,7 @@ func (s *TypesenseStore) DeleteCollection(ctx context.Context, entityType string
 	_, err := s.client.Collection(collectionName).Delete(ctx)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
-			return nil 
+			return nil
 		}
 		return fmt.Errorf("failed to delete collection: %w", err)
 	}
@@ -275,15 +275,15 @@ func (s *TypesenseStore) Close() error {
 }
 
 func (s *TypesenseStore) getCollectionName(entityType string) string {
-	
+
 	name := strings.ToLower(entityType)
 	name = strings.ReplaceAll(name, " ", "_")
 	name = strings.ReplaceAll(name, "-", "_")
 	return "entity_" + name
 }
 
-func (s *TypesenseStore) flattenEntity(entity *models.Entity) map[string]interface{} {
-	doc := make(map[string]interface{})
+func (s *TypesenseStore) flattenEntity(entity *models.Entity) map[string]any {
+	doc := make(map[string]any)
 
 	doc["id"] = entity.ID.String()
 	doc["urn"] = entity.URN
@@ -342,11 +342,11 @@ func (s *TypesenseStore) mapPropertyTypeToTypesense(propType string) string {
 	case "boolean":
 		return "bool"
 	case "datetime":
-		return "int64" 
+		return "int64"
 	case "object":
 		return "object"
 	case "array":
-		return "string[]" 
+		return "string[]"
 	case "vector":
 		return "float[]"
 	default:
@@ -354,7 +354,7 @@ func (s *TypesenseStore) mapPropertyTypeToTypesense(propType string) string {
 	}
 }
 
-func (s *TypesenseStore) buildFilterString(filters map[string]interface{}) string {
+func (s *TypesenseStore) buildFilterString(filters map[string]any) string {
 	var filterParts []string
 
 	for field, value := range filters {
@@ -365,15 +365,15 @@ func (s *TypesenseStore) buildFilterString(filters map[string]interface{}) strin
 			filterParts = append(filterParts, fmt.Sprintf("%s:=%v", field, v))
 		case bool:
 			filterParts = append(filterParts, fmt.Sprintf("%s:=%v", field, v))
-		case []interface{}:
-			
+		case []any:
+
 			values := make([]string, len(v))
 			for i, val := range v {
 				values[i] = fmt.Sprintf("%v", val)
 			}
 			filterParts = append(filterParts, fmt.Sprintf("%s:[%s]", field, strings.Join(values, ",")))
-		case map[string]interface{}:
-			
+		case map[string]any:
+
 			if min, ok := v["min"]; ok {
 				filterParts = append(filterParts, fmt.Sprintf("%s:>=%v", field, min))
 			}
@@ -408,7 +408,7 @@ func (s *TypesenseStore) vectorToString(vector []float32) string {
 	return "[" + strings.Join(strValues, ",") + "]"
 }
 
-func (s *TypesenseStore) convertSearchResult(tsResult *api.SearchResult, query interface{}, searchTime time.Duration) *models.SearchResult {
+func (s *TypesenseStore) convertSearchResult(tsResult *api.SearchResult, query any, searchTime time.Duration) *models.SearchResult {
 	result := &models.SearchResult{
 		Hits:       make([]models.SearchHit, 0, len(*tsResult.Hits)),
 		TotalHits:  int64(*tsResult.Found),
@@ -418,7 +418,7 @@ func (s *TypesenseStore) convertSearchResult(tsResult *api.SearchResult, query i
 
 	for _, tsHit := range *tsResult.Hits {
 		hit := models.SearchHit{
-			Score: float32(1.0), 
+			Score: float32(1.0),
 		}
 
 		if doc := tsHit.Document; doc != nil {
@@ -436,7 +436,7 @@ func (s *TypesenseStore) convertSearchResult(tsResult *api.SearchResult, query i
 				hit.URN = urn
 			}
 
-			hit.Properties = make(map[string]interface{})
+			hit.Properties = make(map[string]any)
 			for key, value := range docMap {
 				if key != "id" && key != "urn" && key != "entity_type" &&
 					key != "created_at" && key != "updated_at" {
@@ -457,7 +457,7 @@ func (s *TypesenseStore) convertSearchResult(tsResult *api.SearchResult, query i
 		}
 
 		if tsHit.VectorDistance != nil {
-			
+
 			hit.Score = float32(1.0 - *tsHit.VectorDistance)
 		}
 
@@ -486,7 +486,7 @@ func (s *TypesenseStore) convertSearchResult(tsResult *api.SearchResult, query i
 }
 
 func (s *TypesenseStore) multiSearch(ctx context.Context, query *models.SearchQuery) (*models.SearchResult, error) {
-	
+
 	searches := make([]api.MultiSearchCollectionParameters, len(query.EntityTypes))
 
 	for i, entityType := range query.EntityTypes {
@@ -553,7 +553,7 @@ func (s *TypesenseStore) multiSearch(ctx context.Context, query *models.SearchQu
 }
 
 func (s *TypesenseStore) multiVectorSearch(ctx context.Context, query *models.VectorQuery) (*models.SearchResult, error) {
-	
+
 	searches := make([]api.MultiSearchCollectionParameters, len(query.EntityTypes))
 	vectorStr := s.vectorToString(query.Vector)
 
@@ -626,7 +626,7 @@ func (s *TypesenseStore) multiVectorSearch(ctx context.Context, query *models.Ve
 }
 
 func (s *TypesenseStore) sortHitsByScore(hits []models.SearchHit) []models.SearchHit {
-	
+
 	n := len(hits)
 	for i := 0; i < n-1; i++ {
 		for j := 0; j < n-i-1; j++ {

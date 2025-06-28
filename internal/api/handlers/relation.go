@@ -5,11 +5,11 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/sumandas0/entropic/internal/api/middleware"
 	"github.com/sumandas0/entropic/internal/core"
 	"github.com/sumandas0/entropic/internal/models"
-	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 )
 
 type RelationHandler struct {
@@ -23,24 +23,24 @@ func NewRelationHandler(engine *core.Engine) *RelationHandler {
 }
 
 type RelationRequest struct {
-	RelationType     string                 `json:"relation_type" validate:"required" example:"owns"`
-	FromEntityID     uuid.UUID              `json:"from_entity_id" validate:"required" example:"550e8400-e29b-41d4-a716-446655440000"`
-	FromEntityType   string                 `json:"from_entity_type" validate:"required" example:"user"`
-	ToEntityID       uuid.UUID              `json:"to_entity_id" validate:"required" example:"650e8400-e29b-41d4-a716-446655440001"`
-	ToEntityType     string                 `json:"to_entity_type" validate:"required" example:"document"`
-	Properties       map[string]interface{} `json:"properties,omitempty" swaggertype:"object"`
+	RelationType   string         `json:"relation_type" validate:"required" example:"owns"`
+	FromEntityID   uuid.UUID      `json:"from_entity_id" validate:"required" example:"550e8400-e29b-41d4-a716-446655440000"`
+	FromEntityType string         `json:"from_entity_type" validate:"required" example:"user"`
+	ToEntityID     uuid.UUID      `json:"to_entity_id" validate:"required" example:"650e8400-e29b-41d4-a716-446655440001"`
+	ToEntityType   string         `json:"to_entity_type" validate:"required" example:"document"`
+	Properties     map[string]any `json:"properties,omitempty" swaggertype:"object"`
 }
 
 type RelationResponse struct {
-	ID             uuid.UUID              `json:"id" example:"750e8400-e29b-41d4-a716-446655440002"`
-	RelationType   string                 `json:"relation_type" example:"owns"`
-	FromEntityID   uuid.UUID              `json:"from_entity_id" example:"550e8400-e29b-41d4-a716-446655440000"`
-	FromEntityType string                 `json:"from_entity_type" example:"user"`
-	ToEntityID     uuid.UUID              `json:"to_entity_id" example:"650e8400-e29b-41d4-a716-446655440001"`
-	ToEntityType   string                 `json:"to_entity_type" example:"document"`
-	Properties     map[string]interface{} `json:"properties,omitempty" swaggertype:"object"`
-	CreatedAt      time.Time              `json:"created_at" example:"2023-01-01T00:00:00Z"`
-	UpdatedAt      time.Time              `json:"updated_at" example:"2023-01-01T00:00:00Z"`
+	ID             uuid.UUID      `json:"id" example:"750e8400-e29b-41d4-a716-446655440002"`
+	RelationType   string         `json:"relation_type" example:"owns"`
+	FromEntityID   uuid.UUID      `json:"from_entity_id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	FromEntityType string         `json:"from_entity_type" example:"user"`
+	ToEntityID     uuid.UUID      `json:"to_entity_id" example:"650e8400-e29b-41d4-a716-446655440001"`
+	ToEntityType   string         `json:"to_entity_type" example:"document"`
+	Properties     map[string]any `json:"properties,omitempty" swaggertype:"object"`
+	CreatedAt      time.Time      `json:"created_at" example:"2023-01-01T00:00:00Z"`
+	UpdatedAt      time.Time      `json:"updated_at" example:"2023-01-01T00:00:00Z"`
 }
 
 // CreateRelation godoc
@@ -59,7 +59,7 @@ type RelationResponse struct {
 func (h *RelationHandler) CreateRelation(w http.ResponseWriter, r *http.Request) {
 	var req RelationRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		middleware.SendValidationError(w, r, "invalid request body", map[string]interface{}{
+		middleware.SendValidationError(w, r, "invalid request body", map[string]any{
 			"error": err.Error(),
 		})
 		return
@@ -116,7 +116,7 @@ func (h *RelationHandler) GetRelation(w http.ResponseWriter, r *http.Request) {
 
 	relationID, err := uuid.Parse(relationIDStr)
 	if err != nil {
-		middleware.SendValidationError(w, r, "invalid relation ID", map[string]interface{}{
+		middleware.SendValidationError(w, r, "invalid relation ID", map[string]any{
 			"relation_id": relationIDStr,
 		})
 		return
@@ -152,7 +152,7 @@ func (h *RelationHandler) DeleteRelation(w http.ResponseWriter, r *http.Request)
 
 	relationID, err := uuid.Parse(relationIDStr)
 	if err != nil {
-		middleware.SendValidationError(w, r, "invalid relation ID", map[string]interface{}{
+		middleware.SendValidationError(w, r, "invalid relation ID", map[string]any{
 			"relation_id": relationIDStr,
 		})
 		return

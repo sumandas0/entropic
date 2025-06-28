@@ -20,7 +20,7 @@ func NewObservabilityManager(
 	loggingConfig observability.LoggingConfig,
 	metricsConfig observability.MetricsConfig,
 ) (*ObservabilityManager, error) {
-	
+
 	tracing, err := observability.NewTracingManager(tracingConfig)
 	if err != nil {
 		return nil, err
@@ -122,17 +122,17 @@ type AdvancedFeaturesManager struct {
 }
 
 type AdvancedFeaturesConfig struct {
-	Tracing       observability.TracingConfig       `yaml:"tracing" mapstructure:"tracing"`
-	Logging       observability.LoggingConfig       `yaml:"logging" mapstructure:"logging"`
-	Metrics       observability.MetricsConfig       `yaml:"metrics" mapstructure:"metrics"`
-	CircuitBreaker resilience.CircuitBreakerConfig   `yaml:"circuit_breaker" mapstructure:"circuit_breaker"`
-	Retry         resilience.RetryConfig            `yaml:"retry" mapstructure:"retry"`
-	RateLimit     security.RateLimitConfig          `yaml:"rate_limit" mapstructure:"rate_limit"`
-	Sanitizer     security.SanitizerConfig          `yaml:"sanitizer" mapstructure:"sanitizer"`
+	Tracing        observability.TracingConfig     `yaml:"tracing" mapstructure:"tracing"`
+	Logging        observability.LoggingConfig     `yaml:"logging" mapstructure:"logging"`
+	Metrics        observability.MetricsConfig     `yaml:"metrics" mapstructure:"metrics"`
+	CircuitBreaker resilience.CircuitBreakerConfig `yaml:"circuit_breaker" mapstructure:"circuit_breaker"`
+	Retry          resilience.RetryConfig          `yaml:"retry" mapstructure:"retry"`
+	RateLimit      security.RateLimitConfig        `yaml:"rate_limit" mapstructure:"rate_limit"`
+	Sanitizer      security.SanitizerConfig        `yaml:"sanitizer" mapstructure:"sanitizer"`
 }
 
 func NewAdvancedFeaturesManager(config AdvancedFeaturesConfig) (*AdvancedFeaturesManager, error) {
-	
+
 	observability, err := NewObservabilityManager(config.Tracing, config.Logging, config.Metrics)
 	if err != nil {
 		return nil, err
@@ -178,37 +178,37 @@ func (afm *AdvancedFeaturesManager) Shutdown(ctx context.Context) error {
 	return afm.observability.Shutdown(ctx)
 }
 
-func (afm *AdvancedFeaturesManager) HealthCheck(ctx context.Context) map[string]interface{} {
-	health := make(map[string]interface{})
+func (afm *AdvancedFeaturesManager) HealthCheck(ctx context.Context) map[string]any {
+	health := make(map[string]any)
 
-	health["observability"] = map[string]interface{}{
+	health["observability"] = map[string]any{
 		"tracing_enabled": afm.observability.tracing.IsEnabled(),
 		"metrics_enabled": afm.observability.metrics.IsEnabled(),
 		"uptime_seconds":  time.Since(afm.startTime).Seconds(),
 	}
 
 	circuitBreakerHealth := resilience.NewCircuitBreakerHealthCheck(afm.resilience.circuitBreaker)
-	health["resilience"] = map[string]interface{}{
+	health["resilience"] = map[string]any{
 		"circuit_breaker": circuitBreakerHealth.Check(ctx),
 		"retry_enabled":   afm.resilience.retryManager.IsEnabled(),
 	}
 
-	health["security"] = map[string]interface{}{
-		"rate_limiter": afm.security.rateLimiter.GetStats(),
+	health["security"] = map[string]any{
+		"rate_limiter":      afm.security.rateLimiter.GetStats(),
 		"sanitizer_enabled": afm.security.sanitizer.IsEnabled(),
 	}
 
 	return health
 }
 
-func (afm *AdvancedFeaturesManager) GetMetricsStats() map[string]interface{} {
+func (afm *AdvancedFeaturesManager) GetMetricsStats() map[string]any {
 	if !afm.observability.metrics.IsEnabled() {
-		return map[string]interface{}{
+		return map[string]any{
 			"enabled": false,
 		}
 	}
 
-	return map[string]interface{}{
+	return map[string]any{
 		"enabled":      true,
 		"uptime":       time.Since(afm.startTime).String(),
 		"rate_limiter": afm.security.rateLimiter.GetStats(),

@@ -436,6 +436,7 @@ k6 run tests/load/entity_creation.js
 ### Test Compilation Errors
 
 When working with tests, ensure:
+
 1. Use `Search()` instead of `SearchEntities()` on the Engine
 2. Use `GetRelationsByEntity()` instead of `GetEntityRelations()`
 3. Access search results via `SearchResult.Hits` not `SearchResult.Entities`
@@ -445,6 +446,7 @@ When working with tests, ensure:
 ### Error Handling
 
 The `pkg/utils/errors.go` package provides:
+
 - `AppError` type for structured errors
 - Helper functions: `IsNotFound()`, `IsAlreadyExists()`, `IsValidation()`
 - Proper usage of `errors.As()` with pointer variables
@@ -475,6 +477,7 @@ if errors.As(err, &appErr) {
   - Lock contention
 
 ### Backup Strategy
+
 - PostgreSQL continuous archiving
 - Regular schema backups
 - Typesense snapshot scheduling
@@ -482,12 +485,14 @@ if errors.As(err, &appErr) {
 ## Common Claude Code Prompts
 
 ### Adding a New Storage Backend
-```
+
+```md
 Add a new storage adapter for [Neo4j/MongoDB/etc] that implements the PrimaryStore interface. Include connection management, transaction support, and proper error handling.
 ```
 
 ### Implementing a New API Endpoint
-```
+
+```md
 Add a new API endpoint for [bulk operations/export/import] with proper validation, error handling, and documentation.
 ```
 

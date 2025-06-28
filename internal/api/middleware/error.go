@@ -19,11 +19,11 @@ type ErrorResponse struct {
 // ErrorDetail contains detailed error information
 // @Description Detailed error information including code, message, and optional details
 type ErrorDetail struct {
-	Code      string                 `json:"code" example:"NOT_FOUND"`
-	Message   string                 `json:"message" example:"Entity not found"`
-	Details   map[string]interface{} `json:"details,omitempty" swaggertype:"object"`
-	Timestamp time.Time              `json:"timestamp" example:"2023-01-01T00:00:00Z"`
-	RequestID string                 `json:"request_id,omitempty" example:"550e8400-e29b-41d4-a716-446655440000"`
+	Code      string         `json:"code" example:"NOT_FOUND"`
+	Message   string         `json:"message" example:"Entity not found"`
+	Details   map[string]any `json:"details,omitempty" swaggertype:"object"`
+	Timestamp time.Time      `json:"timestamp" example:"2023-01-01T00:00:00Z"`
+	RequestID string         `json:"request_id,omitempty" example:"550e8400-e29b-41d4-a716-446655440000"`
 }
 
 func ErrorHandler() func(next http.Handler) http.Handler {
@@ -57,7 +57,7 @@ func SendError(w http.ResponseWriter, r *http.Request, err error, statusCode int
 			},
 		}
 	} else {
-		
+
 		errorResponse = ErrorResponse{
 			Error: ErrorDetail{
 				Code:      "INTERNAL_ERROR",
@@ -71,7 +71,7 @@ func SendError(w http.ResponseWriter, r *http.Request, err error, statusCode int
 	json.NewEncoder(w).Encode(errorResponse)
 }
 
-func SendValidationError(w http.ResponseWriter, r *http.Request, message string, details map[string]interface{}) {
+func SendValidationError(w http.ResponseWriter, r *http.Request, message string, details map[string]any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusBadRequest)
 
@@ -104,7 +104,7 @@ func SendNotFoundError(w http.ResponseWriter, r *http.Request, resource string) 
 	json.NewEncoder(w).Encode(errorResponse)
 }
 
-func SendConflictError(w http.ResponseWriter, r *http.Request, message string, details map[string]interface{}) {
+func SendConflictError(w http.ResponseWriter, r *http.Request, message string, details map[string]any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusConflict)
 
@@ -137,8 +137,8 @@ func SendInternalError(w http.ResponseWriter, r *http.Request, message string) {
 	json.NewEncoder(w).Encode(errorResponse)
 }
 
-func handlePanic(w http.ResponseWriter, r *http.Request, err interface{}) {
-	
+func handlePanic(w http.ResponseWriter, r *http.Request, err any) {
+
 	fmt.Printf("[ERROR] %s PANIC in %s %s: %v\nStack:\n%s\n",
 		time.Now().Format(time.RFC3339),
 		r.Method,
@@ -151,7 +151,7 @@ func handlePanic(w http.ResponseWriter, r *http.Request, err interface{}) {
 }
 
 func getRequestID(r *http.Request) string {
-	
+
 	if requestID := r.Header.Get("X-Request-ID"); requestID != "" {
 		return requestID
 	}
@@ -161,7 +161,7 @@ func getRequestID(r *http.Request) string {
 			return id
 		}
 	}
-	
+
 	return ""
 }
 
@@ -198,6 +198,6 @@ func HTTPErrorFromAppError(err error) int {
 	if utils.IsValidation(err) {
 		return http.StatusBadRequest
 	}
-	
+
 	return http.StatusInternalServerError
 }

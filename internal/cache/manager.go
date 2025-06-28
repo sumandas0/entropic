@@ -11,9 +11,8 @@ import (
 )
 
 type Manager struct {
-	
-	entitySchemas       sync.Map 
-	relationshipSchemas sync.Map 
+	entitySchemas       sync.Map
+	relationshipSchemas sync.Map
 
 	schemaTTL time.Duration
 
@@ -26,7 +25,7 @@ type Manager struct {
 
 func NewManager(primaryStore store.PrimaryStore, schemaTTL time.Duration) *Manager {
 	if schemaTTL <= 0 {
-		schemaTTL = 5 * time.Minute 
+		schemaTTL = 5 * time.Minute
 	}
 
 	return &Manager{
@@ -36,7 +35,7 @@ func NewManager(primaryStore store.PrimaryStore, schemaTTL time.Duration) *Manag
 }
 
 type cacheEntry struct {
-	value      interface{}
+	value      any
 	expiration time.Time
 }
 
@@ -45,14 +44,14 @@ func (e *cacheEntry) isExpired() bool {
 }
 
 func (m *Manager) GetEntitySchema(ctx context.Context, entityType string) (*models.EntitySchema, error) {
-	
+
 	if cached, ok := m.entitySchemas.Load(entityType); ok {
 		entry := cached.(*cacheEntry)
 		if !entry.isExpired() {
 			m.recordHit()
 			return entry.value.(*models.EntitySchema), nil
 		}
-		
+
 		m.entitySchemas.Delete(entityType)
 	}
 
@@ -81,14 +80,14 @@ func (m *Manager) InvalidateEntitySchema(entityType string) {
 }
 
 func (m *Manager) GetRelationshipSchema(ctx context.Context, relationshipType string) (*models.RelationshipSchema, error) {
-	
+
 	if cached, ok := m.relationshipSchemas.Load(relationshipType); ok {
 		entry := cached.(*cacheEntry)
 		if !entry.isExpired() {
 			m.recordHit()
 			return entry.value.(*models.RelationshipSchema), nil
 		}
-		
+
 		m.relationshipSchemas.Delete(relationshipType)
 	}
 
@@ -117,7 +116,7 @@ func (m *Manager) InvalidateRelationshipSchema(relationshipType string) {
 }
 
 func (m *Manager) PreloadSchemas(ctx context.Context) error {
-	
+
 	entitySchemas, err := m.primaryStore.ListEntitySchemas(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to preload entity schemas: %w", err)
@@ -140,12 +139,12 @@ func (m *Manager) PreloadSchemas(ctx context.Context) error {
 }
 
 func (m *Manager) Clear() {
-	m.entitySchemas.Range(func(key, value interface{}) bool {
+	m.entitySchemas.Range(func(key, value any) bool {
 		m.entitySchemas.Delete(key)
 		return true
 	})
 
-	m.relationshipSchemas.Range(func(key, value interface{}) bool {
+	m.relationshipSchemas.Range(func(key, value any) bool {
 		m.relationshipSchemas.Delete(key)
 		return true
 	})
@@ -159,7 +158,7 @@ func (m *Manager) Clear() {
 func (m *Manager) CleanupExpired() {
 	now := time.Now()
 
-	m.entitySchemas.Range(func(key, value interface{}) bool {
+	m.entitySchemas.Range(func(key, value any) bool {
 		entry := value.(*cacheEntry)
 		if now.After(entry.expiration) {
 			m.entitySchemas.Delete(key)
@@ -167,7 +166,7 @@ func (m *Manager) CleanupExpired() {
 		return true
 	})
 
-	m.relationshipSchemas.Range(func(key, value interface{}) bool {
+	m.relationshipSchemas.Range(func(key, value any) bool {
 		entry := value.(*cacheEntry)
 		if now.After(entry.expiration) {
 			m.relationshipSchemas.Delete(key)
@@ -200,13 +199,13 @@ func (m *Manager) Stats() CacheStats {
 	defer m.mu.RUnlock()
 
 	entityCount := 0
-	m.entitySchemas.Range(func(_, _ interface{}) bool {
+	m.entitySchemas.Range(func(_, _ any) bool {
 		entityCount++
 		return true
 	})
 
 	relationshipCount := 0
-	m.relationshipSchemas.Range(func(_, _ interface{}) bool {
+	m.relationshipSchemas.Range(func(_, _ any) bool {
 		relationshipCount++
 		return true
 	})

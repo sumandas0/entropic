@@ -10,30 +10,30 @@ import (
 )
 
 type Manager struct {
-	locks     sync.Map 
-	waitQueue sync.Map 
+	locks     sync.Map
+	waitQueue sync.Map
 
 	defaultTimeout time.Duration
 	maxWaitTime    time.Duration
 
-	mu         sync.RWMutex
-	stats      LockStats
+	mu    sync.RWMutex
+	stats LockStats
 }
 
 type resourceLock struct {
 	mu       sync.Mutex
-	holder   string    
+	holder   string
 	acquired time.Time
 	timeout  time.Duration
 }
 
 type LockStats struct {
-	ActiveLocks      int
-	TotalAcquired    uint64
-	TotalReleased    uint64
-	TotalTimeouts    uint64
-	TotalDeadlocks   uint64
-	AverageWaitTime  time.Duration
+	ActiveLocks     int
+	TotalAcquired   uint64
+	TotalReleased   uint64
+	TotalTimeouts   uint64
+	TotalDeadlocks  uint64
+	AverageWaitTime time.Duration
 }
 
 func NewManager(defaultTimeout, maxWaitTime time.Duration) *Manager {
@@ -43,7 +43,7 @@ func NewManager(defaultTimeout, maxWaitTime time.Duration) *Manager {
 	if maxWaitTime <= 0 {
 		maxWaitTime = 5 * time.Minute
 	}
-	
+
 	return &Manager{
 		defaultTimeout: defaultTimeout,
 		maxWaitTime:    maxWaitTime,
@@ -74,9 +74,9 @@ func (m *Manager) LockWithTimeout(resource string, timeout time.Duration) error 
 		m.recordAcquisition()
 
 		go m.monitorTimeout(resource, holderID, timeout)
-		
+
 		return nil
-		
+
 	case <-time.After(m.maxWaitTime):
 		return fmt.Errorf("failed to acquire lock on resource %s: timeout", resource)
 	}
@@ -91,15 +91,15 @@ func (m *Manager) TryLock(resource string, timeout time.Duration) error {
 	if !resLock.mu.TryLock() {
 		return fmt.Errorf("resource %s is already locked", resource)
 	}
-	
+
 	resLock.holder = holderID
 	resLock.acquired = time.Now()
 	resLock.timeout = timeout
-	
+
 	m.recordAcquisition()
 
 	go m.monitorTimeout(resource, holderID, timeout)
-	
+
 	return nil
 }
 
@@ -108,15 +108,15 @@ func (m *Manager) Unlock(resource string) error {
 	if !ok {
 		return fmt.Errorf("no lock found for resource %s", resource)
 	}
-	
+
 	resLock := lockInterface.(*resourceLock)
 	resLock.holder = ""
 	resLock.mu.Unlock()
-	
+
 	m.recordRelease()
 
 	m.notifyWaiters(resource)
-	
+
 	return nil
 }
 
@@ -125,9 +125,9 @@ func (m *Manager) IsLocked(resource string) bool {
 	if !ok {
 		return false
 	}
-	
+
 	resLock := lockInterface.(*resourceLock)
-	
+
 	if resLock.mu.TryLock() {
 		resLock.mu.Unlock()
 		return false
@@ -162,20 +162,20 @@ func (m *Manager) WaitForUnlock(ctx context.Context, resource string) error {
 func (m *Manager) monitorTimeout(resource, holderID string, timeout time.Duration) {
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
-	
+
 	<-timer.C
 
 	lockInterface, ok := m.locks.Load(resource)
 	if !ok {
 		return
 	}
-	
+
 	resLock := lockInterface.(*resourceLock)
 	if resLock.holder == holderID {
-		
+
 		resLock.holder = ""
 		resLock.mu.Unlock()
-		
+
 		m.recordTimeout()
 		m.notifyWaiters(resource)
 	}
@@ -186,9 +186,9 @@ func (m *Manager) notifyWaiters(resource string) {
 	if !ok {
 		return
 	}
-	
+
 	queue := queueInterface.(*sync.Map)
-	queue.Range(func(key, value interface{}) bool {
+	queue.Range(func(key, value any) bool {
 		waitCh := value.(chan struct{})
 		close(waitCh)
 		return true
@@ -200,19 +200,19 @@ func (m *Manager) notifyWaiters(resource string) {
 func (m *Manager) GetStats() LockStats {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	activeLocks := 0
-	m.locks.Range(func(key, value interface{}) bool {
+	m.locks.Range(func(key, value any) bool {
 		resLock := value.(*resourceLock)
 		if resLock.holder != "" {
 			activeLocks++
 		}
 		return true
 	})
-	
+
 	stats := m.stats
 	stats.ActiveLocks = activeLocks
-	
+
 	return stats
 }
 
@@ -245,11 +245,11 @@ func (m *Manager) NewLockGuard(resource string) (*LockGuard, error) {
 		manager:  m,
 		resource: resource,
 	}
-	
+
 	if err := m.Lock(resource); err != nil {
 		return nil, err
 	}
-	
+
 	guard.locked = true
 	return guard, nil
 }
@@ -258,7 +258,7 @@ func (g *LockGuard) Release() error {
 	if !g.locked {
 		return fmt.Errorf("lock already released")
 	}
-	
+
 	g.locked = false
 	return g.manager.Unlock(g.resource)
 }
@@ -308,13 +308,13 @@ func (elm *EntityLockManager) UnlockEntity(entityType string, entityID uuid.UUID
 }
 
 func (elm *EntityLockManager) LockEntities(entities []EntityRef) error {
-	
+
 	sortedEntities := sortEntityRefs(entities)
 
 	locked := make([]EntityRef, 0, len(sortedEntities))
 	for _, entity := range sortedEntities {
 		if err := elm.LockEntity(entity.Type, entity.ID); err != nil {
-			
+
 			for _, lockedEntity := range locked {
 				elm.UnlockEntity(lockedEntity.Type, lockedEntity.ID)
 			}
@@ -322,7 +322,7 @@ func (elm *EntityLockManager) LockEntities(entities []EntityRef) error {
 		}
 		locked = append(locked, entity)
 	}
-	
+
 	return nil
 }
 
@@ -353,13 +353,13 @@ func sortEntityRefs(refs []EntityRef) []EntityRef {
 			}
 		}
 	}
-	
+
 	return sorted
 }
 
 type DeadlockDetector struct {
 	manager      *Manager
-	dependencies sync.Map 
+	dependencies sync.Map
 }
 
 func NewDeadlockDetector(manager *Manager) *DeadlockDetector {
@@ -369,17 +369,17 @@ func NewDeadlockDetector(manager *Manager) *DeadlockDetector {
 }
 
 func (dd *DeadlockDetector) CheckDeadlock(holder string, waitingFor []string) bool {
-	
+
 	visited := make(map[string]bool)
 	return dd.hasCycle(holder, waitingFor, visited)
 }
 
 func (dd *DeadlockDetector) hasCycle(current string, waitingFor []string, visited map[string]bool) bool {
 	visited[current] = true
-	
+
 	for _, resource := range waitingFor {
 		if visited[resource] {
-			return true 
+			return true
 		}
 
 		if deps, ok := dd.dependencies.Load(resource); ok {
@@ -388,6 +388,6 @@ func (dd *DeadlockDetector) hasCycle(current string, waitingFor []string, visite
 			}
 		}
 	}
-	
+
 	return false
 }

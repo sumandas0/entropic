@@ -6,13 +6,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/sumandas0/entropic/internal/models"
 	"github.com/sumandas0/entropic/internal/store/postgres"
 	"github.com/sumandas0/entropic/internal/store/testutils"
 	"github.com/sumandas0/entropic/internal/store/typesense"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestStoreIntegration(t *testing.T) {
@@ -39,7 +39,7 @@ func TestStoreIntegration(t *testing.T) {
 	defer indexStore.Close()
 
 	t.Run("TwoPhaseCommit_Success", func(t *testing.T) {
-		
+
 		schema := &models.EntitySchema{
 			EntityType: "product",
 			Properties: models.PropertySchema{
@@ -67,7 +67,7 @@ func TestStoreIntegration(t *testing.T) {
 			ID:         uuid.New(),
 			EntityType: "product",
 			URN:        "test:product:" + uuid.New().String(),
-			Properties: map[string]interface{}{
+			Properties: map[string]any{
 				"name":        "Test Product",
 				"price":       99.99,
 				"description": "A test product for integration testing",
@@ -104,7 +104,7 @@ func TestStoreIntegration(t *testing.T) {
 		results, err := indexStore.Search(ctx, searchQuery)
 		require.NoError(t, err)
 		assert.Greater(t, len(results.Hits), 0)
-		
+
 		found := false
 		for _, hit := range results.Hits {
 			if hit.ID == entity.ID {
@@ -116,12 +116,12 @@ func TestStoreIntegration(t *testing.T) {
 	})
 
 	t.Run("TwoPhaseCommit_Rollback", func(t *testing.T) {
-		
+
 		entity := &models.Entity{
 			ID:         uuid.New(),
 			EntityType: "product",
 			URN:        "test:product:rollback-" + uuid.New().String(),
-			Properties: map[string]interface{}{
+			Properties: map[string]any{
 				"name":  "Rollback Product",
 				"price": 199.99,
 			},
@@ -145,7 +145,7 @@ func TestStoreIntegration(t *testing.T) {
 	})
 
 	t.Run("ConcurrentEntityOperations", func(t *testing.T) {
-		
+
 		numEntities := 10
 		entities := make([]*models.Entity, numEntities)
 
@@ -154,7 +154,7 @@ func TestStoreIntegration(t *testing.T) {
 				ID:         uuid.New(),
 				EntityType: "product",
 				URN:        fmt.Sprintf("test:product:concurrent-%d", i),
-				Properties: map[string]interface{}{
+				Properties: map[string]any{
 					"name":  fmt.Sprintf("Concurrent Product %d", i),
 					"price": float64(i * 10),
 				},
@@ -221,12 +221,12 @@ func TestStoreIntegration(t *testing.T) {
 	})
 
 	t.Run("UpdateConsistency", func(t *testing.T) {
-		
+
 		entity := &models.Entity{
 			ID:         uuid.New(),
 			EntityType: "product",
 			URN:        "test:product:update-consistency",
-			Properties: map[string]interface{}{
+			Properties: map[string]any{
 				"name":  "Original Product",
 				"price": 50.00,
 			},
@@ -267,7 +267,7 @@ func TestStoreIntegration(t *testing.T) {
 
 		results, err := indexStore.Search(ctx, searchQuery)
 		require.NoError(t, err)
-		
+
 		found := false
 		for _, hit := range results.Hits {
 			if hit.ID == entity.ID {
@@ -281,12 +281,12 @@ func TestStoreIntegration(t *testing.T) {
 	})
 
 	t.Run("DeleteConsistency", func(t *testing.T) {
-		
+
 		entity := &models.Entity{
 			ID:         uuid.New(),
 			EntityType: "product",
 			URN:        "test:product:delete-consistency",
-			Properties: map[string]interface{}{
+			Properties: map[string]any{
 				"name":  "Product to Delete",
 				"price": 25.00,
 			},
@@ -320,7 +320,7 @@ func TestStoreIntegration(t *testing.T) {
 
 		results, err := indexStore.Search(ctx, searchQuery)
 		require.NoError(t, err)
-		
+
 		found := false
 		for _, hit := range results.Hits {
 			if hit.ID == entity.ID {
@@ -332,7 +332,7 @@ func TestStoreIntegration(t *testing.T) {
 	})
 
 	t.Run("VectorSearchIntegration", func(t *testing.T) {
-		
+
 		schema := &models.EntitySchema{
 			EntityType: "document",
 			Properties: models.PropertySchema{
@@ -351,7 +351,7 @@ func TestStoreIntegration(t *testing.T) {
 				},
 			},
 		}
-		
+
 		err := primaryStore.CreateEntitySchema(ctx, schema)
 		require.NoError(t, err)
 		err = indexStore.CreateCollection(ctx, schema.EntityType, schema)
@@ -361,14 +361,14 @@ func TestStoreIntegration(t *testing.T) {
 		embedding2 := make([]float32, 384)
 		for i := range embedding1 {
 			embedding1[i] = float32(i) / 384.0
-			embedding2[i] = float32(i) / 768.0 
+			embedding2[i] = float32(i) / 768.0
 		}
 
 		doc1 := &models.Entity{
 			ID:         uuid.New(),
 			EntityType: "document",
 			URN:        "test:document:vector-1",
-			Properties: map[string]interface{}{
+			Properties: map[string]any{
 				"title":     "Document 1",
 				"content":   "First test document",
 				"embedding": embedding1,
@@ -382,7 +382,7 @@ func TestStoreIntegration(t *testing.T) {
 			ID:         uuid.New(),
 			EntityType: "document",
 			URN:        "test:document:vector-2",
-			Properties: map[string]interface{}{
+			Properties: map[string]any{
 				"title":     "Document 2",
 				"content":   "Second test document",
 				"embedding": embedding2,
@@ -406,7 +406,7 @@ func TestStoreIntegration(t *testing.T) {
 
 		vectorQuery := &models.VectorQuery{
 			EntityTypes: []string{"document"},
-			Vector:      embedding1, 
+			Vector:      embedding1,
 			VectorField: "embedding",
 			TopK:        5,
 		}
@@ -446,7 +446,7 @@ func TestSchemaEvolution(t *testing.T) {
 	defer indexStore.Close()
 
 	t.Run("AddNewField", func(t *testing.T) {
-		
+
 		schema := &models.EntitySchema{
 			EntityType: "user",
 			Properties: models.PropertySchema{
@@ -470,7 +470,7 @@ func TestSchemaEvolution(t *testing.T) {
 			ID:         uuid.New(),
 			EntityType: "user",
 			URN:        "test:user:schema-evolution",
-			Properties: map[string]interface{}{
+			Properties: map[string]any{
 				"name":  "Test User",
 				"email": "test@example.com",
 			},
@@ -498,7 +498,7 @@ func TestSchemaEvolution(t *testing.T) {
 			ID:         uuid.New(),
 			EntityType: "user",
 			URN:        "test:user:with-age",
-			Properties: map[string]interface{}{
+			Properties: map[string]any{
 				"name":  "New User",
 				"email": "new@example.com",
 				"age":   30,

@@ -13,25 +13,25 @@ import (
 
 // DataGenerator generates test data for performance testing
 type DataGenerator struct {
-	rand   *rand.Rand
-	mu     sync.Mutex
-	seed   int64
-	idGen  int64
+	rand  *rand.Rand
+	mu    sync.Mutex
+	seed  int64
+	idGen int64
 }
 
 // EntityTemplate defines a template for generating entities
 type EntityTemplate struct {
-	Type           string
-	PropertySizeKB int
-	IncludeVector  bool
-	VectorDim      int
+	Type            string
+	PropertySizeKB  int
+	IncludeVector   bool
+	VectorDim       int
 	ComplexityLevel string // simple, medium, complex
 }
 
 // LoadPattern defines how load should be generated
 type LoadPattern struct {
-	Type        string        // steady, burst, ramp, spike
-	BaseRate    int           // operations per second
+	Type        string // steady, burst, ramp, spike
+	BaseRate    int    // operations per second
 	Duration    time.Duration
 	BurstFactor float64       // for burst pattern
 	RampUpTime  time.Duration // for ramp pattern
@@ -49,9 +49,9 @@ func NewDataGenerator(seed int64) *DataGenerator {
 func (dg *DataGenerator) GenerateEntity(template EntityTemplate) *models.Entity {
 	id := atomic.AddInt64(&dg.idGen, 1)
 	urn := fmt.Sprintf("perf:%s:%d:%d", template.Type, dg.seed, id)
-	
+
 	properties := dg.generateProperties(template)
-	
+
 	return models.NewEntity(template.Type, urn, properties)
 }
 
@@ -66,15 +66,15 @@ func (dg *DataGenerator) GenerateBatch(template EntityTemplate, count int) []*mo
 
 // GenerateRelation creates a test relation between entities
 func (dg *DataGenerator) GenerateRelation(relationType string, from, to *models.Entity) *models.Relation {
-	properties := map[string]interface{}{
+	properties := map[string]any{
 		"weight":     dg.randomFloat(0, 1),
 		"created_at": time.Now().Unix(),
-		"metadata": map[string]interface{}{
+		"metadata": map[string]any{
 			"source": "performance_test",
 			"seed":   dg.seed,
 		},
 	}
-	
+
 	return models.NewRelation(
 		relationType,
 		from.ID,
@@ -86,9 +86,9 @@ func (dg *DataGenerator) GenerateRelation(relationType string, from, to *models.
 }
 
 // generateProperties creates properties based on template
-func (dg *DataGenerator) generateProperties(template EntityTemplate) map[string]interface{} {
-	properties := make(map[string]interface{})
-	
+func (dg *DataGenerator) generateProperties(template EntityTemplate) map[string]any {
+	properties := make(map[string]any)
+
 	switch template.ComplexityLevel {
 	case "simple":
 		properties = dg.generateSimpleProperties()
@@ -99,23 +99,23 @@ func (dg *DataGenerator) generateProperties(template EntityTemplate) map[string]
 	default:
 		properties = dg.generateMediumProperties()
 	}
-	
+
 	// Add vector if requested
 	if template.IncludeVector {
 		properties["embedding"] = dg.generateVector(template.VectorDim)
 	}
-	
+
 	// Pad to desired size
 	dg.padToSize(properties, template.PropertySizeKB)
-	
+
 	return properties
 }
 
-func (dg *DataGenerator) generateSimpleProperties() map[string]interface{} {
+func (dg *DataGenerator) generateSimpleProperties() map[string]any {
 	dg.mu.Lock()
 	defer dg.mu.Unlock()
-	
-	return map[string]interface{}{
+
+	return map[string]any{
 		"name":        dg.randomString(20),
 		"description": dg.randomString(100),
 		"value":       dg.randomFloat(0, 1000),
@@ -124,27 +124,27 @@ func (dg *DataGenerator) generateSimpleProperties() map[string]interface{} {
 	}
 }
 
-func (dg *DataGenerator) generateMediumProperties() map[string]interface{} {
+func (dg *DataGenerator) generateMediumProperties() map[string]any {
 	dg.mu.Lock()
 	defer dg.mu.Unlock()
-	
+
 	tags := make([]string, 5)
 	for i := 0; i < 5; i++ {
 		tags[i] = dg.randomString(10)
 	}
-	
-	return map[string]interface{}{
+
+	return map[string]any{
 		"name":        dg.randomString(30),
 		"description": dg.randomString(200),
 		"category":    dg.randomChoice([]string{"electronics", "clothing", "books", "food", "toys"}),
 		"price":       dg.randomFloat(10, 1000),
 		"quantity":    dg.rand.Intn(1000),
 		"tags":        tags,
-		"metadata": map[string]interface{}{
-			"brand":      dg.randomString(20),
-			"model":      dg.randomString(15),
-			"year":       2020 + dg.rand.Intn(5),
-			"warranty":   dg.rand.Intn(5),
+		"metadata": map[string]any{
+			"brand":    dg.randomString(20),
+			"model":    dg.randomString(15),
+			"year":     2020 + dg.rand.Intn(5),
+			"warranty": dg.rand.Intn(5),
 			"dimensions": map[string]float64{
 				"length": dg.randomFloat(1, 100),
 				"width":  dg.randomFloat(1, 100),
@@ -157,50 +157,50 @@ func (dg *DataGenerator) generateMediumProperties() map[string]interface{} {
 	}
 }
 
-func (dg *DataGenerator) generateComplexProperties() map[string]interface{} {
+func (dg *DataGenerator) generateComplexProperties() map[string]any {
 	dg.mu.Lock()
 	defer dg.mu.Unlock()
-	
+
 	// Generate nested structure
 	properties := dg.generateMediumProperties()
-	
+
 	// Add more complex nested data
 	properties["specifications"] = dg.generateSpecifications()
 	properties["inventory"] = dg.generateInventory()
 	properties["reviews"] = dg.generateReviews(3)
 	properties["attributes"] = dg.generateAttributes(10)
-	
+
 	return properties
 }
 
-func (dg *DataGenerator) generateSpecifications() map[string]interface{} {
-	specs := make(map[string]interface{})
+func (dg *DataGenerator) generateSpecifications() map[string]any {
+	specs := make(map[string]any)
 	specCount := 5 + dg.rand.Intn(10)
-	
+
 	for i := 0; i < specCount; i++ {
 		key := fmt.Sprintf("spec_%d", i)
-		specs[key] = map[string]interface{}{
+		specs[key] = map[string]any{
 			"name":  dg.randomString(20),
 			"value": dg.randomString(30),
 			"unit":  dg.randomChoice([]string{"mm", "kg", "GB", "MHz", "inch"}),
 		}
 	}
-	
+
 	return specs
 }
 
-func (dg *DataGenerator) generateInventory() map[string]interface{} {
-	locations := make([]map[string]interface{}, 3)
+func (dg *DataGenerator) generateInventory() map[string]any {
+	locations := make([]map[string]any, 3)
 	for i := 0; i < 3; i++ {
-		locations[i] = map[string]interface{}{
+		locations[i] = map[string]any{
 			"warehouse_id": uuid.New().String(),
 			"quantity":     dg.rand.Intn(100),
 			"reserved":     dg.rand.Intn(20),
 			"location":     fmt.Sprintf("A%d-B%d", dg.rand.Intn(10), dg.rand.Intn(100)),
 		}
 	}
-	
-	return map[string]interface{}{
+
+	return map[string]any{
 		"total_quantity": dg.rand.Intn(1000),
 		"available":      dg.rand.Intn(800),
 		"reserved":       dg.rand.Intn(200),
@@ -209,10 +209,10 @@ func (dg *DataGenerator) generateInventory() map[string]interface{} {
 	}
 }
 
-func (dg *DataGenerator) generateReviews(count int) []map[string]interface{} {
-	reviews := make([]map[string]interface{}, count)
+func (dg *DataGenerator) generateReviews(count int) []map[string]any {
+	reviews := make([]map[string]any, count)
 	for i := 0; i < count; i++ {
-		reviews[i] = map[string]interface{}{
+		reviews[i] = map[string]any{
 			"user_id":    uuid.New().String(),
 			"rating":     1 + dg.rand.Intn(5),
 			"title":      dg.randomString(50),
@@ -225,8 +225,8 @@ func (dg *DataGenerator) generateReviews(count int) []map[string]interface{} {
 	return reviews
 }
 
-func (dg *DataGenerator) generateAttributes(count int) map[string]interface{} {
-	attrs := make(map[string]interface{})
+func (dg *DataGenerator) generateAttributes(count int) map[string]any {
+	attrs := make(map[string]any)
 	for i := 0; i < count; i++ {
 		key := fmt.Sprintf("attr_%s", dg.randomString(10))
 		attrs[key] = dg.randomValue()
@@ -242,11 +242,11 @@ func (dg *DataGenerator) generateVector(dim int) []float32 {
 	return vector
 }
 
-func (dg *DataGenerator) padToSize(properties map[string]interface{}, targetKB int) {
+func (dg *DataGenerator) padToSize(properties map[string]any, targetKB int) {
 	// Estimate current size (rough approximation)
 	currentSize := len(fmt.Sprintf("%v", properties))
 	targetSize := targetKB * 1024
-	
+
 	if currentSize < targetSize {
 		padding := targetSize - currentSize
 		properties["_padding"] = dg.randomString(padding)
@@ -272,7 +272,7 @@ func (dg *DataGenerator) randomChoice(choices []string) string {
 	return choices[dg.rand.Intn(len(choices))]
 }
 
-func (dg *DataGenerator) randomValue() interface{} {
+func (dg *DataGenerator) randomValue() any {
 	switch dg.rand.Intn(4) {
 	case 0:
 		return dg.randomString(20)
@@ -327,7 +327,7 @@ func (lg *LoadGenerator) Stop() {
 func (lg *LoadGenerator) steadyLoad(operation func() error) {
 	interval := time.Second / time.Duration(lg.pattern.BaseRate)
 	lg.ticker = time.NewTicker(interval)
-	
+
 	go func() {
 		for {
 			select {
@@ -343,11 +343,11 @@ func (lg *LoadGenerator) steadyLoad(operation func() error) {
 func (lg *LoadGenerator) burstLoad(operation func() error) {
 	normalInterval := time.Second / time.Duration(lg.pattern.BaseRate)
 	burstInterval := normalInterval / time.Duration(lg.pattern.BurstFactor)
-	
+
 	go func() {
 		burstTicker := time.NewTicker(10 * time.Second) // Burst every 10 seconds
 		defer burstTicker.Stop()
-		
+
 		for {
 			select {
 			case <-burstTicker.C:
@@ -379,14 +379,14 @@ func (lg *LoadGenerator) rampLoad(operation func() error) {
 				if elapsed > lg.pattern.RampUpTime {
 					elapsed = lg.pattern.RampUpTime
 				}
-				
+
 				// Calculate current rate based on ramp
 				progress := float64(elapsed) / float64(lg.pattern.RampUpTime)
 				currentRate := int(float64(lg.pattern.BaseRate) * progress)
 				if currentRate < 1 {
 					currentRate = 1
 				}
-				
+
 				interval := time.Second / time.Duration(currentRate)
 				go operation()
 				time.Sleep(interval)
@@ -399,16 +399,16 @@ func (lg *LoadGenerator) spikeLoad(operation func() error) {
 	go func() {
 		spikeTicker := time.NewTicker(30 * time.Second) // Spike every 30 seconds
 		defer spikeTicker.Stop()
-		
+
 		normalInterval := time.Second / time.Duration(lg.pattern.BaseRate)
-		
+
 		for {
 			select {
 			case <-spikeTicker.C:
 				// Generate spike (10x normal rate for 5 seconds)
 				spikeEnd := time.Now().Add(5 * time.Second)
 				spikeInterval := normalInterval / 10
-				
+
 				for time.Now().Before(spikeEnd) {
 					go operation()
 					time.Sleep(spikeInterval)
@@ -433,11 +433,11 @@ func GenerateEntityGraph(gen *DataGenerator, nodeCount int, avgConnections int) 
 		PropertySizeKB:  1,
 		ComplexityLevel: "simple",
 	}
-	
+
 	for i := 0; i < nodeCount; i++ {
 		entities[i] = gen.GenerateEntity(template)
 	}
-	
+
 	// Generate relations
 	relations := make([]*models.Relation, 0, nodeCount*avgConnections/2)
 	for i := 0; i < nodeCount; i++ {
@@ -450,7 +450,7 @@ func GenerateEntityGraph(gen *DataGenerator, nodeCount int, avgConnections int) 
 			}
 		}
 	}
-	
+
 	return entities, relations
 }
 
@@ -458,7 +458,7 @@ func GenerateEntityGraph(gen *DataGenerator, nodeCount int, avgConnections int) 
 func GenerateRealisticEcommerce(gen *DataGenerator) ([]*models.Entity, []*models.Relation) {
 	var entities []*models.Entity
 	var relations []*models.Relation
-	
+
 	// Generate users
 	userTemplate := EntityTemplate{
 		Type:            "user",
@@ -467,7 +467,7 @@ func GenerateRealisticEcommerce(gen *DataGenerator) ([]*models.Entity, []*models
 	}
 	users := gen.GenerateBatch(userTemplate, 100)
 	entities = append(entities, users...)
-	
+
 	// Generate products
 	productTemplate := EntityTemplate{
 		Type:            "product",
@@ -478,7 +478,7 @@ func GenerateRealisticEcommerce(gen *DataGenerator) ([]*models.Entity, []*models
 	}
 	products := gen.GenerateBatch(productTemplate, 500)
 	entities = append(entities, products...)
-	
+
 	// Generate orders
 	orderTemplate := EntityTemplate{
 		Type:            "order",
@@ -487,14 +487,14 @@ func GenerateRealisticEcommerce(gen *DataGenerator) ([]*models.Entity, []*models
 	}
 	orders := gen.GenerateBatch(orderTemplate, 200)
 	entities = append(entities, orders...)
-	
+
 	// Create relations
 	for _, order := range orders {
 		// Order belongs to user
 		user := users[gen.rand.Intn(len(users))]
 		rel := gen.GenerateRelation("placed_by", order, user)
 		relations = append(relations, rel)
-		
+
 		// Order contains products
 		productCount := 1 + gen.rand.Intn(5)
 		for i := 0; i < productCount; i++ {
@@ -503,6 +503,6 @@ func GenerateRealisticEcommerce(gen *DataGenerator) ([]*models.Entity, []*models
 			relations = append(relations, rel)
 		}
 	}
-	
+
 	return entities, relations
 }

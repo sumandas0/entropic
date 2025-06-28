@@ -40,7 +40,7 @@ type MetricsCollector struct {
 	errors map[string]int64
 
 	// Custom metrics
-	customMetrics map[string]interface{}
+	customMetrics map[string]any
 }
 
 // ThroughputWindow represents operations count in a time window
@@ -62,24 +62,24 @@ type ResourceSnapshot struct {
 
 // PerformanceReport contains the final performance test results
 type PerformanceReport struct {
-	TestName    string                 `json:"test_name"`
-	StartTime   time.Time              `json:"start_time"`
-	EndTime     time.Time              `json:"end_time"`
-	Duration    time.Duration          `json:"duration"`
-	Metrics     PerformanceMetrics     `json:"metrics"`
-	Resources   ResourceMetrics        `json:"resources"`
-	Errors      map[string]int64       `json:"errors,omitempty"`
-	Custom      map[string]interface{} `json:"custom,omitempty"`
+	TestName  string             `json:"test_name"`
+	StartTime time.Time          `json:"start_time"`
+	EndTime   time.Time          `json:"end_time"`
+	Duration  time.Duration      `json:"duration"`
+	Metrics   PerformanceMetrics `json:"metrics"`
+	Resources ResourceMetrics    `json:"resources"`
+	Errors    map[string]int64   `json:"errors,omitempty"`
+	Custom    map[string]any     `json:"custom,omitempty"`
 }
 
 // PerformanceMetrics contains operation performance metrics
 type PerformanceMetrics struct {
-	TotalOperations    int64         `json:"total_operations"`
-	SuccessOperations  int64         `json:"success_operations"`
-	FailedOperations   int64         `json:"failed_operations"`
-	SuccessRate        float64       `json:"success_rate"`
-	Throughput         Throughput    `json:"throughput"`
-	Latency            Latency       `json:"latency"`
+	TotalOperations   int64      `json:"total_operations"`
+	SuccessOperations int64      `json:"success_operations"`
+	FailedOperations  int64      `json:"failed_operations"`
+	SuccessRate       float64    `json:"success_rate"`
+	Throughput        Throughput `json:"throughput"`
+	Latency           Latency    `json:"latency"`
 }
 
 // Throughput metrics
@@ -102,9 +102,9 @@ type Latency struct {
 
 // ResourceMetrics contains resource usage statistics
 type ResourceMetrics struct {
-	CPU      ResourceStat `json:"cpu_percent"`
-	Memory   ResourceStat `json:"memory_mb"`
-	GCPause  ResourceStat `json:"gc_pause_ms"`
+	CPU     ResourceStat `json:"cpu_percent"`
+	Memory  ResourceStat `json:"memory_mb"`
+	GCPause ResourceStat `json:"gc_pause_ms"`
 }
 
 // ResourceStat contains min/max/avg for a resource metric
@@ -119,7 +119,7 @@ func NewMetricsCollector() *MetricsCollector {
 	return &MetricsCollector{
 		latencyHist:       hdrhistogram.New(1, 3600000, 3), // 1ms to 1 hour, 3 significant figures
 		errors:            make(map[string]int64),
-		customMetrics:     make(map[string]interface{}),
+		customMetrics:     make(map[string]any),
 		throughputWindows: make([]ThroughputWindow, 0),
 		resourceSnapshots: make([]ResourceSnapshot, 0),
 	}
@@ -133,7 +133,7 @@ func (mc *MetricsCollector) Start() {
 
 	// Start resource monitoring
 	go mc.monitorResources()
-	
+
 	// Start throughput tracking
 	go mc.trackThroughput()
 }
@@ -148,7 +148,7 @@ func (mc *MetricsCollector) Stop() {
 // RecordOperation records a single operation result
 func (mc *MetricsCollector) RecordOperation(latencyMs float64, err error) {
 	atomic.AddInt64(&mc.totalOperations, 1)
-	
+
 	if err != nil {
 		atomic.AddInt64(&mc.failedOperations, 1)
 		mc.recordError(err)
@@ -176,7 +176,7 @@ func (mc *MetricsCollector) RecordBatchOperation(count int64, totalLatencyMs flo
 }
 
 // SetCustomMetric sets a custom metric value
-func (mc *MetricsCollector) SetCustomMetric(key string, value interface{}) {
+func (mc *MetricsCollector) SetCustomMetric(key string, value any) {
 	mc.mu.Lock()
 	mc.customMetrics[key] = value
 	mc.mu.Unlock()
@@ -214,7 +214,7 @@ func (mc *MetricsCollector) GetReport(testName string) *PerformanceReport {
 // SaveReport saves the report to a JSON file
 func (mc *MetricsCollector) SaveReport(testName string, filename string) error {
 	report := mc.GetReport(testName)
-	
+
 	data, err := json.MarshalIndent(report, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal report: %w", err)
@@ -226,7 +226,7 @@ func (mc *MetricsCollector) SaveReport(testName string, filename string) error {
 // PrintSummary prints a summary of the metrics to stdout
 func (mc *MetricsCollector) PrintSummary(testName string) {
 	report := mc.GetReport(testName)
-	
+
 	fmt.Printf("\n=== Performance Test Summary: %s ===\n", testName)
 	fmt.Printf("Duration: %v\n", report.Duration)
 	fmt.Printf("Total Operations: %d\n", report.Metrics.TotalOperations)
@@ -240,7 +240,7 @@ func (mc *MetricsCollector) PrintSummary(testName string) {
 	fmt.Printf("  P95: %.2f ms\n", report.Metrics.Latency.P95)
 	fmt.Printf("  P99: %.2f ms\n", report.Metrics.Latency.P99)
 	fmt.Printf("  Max: %.2f ms\n", report.Metrics.Latency.Max)
-	
+
 	if len(report.Errors) > 0 {
 		fmt.Printf("\nErrors:\n")
 		for errType, count := range report.Errors {
@@ -270,7 +270,7 @@ func (mc *MetricsCollector) monitorResources() {
 		mc.mu.RUnlock()
 
 		runtime.ReadMemStats(&m)
-		
+
 		snapshot := ResourceSnapshot{
 			Timestamp:     time.Now(),
 			MemoryMB:      m.Alloc / 1024 / 1024,
@@ -316,7 +316,7 @@ func (mc *MetricsCollector) calculateThroughput() Throughput {
 	duration := mc.endTime.Sub(mc.startTime)
 	totalOps := atomic.LoadInt64(&mc.totalOperations)
 	overallThroughput := float64(totalOps) / duration.Seconds()
-	
+
 	if len(mc.throughputWindows) == 0 {
 		// If no windows recorded (short test), use overall throughput
 		return Throughput{
@@ -328,7 +328,7 @@ func (mc *MetricsCollector) calculateThroughput() Throughput {
 
 	var total float64
 	var values []float64
-	
+
 	for _, window := range mc.throughputWindows {
 		ops := float64(window.Operations) / window.Duration.Seconds()
 		total += ops
@@ -336,7 +336,7 @@ func (mc *MetricsCollector) calculateThroughput() Throughput {
 	}
 
 	sort.Float64s(values)
-	
+
 	return Throughput{
 		Average: total / float64(len(values)),
 		Peak:    values[len(values)-1],
@@ -363,14 +363,14 @@ func (mc *MetricsCollector) calculateResourceMetrics() ResourceMetrics {
 
 	var memory []float64
 	var gcPause []float64
-	
+
 	for _, snapshot := range mc.resourceSnapshots {
 		memory = append(memory, float64(snapshot.MemoryMB))
 		gcPause = append(gcPause, snapshot.GCPauseTimeMs)
 	}
 
 	return ResourceMetrics{
-		Memory: calculateResourceStat(memory),
+		Memory:  calculateResourceStat(memory),
 		GCPause: calculateResourceStat(gcPause),
 	}
 }
@@ -381,7 +381,7 @@ func calculateResourceStat(values []float64) ResourceStat {
 	}
 
 	sort.Float64s(values)
-	
+
 	var sum float64
 	for _, v := range values {
 		sum += v
@@ -398,15 +398,15 @@ func percentile(values []float64, p float64) float64 {
 	if len(values) == 0 {
 		return 0
 	}
-	
-	index := int(math.Ceil(p * float64(len(values)))) - 1
+
+	index := int(math.Ceil(p*float64(len(values)))) - 1
 	if index < 0 {
 		index = 0
 	}
 	if index >= len(values) {
 		index = len(values) - 1
 	}
-	
+
 	return values[index]
 }
 

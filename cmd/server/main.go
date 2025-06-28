@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/spf13/cobra"
 	"github.com/sumandas0/entropic/config"
 	"github.com/sumandas0/entropic/internal/api"
 	"github.com/sumandas0/entropic/internal/cache"
@@ -17,13 +18,11 @@ import (
 	"github.com/sumandas0/entropic/internal/lock"
 	"github.com/sumandas0/entropic/internal/store/postgres"
 	"github.com/sumandas0/entropic/internal/store/typesense"
-	"github.com/spf13/cobra"
 
-	_ "github.com/sumandas0/entropic/docs" 
+	_ "github.com/sumandas0/entropic/docs"
 )
 
 var (
-	
 	version   = "dev"
 	commit    = "unknown"
 	buildTime = "unknown"
@@ -83,7 +82,7 @@ func main() {
 }
 
 func runServer(cmd *cobra.Command, args []string) error {
-	
+
 	if versionFlag, _ := cmd.Flags().GetBool("version"); versionFlag {
 		fmt.Printf("Entropic Server %s (commit: %s, built: %s)\n", version, commit, buildTime)
 		return nil
@@ -147,7 +146,7 @@ func runServer(cmd *cobra.Command, args []string) error {
 }
 
 func runMigrations(cmd *cobra.Command, args []string) error {
-	
+
 	configPath, _ := cmd.Flags().GetString("config")
 	cfg, err := config.LoadConfig(configPath)
 	if err != nil {
@@ -236,7 +235,7 @@ func NewApplication(cfg *config.Config) (*Application, error) {
 	case "memory":
 		distributedLock = lock.NewInMemoryDistributedLock()
 	case "redis":
-		
+
 		logWarn("Redis distributed lock not implemented, falling back to in-memory")
 		distributedLock = lock.NewInMemoryDistributedLock()
 	default:
@@ -331,15 +330,15 @@ func setupLogging(cfg config.LoggingConfig) {
 	logInfo("Logging configured: level=%s, format=%s", cfg.Level, cfg.Format)
 }
 
-func logInfo(format string, args ...interface{}) {
+func logInfo(format string, args ...any) {
 	fmt.Printf("[INFO] %s %s\n", time.Now().Format(time.RFC3339), fmt.Sprintf(format, args...))
 }
 
-func logWarn(format string, args ...interface{}) {
+func logWarn(format string, args ...any) {
 	fmt.Printf("[WARN] %s %s\n", time.Now().Format(time.RFC3339), fmt.Sprintf(format, args...))
 }
 
-func logError(format string, args ...interface{}) {
+func logError(format string, args ...any) {
 	fmt.Fprintf(os.Stderr, "[ERROR] %s %s\n", time.Now().Format(time.RFC3339), fmt.Sprintf(format, args...))
 }
 
@@ -349,4 +348,3 @@ func getConfigSource(configPath string) string {
 	}
 	return "defaults and environment variables"
 }
-

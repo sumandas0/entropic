@@ -4,12 +4,12 @@ import (
 	"context"
 	"testing"
 
-	"github.com/sumandas0/entropic/internal/core"
-	"github.com/sumandas0/entropic/internal/models"
-	"github.com/sumandas0/entropic/tests/testhelpers"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/sumandas0/entropic/internal/core"
+	"github.com/sumandas0/entropic/internal/models"
+	"github.com/sumandas0/entropic/tests/testhelpers"
 )
 
 func TestValidator_ValidateEntity(t *testing.T) {
@@ -40,7 +40,7 @@ func TestValidator_ValidateEntity(t *testing.T) {
 				ID:         uuid.New(),
 				EntityType: "user",
 				URN:        "test:user:missing-name",
-				Properties: map[string]interface{}{
+				Properties: map[string]any{
 					"description": "User without name",
 				},
 			},
@@ -53,8 +53,8 @@ func TestValidator_ValidateEntity(t *testing.T) {
 				ID:         uuid.New(),
 				EntityType: "user",
 				URN:        "test:user:invalid-type",
-				Properties: map[string]interface{}{
-					"name": 123, 
+				Properties: map[string]any{
+					"name": 123,
 				},
 			},
 			wantError: true,
@@ -66,9 +66,9 @@ func TestValidator_ValidateEntity(t *testing.T) {
 				ID:         uuid.New(),
 				EntityType: "user",
 				URN:        "test:user:invalid-array",
-				Properties: map[string]interface{}{
+				Properties: map[string]any{
 					"name": "Test User",
-					"tags": []interface{}{123, "string"}, 
+					"tags": []any{123, "string"},
 				},
 			},
 			wantError: true,
@@ -80,9 +80,9 @@ func TestValidator_ValidateEntity(t *testing.T) {
 				ID:         uuid.New(),
 				EntityType: "user",
 				URN:        "test:user:invalid-vector",
-				Properties: map[string]interface{}{
+				Properties: map[string]any{
 					"name":      "Test User",
-					"embedding": []float32{1.0, 2.0}, 
+					"embedding": []float32{1.0, 2.0},
 				},
 			},
 			wantError: true,
@@ -150,7 +150,7 @@ func TestValidator_ValidateRelation(t *testing.T) {
 				FromEntityType: user.EntityType,
 				ToEntityID:     org.ID,
 				ToEntityType:   org.EntityType,
-				Properties:     map[string]interface{}{},
+				Properties:     map[string]any{},
 			},
 			wantError: true,
 			errorMsg:  "relationship schema not found",
@@ -161,10 +161,10 @@ func TestValidator_ValidateRelation(t *testing.T) {
 				ID:             uuid.New(),
 				RelationType:   "member_of",
 				FromEntityID:   user.ID,
-				FromEntityType: "organization", 
+				FromEntityType: "organization",
 				ToEntityID:     org.ID,
 				ToEntityType:   org.EntityType,
-				Properties:     map[string]interface{}{},
+				Properties:     map[string]any{},
 			},
 			wantError: true,
 			errorMsg:  "from entity type mismatch",
@@ -201,7 +201,7 @@ func TestValidator_ValidateURNUniqueness(t *testing.T) {
 	require.NoError(t, err)
 
 	entity2 := testhelpers.CreateTestEntity("user", "another-user")
-	entity2.URN = "test:user:unique-urn" 
+	entity2.URN = "test:user:unique-urn"
 
 	err = validator.ValidateEntity(ctx, entity2)
 	assert.Error(t, err)
@@ -254,7 +254,6 @@ func TestValidator_ValidateEntitySchema(t *testing.T) {
 					"embedding": models.PropertyDefinition{
 						Type:     "vector",
 						Required: false,
-						
 					},
 				},
 			},

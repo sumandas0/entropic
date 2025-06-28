@@ -32,10 +32,10 @@ const (
 )
 
 type AppError struct {
-	Code    string                 `json:"code" example:"NOT_FOUND"`
-	Message string                 `json:"message" example:"Entity not found"`
-	Err     error                  `json:"-"`
-	Details map[string]interface{} `json:"details,omitempty" swaggertype:"object"`
+	Code    string         `json:"code" example:"NOT_FOUND"`
+	Message string         `json:"message" example:"Entity not found"`
+	Err     error          `json:"-"`
+	Details map[string]any `json:"details,omitempty" swaggertype:"object"`
 }
 
 func (e *AppError) Error() string {
@@ -54,18 +54,18 @@ func NewAppError(code, message string, err error) *AppError {
 		Code:    code,
 		Message: message,
 		Err:     err,
-		Details: make(map[string]interface{}),
+		Details: make(map[string]any),
 	}
 }
 
-func (e *AppError) WithDetails(details map[string]interface{}) *AppError {
+func (e *AppError) WithDetails(details map[string]any) *AppError {
 	e.Details = details
 	return e
 }
 
-func (e *AppError) WithDetail(key string, value interface{}) *AppError {
+func (e *AppError) WithDetail(key string, value any) *AppError {
 	if e.Details == nil {
-		e.Details = make(map[string]interface{})
+		e.Details = make(map[string]any)
 	}
 	e.Details[key] = value
 	return e
@@ -89,7 +89,7 @@ func IsValidation(err error) bool {
 		(err != nil && errors.As(err, &appErr) && appErr.Code == CodeValidation)
 }
 
-func WrapError(err error, format string, args ...interface{}) error {
+func WrapError(err error, format string, args ...any) error {
 	if err == nil {
 		return nil
 	}

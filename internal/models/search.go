@@ -5,24 +5,24 @@ import (
 )
 
 type SearchQuery struct {
-	EntityTypes []string               `json:"entity_types" validate:"required,min=1" example:"user,document"`
-	Query       string                 `json:"query" example:"john doe"`
-	Filters     map[string]interface{} `json:"filters" swaggertype:"object"`
-	Facets      []string               `json:"facets" example:"status,type"`
-	Sort        []SortOption           `json:"sort"`
-	Limit       int                    `json:"limit" validate:"min=1,max=1000" example:"20"`
-	Offset      int                    `json:"offset" validate:"min=0" example:"0"`
-	IncludeURN  bool                   `json:"include_urn" example:"true"`
+	EntityTypes []string       `json:"entity_types" validate:"required,min=1" example:"user,document"`
+	Query       string         `json:"query" example:"john doe"`
+	Filters     map[string]any `json:"filters" swaggertype:"object"`
+	Facets      []string       `json:"facets" example:"status,type"`
+	Sort        []SortOption   `json:"sort"`
+	Limit       int            `json:"limit" validate:"min=1,max=1000" example:"20"`
+	Offset      int            `json:"offset" validate:"min=0" example:"0"`
+	IncludeURN  bool           `json:"include_urn" example:"true"`
 }
 
 type VectorQuery struct {
-	EntityTypes    []string               `json:"entity_types" validate:"required,min=1" example:"document"`
-	Vector         []float32              `json:"vector" validate:"required" swaggertype:"array,number"`
-	VectorField    string                 `json:"vector_field" validate:"required" example:"embedding"`
-	TopK           int                    `json:"top_k" validate:"required,min=1,max=1000" example:"10"`
-	Filters        map[string]interface{} `json:"filters" swaggertype:"object"`
-	MinScore       float32                `json:"min_score" example:"0.7"`
-	IncludeVectors bool                   `json:"include_vectors" example:"false"`
+	EntityTypes    []string       `json:"entity_types" validate:"required,min=1" example:"document"`
+	Vector         []float32      `json:"vector" validate:"required" swaggertype:"array,number"`
+	VectorField    string         `json:"vector_field" validate:"required" example:"embedding"`
+	TopK           int            `json:"top_k" validate:"required,min=1,max=1000" example:"10"`
+	Filters        map[string]any `json:"filters" swaggertype:"object"`
+	MinScore       float32        `json:"min_score" example:"0.7"`
+	IncludeVectors bool           `json:"include_vectors" example:"false"`
 }
 
 type SortOption struct {
@@ -38,21 +38,21 @@ const (
 )
 
 type SearchResult struct {
-	Hits       []SearchHit            `json:"hits"`
-	TotalHits  int64                  `json:"total_hits" example:"100"`
+	Hits       []SearchHit             `json:"hits"`
+	TotalHits  int64                   `json:"total_hits" example:"100"`
 	Facets     map[string][]FacetValue `json:"facets,omitempty" swaggertype:"object"`
-	SearchTime int64                  `json:"search_time_ms" example:"15"`
-	Query      interface{}            `json:"query" swaggertype:"object"` 
+	SearchTime int64                   `json:"search_time_ms" example:"15"`
+	Query      any                     `json:"query" swaggertype:"object"`
 }
 
 type SearchHit struct {
-	ID         uuid.UUID              `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
-	EntityType string                 `json:"entity_type" example:"user"`
-	URN        string                 `json:"urn,omitempty" example:"urn:entropic:user:123"`
-	Score      float32                `json:"score" example:"0.95"`
-	Properties map[string]interface{} `json:"properties" swaggertype:"object"`
-	Highlights map[string][]string    `json:"highlights,omitempty" swaggertype:"object"`
-	Vector     []float32              `json:"vector,omitempty" swaggertype:"array,number"`
+	ID         uuid.UUID           `json:"id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	EntityType string              `json:"entity_type" example:"user"`
+	URN        string              `json:"urn,omitempty" example:"urn:entropic:user:123"`
+	Score      float32             `json:"score" example:"0.95"`
+	Properties map[string]any      `json:"properties" swaggertype:"object"`
+	Highlights map[string][]string `json:"highlights,omitempty" swaggertype:"object"`
+	Vector     []float32           `json:"vector,omitempty" swaggertype:"array,number"`
 }
 
 type FacetValue struct {
@@ -64,7 +64,7 @@ func NewSearchQuery(entityTypes []string, query string) *SearchQuery {
 	return &SearchQuery{
 		EntityTypes: entityTypes,
 		Query:       query,
-		Filters:     make(map[string]interface{}),
+		Filters:     make(map[string]any),
 		Facets:      []string{},
 		Sort:        []SortOption{},
 		Limit:       20,
@@ -79,15 +79,15 @@ func NewVectorQuery(entityTypes []string, vector []float32, vectorField string) 
 		Vector:         vector,
 		VectorField:    vectorField,
 		TopK:           10,
-		Filters:        make(map[string]interface{}),
+		Filters:        make(map[string]any),
 		MinScore:       0.0,
 		IncludeVectors: false,
 	}
 }
 
-func (q *SearchQuery) AddFilter(field string, value interface{}) {
+func (q *SearchQuery) AddFilter(field string, value any) {
 	if q.Filters == nil {
-		q.Filters = make(map[string]interface{})
+		q.Filters = make(map[string]any)
 	}
 	q.Filters[field] = value
 }

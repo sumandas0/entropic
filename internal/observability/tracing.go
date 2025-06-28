@@ -21,10 +21,10 @@ const (
 )
 
 type TracingConfig struct {
-	Enabled     bool   `yaml:"enabled" mapstructure:"enabled"`
-	JaegerURL   string `yaml:"jaeger_url" mapstructure:"jaeger_url"`
-	ServiceName string `yaml:"service_name" mapstructure:"service_name"`
-	Environment string `yaml:"environment" mapstructure:"environment"`
+	Enabled     bool    `yaml:"enabled" mapstructure:"enabled"`
+	JaegerURL   string  `yaml:"jaeger_url" mapstructure:"jaeger_url"`
+	ServiceName string  `yaml:"service_name" mapstructure:"service_name"`
+	Environment string  `yaml:"environment" mapstructure:"environment"`
 	SampleRate  float64 `yaml:"sample_rate" mapstructure:"sample_rate"`
 }
 
@@ -201,7 +201,7 @@ func (tm *TracingManager) TraceMiddleware() func(next http.Handler) http.Handler
 			}
 
 			ctx := otel.GetTextMapPropagator().Extract(r.Context(), propagation.HeaderCarrier(r.Header))
-			
+
 			spanName := fmt.Sprintf("%s %s", r.Method, r.URL.Path)
 			ctx, span := tm.tracer.Start(ctx, spanName,
 				trace.WithAttributes(
@@ -218,7 +218,7 @@ func (tm *TracingManager) TraceMiddleware() func(next http.Handler) http.Handler
 			}
 
 			wrapped := &responseWriter{ResponseWriter: w}
-			
+
 			next.ServeHTTP(wrapped, r.WithContext(ctx))
 
 			span.SetAttributes(
@@ -242,14 +242,14 @@ func (rw *responseWriter) WriteHeader(statusCode int) {
 	rw.ResponseWriter.WriteHeader(statusCode)
 }
 
-func ExtractTraceInfo(ctx context.Context) map[string]interface{} {
+func ExtractTraceInfo(ctx context.Context) map[string]any {
 	span := trace.SpanFromContext(ctx)
 	if !span.IsRecording() {
 		return nil
 	}
 
 	spanCtx := span.SpanContext()
-	return map[string]interface{}{
+	return map[string]any{
 		"trace_id": spanCtx.TraceID().String(),
 		"span_id":  spanCtx.SpanID().String(),
 	}

@@ -39,7 +39,7 @@ func NewInputSanitizer(config SanitizerConfig) *InputSanitizer {
 	}
 
 	if config.Enabled {
-		
+
 		if config.AllowHTML {
 			sanitizer.htmlPolicy = bluemonday.UGCPolicy()
 		} else {
@@ -109,11 +109,11 @@ func (is *InputSanitizer) SanitizeString(input string) (string, error) {
 	return strings.TrimSpace(input), nil
 }
 
-func (is *InputSanitizer) SanitizeValue(value interface{}) (interface{}, error) {
+func (is *InputSanitizer) SanitizeValue(value any) (any, error) {
 	return is.sanitizeValueWithDepth(value, 0)
 }
 
-func (is *InputSanitizer) sanitizeValueWithDepth(value interface{}, depth int) (interface{}, error) {
+func (is *InputSanitizer) sanitizeValueWithDepth(value any, depth int) (any, error) {
 	if !is.config.Enabled {
 		return value, nil
 	}
@@ -122,17 +122,17 @@ func (is *InputSanitizer) sanitizeValueWithDepth(value interface{}, depth int) (
 		if is.config.StrictMode {
 			return nil, fmt.Errorf("object depth exceeds maximum allowed depth of %d", is.config.MaxObjectDepth)
 		}
-		return nil, nil 
+		return nil, nil
 	}
 
 	switch v := value.(type) {
 	case string:
 		return is.SanitizeString(v)
 
-	case []interface{}:
+	case []any:
 		return is.sanitizeArray(v, depth)
 
-	case map[string]interface{}:
+	case map[string]any:
 		return is.sanitizeObject(v, depth)
 
 	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
@@ -148,13 +148,13 @@ func (is *InputSanitizer) sanitizeValueWithDepth(value interface{}, depth int) (
 		return nil, nil
 
 	default:
-		
+
 		str := fmt.Sprintf("%v", v)
 		return is.SanitizeString(str)
 	}
 }
 
-func (is *InputSanitizer) sanitizeArray(arr []interface{}, depth int) ([]interface{}, error) {
+func (is *InputSanitizer) sanitizeArray(arr []any, depth int) ([]any, error) {
 	if len(arr) > is.config.MaxArrayLength {
 		if is.config.StrictMode {
 			return nil, fmt.Errorf("array length exceeds maximum allowed length of %d", is.config.MaxArrayLength)
@@ -162,14 +162,14 @@ func (is *InputSanitizer) sanitizeArray(arr []interface{}, depth int) ([]interfa
 		arr = arr[:is.config.MaxArrayLength]
 	}
 
-	sanitized := make([]interface{}, 0, len(arr))
+	sanitized := make([]any, 0, len(arr))
 	for _, item := range arr {
 		sanitizedItem, err := is.sanitizeValueWithDepth(item, depth+1)
 		if err != nil {
 			if is.config.StrictMode {
 				return nil, err
 			}
-			continue 
+			continue
 		}
 		sanitized = append(sanitized, sanitizedItem)
 	}
@@ -177,17 +177,17 @@ func (is *InputSanitizer) sanitizeArray(arr []interface{}, depth int) ([]interfa
 	return sanitized, nil
 }
 
-func (is *InputSanitizer) sanitizeObject(obj map[string]interface{}, depth int) (map[string]interface{}, error) {
-	sanitized := make(map[string]interface{})
+func (is *InputSanitizer) sanitizeObject(obj map[string]any, depth int) (map[string]any, error) {
+	sanitized := make(map[string]any)
 
 	for key, value := range obj {
-		
+
 		sanitizedKey, err := is.SanitizeString(key)
 		if err != nil {
 			if is.config.StrictMode {
 				return nil, fmt.Errorf("invalid key '%s': %w", key, err)
 			}
-			continue 
+			continue
 		}
 
 		if sanitizedKey == "" {
@@ -199,7 +199,7 @@ func (is *InputSanitizer) sanitizeObject(obj map[string]interface{}, depth int) 
 			if is.config.StrictMode {
 				return nil, fmt.Errorf("invalid value for key '%s': %w", key, err)
 			}
-			continue 
+			continue
 		}
 
 		sanitized[sanitizedKey] = sanitizedValue
@@ -387,7 +387,7 @@ func (is *InputSanitizer) SanitizeMiddleware() func(next http.Handler) http.Hand
 			r.URL.RawQuery = sanitizedQuery.Encode()
 
 			for key, values := range r.Header {
-				
+
 				if isStandardHeader(key) {
 					continue
 				}
@@ -436,13 +436,13 @@ func NewEntitySanitizer(config SanitizerConfig) *EntitySanitizer {
 	}
 }
 
-func (es *EntitySanitizer) SanitizeEntityProperties(properties map[string]interface{}) (map[string]interface{}, error) {
+func (es *EntitySanitizer) SanitizeEntityProperties(properties map[string]any) (map[string]any, error) {
 	sanitized, err := es.sanitizer.SanitizeValue(properties)
 	if err != nil {
 		return nil, err
 	}
 
-	if sanitizedMap, ok := sanitized.(map[string]interface{}); ok {
+	if sanitizedMap, ok := sanitized.(map[string]any); ok {
 		return sanitizedMap, nil
 	}
 
@@ -450,7 +450,7 @@ func (es *EntitySanitizer) SanitizeEntityProperties(properties map[string]interf
 }
 
 func (es *EntitySanitizer) SanitizeEntityType(entityType string) (string, error) {
-	
+
 	sanitized, err := es.sanitizer.SanitizeString(entityType)
 	if err != nil {
 		return "", err
@@ -504,13 +504,13 @@ func (ss *SearchSanitizer) SanitizeSearchQuery(query string) (string, error) {
 	return sanitized, nil
 }
 
-func (ss *SearchSanitizer) SanitizeSearchFilters(filters map[string]interface{}) (map[string]interface{}, error) {
+func (ss *SearchSanitizer) SanitizeSearchFilters(filters map[string]any) (map[string]any, error) {
 	sanitized, err := ss.sanitizer.SanitizeValue(filters)
 	if err != nil {
 		return nil, err
 	}
 
-	if sanitizedMap, ok := sanitized.(map[string]interface{}); ok {
+	if sanitizedMap, ok := sanitized.(map[string]any); ok {
 		return sanitizedMap, nil
 	}
 

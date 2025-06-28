@@ -151,7 +151,7 @@ func (v *Validator) validateURNUniqueness(ctx context.Context, entity *models.En
 	return nil
 }
 
-func (v *Validator) validateProperties(properties map[string]interface{}, schema models.PropertySchema) error {
+func (v *Validator) validateProperties(properties map[string]any, schema models.PropertySchema) error {
 	for propName, propDef := range schema {
 		if propDef.Required {
 			if _, exists := properties[propName]; !exists {
@@ -174,7 +174,7 @@ func (v *Validator) validateProperties(properties map[string]interface{}, schema
 	return nil
 }
 
-func (v *Validator) validatePropertyValue(propName string, value interface{}, propDef models.PropertyDefinition) error {
+func (v *Validator) validatePropertyValue(propName string, value any, propDef models.PropertyDefinition) error {
 	if value == nil {
 		if propDef.Required {
 			return fmt.Errorf("property '%s' cannot be null", propName)
@@ -193,7 +193,7 @@ func (v *Validator) validatePropertyValue(propName string, value interface{}, pr
 	return nil
 }
 
-func (v *Validator) validatePropertyType(propName string, value interface{}, propDef models.PropertyDefinition) error {
+func (v *Validator) validatePropertyType(propName string, value any, propDef models.PropertyDefinition) error {
 	switch propDef.Type {
 	case "string":
 		if _, ok := value.(string); !ok {
@@ -216,7 +216,7 @@ func (v *Validator) validatePropertyType(propName string, value interface{}, pro
 			return fmt.Errorf("property '%s' must be an object", propName)
 		}
 		if propDef.ObjectSchema != nil {
-			if objMap, ok := value.(map[string]interface{}); ok {
+			if objMap, ok := value.(map[string]any); ok {
 				return v.validateProperties(objMap, propDef.ObjectSchema)
 			}
 		}
@@ -224,7 +224,7 @@ func (v *Validator) validatePropertyType(propName string, value interface{}, pro
 		if reflect.TypeOf(value).Kind() != reflect.Slice {
 			return fmt.Errorf("property '%s' must be an array", propName)
 		}
-		
+
 		if propDef.ElementType != "" {
 			return v.validateArrayElements(propName, value, propDef.ElementType)
 		}
@@ -239,7 +239,7 @@ func (v *Validator) validatePropertyType(propName string, value interface{}, pro
 	return nil
 }
 
-func (v *Validator) validateArrayElements(propName string, value interface{}, elementType string) error {
+func (v *Validator) validateArrayElements(propName string, value any, elementType string) error {
 	arrayValue := reflect.ValueOf(value)
 	for i := 0; i < arrayValue.Len(); i++ {
 		element := arrayValue.Index(i).Interface()
@@ -251,7 +251,7 @@ func (v *Validator) validateArrayElements(propName string, value interface{}, el
 	return nil
 }
 
-func (v *Validator) validateVectorProperty(propName string, value interface{}, expectedDim int) error {
+func (v *Validator) validateVectorProperty(propName string, value any, expectedDim int) error {
 	arrayValue := reflect.ValueOf(value)
 	if arrayValue.Kind() != reflect.Slice {
 		return fmt.Errorf("property '%s' must be a vector (array of numbers)", propName)
@@ -271,7 +271,7 @@ func (v *Validator) validateVectorProperty(propName string, value interface{}, e
 	return nil
 }
 
-func (v *Validator) validatePropertyConstraints(propName string, value interface{}, constraints map[string]interface{}) error {
+func (v *Validator) validatePropertyConstraints(propName string, value any, constraints map[string]any) error {
 	if constraints == nil {
 		return nil
 	}
@@ -285,7 +285,7 @@ func (v *Validator) validatePropertyConstraints(propName string, value interface
 	return nil
 }
 
-func (v *Validator) validateConstraint(propName string, value interface{}, constraintType string, constraintValue interface{}) error {
+func (v *Validator) validateConstraint(propName string, value any, constraintType string, constraintValue any) error {
 	switch constraintType {
 	case "min":
 		if err := v.validateMinConstraint(propName, value, constraintValue); err != nil {
@@ -316,7 +316,7 @@ func (v *Validator) validateConstraint(propName string, value interface{}, const
 	return nil
 }
 
-func (v *Validator) validateMinConstraint(propName string, value interface{}, minValue interface{}) error {
+func (v *Validator) validateMinConstraint(propName string, value any, minValue any) error {
 	if !isNumeric(value) || !isNumeric(minValue) {
 		return nil
 	}
@@ -331,7 +331,7 @@ func (v *Validator) validateMinConstraint(propName string, value interface{}, mi
 	return nil
 }
 
-func (v *Validator) validateMaxConstraint(propName string, value interface{}, maxValue interface{}) error {
+func (v *Validator) validateMaxConstraint(propName string, value any, maxValue any) error {
 	if !isNumeric(value) || !isNumeric(maxValue) {
 		return nil
 	}
@@ -346,7 +346,7 @@ func (v *Validator) validateMaxConstraint(propName string, value interface{}, ma
 	return nil
 }
 
-func (v *Validator) validateMinLengthConstraint(propName string, value interface{}, minLength interface{}) error {
+func (v *Validator) validateMinLengthConstraint(propName string, value any, minLength any) error {
 	length := getLength(value)
 	if length == -1 {
 		return nil
@@ -368,7 +368,7 @@ func (v *Validator) validateMinLengthConstraint(propName string, value interface
 	return nil
 }
 
-func (v *Validator) validateMaxLengthConstraint(propName string, value interface{}, maxLength interface{}) error {
+func (v *Validator) validateMaxLengthConstraint(propName string, value any, maxLength any) error {
 	length := getLength(value)
 	if length == -1 {
 		return nil
@@ -390,10 +390,10 @@ func (v *Validator) validateMaxLengthConstraint(propName string, value interface
 	return nil
 }
 
-func (v *Validator) validatePatternConstraint(propName string, value interface{}, pattern interface{}) error {
+func (v *Validator) validatePatternConstraint(propName string, value any, pattern any) error {
 	strValue, ok := value.(string)
 	if !ok {
-		return nil 
+		return nil
 	}
 
 	patternStr, ok := pattern.(string)
@@ -413,8 +413,8 @@ func (v *Validator) validatePatternConstraint(propName string, value interface{}
 	return nil
 }
 
-func (v *Validator) validateEnumConstraint(propName string, value interface{}, enumValues interface{}) error {
-	enumSlice, ok := enumValues.([]interface{})
+func (v *Validator) validateEnumConstraint(propName string, value any, enumValues any) error {
+	enumSlice, ok := enumValues.([]any)
 	if !ok {
 		return nil
 	}
@@ -429,7 +429,7 @@ func (v *Validator) validateEnumConstraint(propName string, value interface{}, e
 }
 
 func (v *Validator) validateEntityReferences(ctx context.Context, relation *models.Relation) error {
-	
+
 	_, err := v.primaryStore.GetEntity(ctx, relation.FromEntityType, relation.FromEntityID)
 	if err != nil {
 		if utils.IsNotFound(err) {
@@ -462,7 +462,7 @@ func (v *Validator) validateCardinality(ctx context.Context, relation *models.Re
 	case models.ManyToOne:
 		return v.validateManyToOneCardinality(ctx, relation)
 	case models.ManyToMany:
-		
+
 		return nil
 	default:
 		return fmt.Errorf("unknown cardinality type: %s", schema.Cardinality)
@@ -470,7 +470,7 @@ func (v *Validator) validateCardinality(ctx context.Context, relation *models.Re
 }
 
 func (v *Validator) validateOneToOneCardinality(ctx context.Context, relation *models.Relation) error {
-	
+
 	fromRelations, err := v.primaryStore.GetRelationsByEntity(ctx, relation.FromEntityID, []string{relation.RelationType})
 	if err != nil {
 		return err
@@ -501,7 +501,7 @@ func (v *Validator) validateOneToOneCardinality(ctx context.Context, relation *m
 }
 
 func (v *Validator) validateOneToManyCardinality(ctx context.Context, relation *models.Relation) error {
-	
+
 	toRelations, err := v.primaryStore.GetRelationsByEntity(ctx, relation.ToEntityID, []string{relation.RelationType})
 	if err != nil {
 		return err
@@ -519,7 +519,7 @@ func (v *Validator) validateOneToManyCardinality(ctx context.Context, relation *
 }
 
 func (v *Validator) validateManyToOneCardinality(ctx context.Context, relation *models.Relation) error {
-	
+
 	fromRelations, err := v.primaryStore.GetRelationsByEntity(ctx, relation.FromEntityID, []string{relation.RelationType})
 	if err != nil {
 		return err
@@ -537,7 +537,7 @@ func (v *Validator) validateManyToOneCardinality(ctx context.Context, relation *
 }
 
 func (v *Validator) validatePropertyDefinition(propName string, propDef models.PropertyDefinition) error {
-	
+
 	validTypes := []string{"string", "number", "boolean", "datetime", "object", "array", "vector"}
 	isValidType := false
 	for _, validType := range validTypes {
@@ -573,7 +573,7 @@ func (v *Validator) validatePropertyDefinition(propName string, propDef models.P
 }
 
 func (v *Validator) validateIndexConfig(index models.IndexConfig, properties models.PropertySchema) error {
-	
+
 	validIndexTypes := []string{"btree", "hash", "gin", "gist", "vector"}
 	isValidType := false
 	for _, validType := range validIndexTypes {
@@ -633,11 +633,11 @@ func validateUUID(fl validator.FieldLevel) bool {
 
 func validateURN(fl validator.FieldLevel) bool {
 	urn := fl.Field().String()
-	
+
 	return len(urn) > 0 && len(urn) <= 500
 }
 
-func isNumeric(value interface{}) bool {
+func isNumeric(value any) bool {
 	switch value.(type) {
 	case int, int8, int16, int32, int64:
 		return true
@@ -650,23 +650,23 @@ func isNumeric(value interface{}) bool {
 	}
 }
 
-func isDateTime(value interface{}) bool {
+func isDateTime(value any) bool {
 	switch v := value.(type) {
 	case time.Time:
 		return true
 	case string:
-		
+
 		_, err := time.Parse(time.RFC3339, v)
 		return err == nil
 	case int64:
-		
+
 		return v > 0
 	default:
 		return false
 	}
 }
 
-func toFloat64(value interface{}) float64 {
+func toFloat64(value any) float64 {
 	switch v := value.(type) {
 	case int:
 		return float64(v)
@@ -700,11 +700,11 @@ func toFloat64(value interface{}) float64 {
 	return 0
 }
 
-func getLength(value interface{}) int {
+func getLength(value any) int {
 	switch v := value.(type) {
 	case string:
 		return len(v)
-	case []interface{}:
+	case []any:
 		return len(v)
 	default:
 		rv := reflect.ValueOf(value)

@@ -57,7 +57,7 @@ func NewRateLimiter(config RateLimitConfig) *RateLimiter {
 	}
 
 	if config.Enabled {
-		
+
 		rl.globalLimiter = rate.NewLimiter(
 			rate.Limit(config.RequestsPerSecond),
 			config.BurstSize,
@@ -178,7 +178,7 @@ func (rl *RateLimiter) cleanup() {
 	defer rl.mutex.Unlock()
 
 	now := time.Now()
-	cutoff := now.Add(-rl.config.CleanupInterval * 2) 
+	cutoff := now.Add(-rl.config.CleanupInterval * 2)
 
 	for ip, entry := range rl.ipLimiters {
 		if entry.lastSeen.Before(cutoff) {
@@ -201,15 +201,15 @@ func (rl *RateLimiter) IsEnabled() bool {
 	return rl.config.Enabled
 }
 
-func (rl *RateLimiter) GetStats() map[string]interface{} {
+func (rl *RateLimiter) GetStats() map[string]any {
 	rl.mutex.RLock()
 	defer rl.mutex.RUnlock()
 
-	return map[string]interface{}{
+	return map[string]any{
 		"enabled":             rl.config.Enabled,
 		"ip_limiters_count":   len(rl.ipLimiters),
 		"user_limiters_count": len(rl.userLimiters),
-		"global_limit": map[string]interface{}{
+		"global_limit": map[string]any{
 			"requests_per_second": rl.config.RequestsPerSecond,
 			"burst_size":          rl.config.BurstSize,
 		},
@@ -258,7 +258,7 @@ func (rl *RateLimiter) RateLimitMiddleware() func(next http.Handler) http.Handle
 
 func (rl *RateLimiter) sendRateLimitResponse(w http.ResponseWriter, message string) {
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Retry-After", "60") 
+	w.Header().Set("Retry-After", "60")
 	w.WriteHeader(http.StatusTooManyRequests)
 
 	response := fmt.Sprintf(`{"error": "rate_limit_exceeded", "message": "%s"}`, message)
@@ -266,7 +266,7 @@ func (rl *RateLimiter) sendRateLimitResponse(w http.ResponseWriter, message stri
 }
 
 func (rl *RateLimiter) addRateLimitHeaders(w http.ResponseWriter, clientIP, userID string) {
-	
+
 	if rl.globalLimiter != nil {
 		w.Header().Set("X-RateLimit-Limit", strconv.FormatFloat(float64(rl.globalLimiter.Limit()), 'f', 0, 64))
 		w.Header().Set("X-RateLimit-Burst", strconv.Itoa(rl.globalLimiter.Burst()))
@@ -286,10 +286,10 @@ func (rl *RateLimiter) addRateLimitHeaders(w http.ResponseWriter, clientIP, user
 }
 
 func getClientIP(r *http.Request) string {
-	
+
 	xForwardedFor := r.Header.Get("X-Forwarded-For")
 	if xForwardedFor != "" {
-		
+
 		ips := strings.Split(xForwardedFor, ",")
 		if len(ips) > 0 {
 			return strings.TrimSpace(ips[0])
@@ -309,7 +309,7 @@ func getClientIP(r *http.Request) string {
 }
 
 func getUserID(r *http.Request) string {
-	
+
 	if userID := r.Header.Get("X-User-ID"); userID != "" {
 		return userID
 	}
@@ -324,7 +324,7 @@ func getUserID(r *http.Request) string {
 }
 
 func getEndpointPattern(r *http.Request) string {
-	
+
 	path := r.URL.Path
 	method := r.Method
 
@@ -350,7 +350,7 @@ func isNumeric(s string) bool {
 
 type AdaptiveRateLimiter struct {
 	baseLimiter    *RateLimiter
-	loadThresholds map[float64]float64 
+	loadThresholds map[float64]float64
 	getCurrentLoad func() float64
 }
 

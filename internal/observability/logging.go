@@ -32,18 +32,18 @@ const (
 )
 
 type LoggingConfig struct {
-	Level      LogLevel  `yaml:"level" mapstructure:"level"`
-	Format     LogFormat `yaml:"format" mapstructure:"format"`
-	Output     string    `yaml:"output" mapstructure:"output"` 
-	TimeFormat string    `yaml:"time_format" mapstructure:"time_format"`
+	Level      LogLevel        `yaml:"level" mapstructure:"level"`
+	Format     LogFormat       `yaml:"format" mapstructure:"format"`
+	Output     string          `yaml:"output" mapstructure:"output"`
+	TimeFormat string          `yaml:"time_format" mapstructure:"time_format"`
 	Sampling   *SamplingConfig `yaml:"sampling" mapstructure:"sampling"`
 }
 
 type SamplingConfig struct {
-	Enabled  bool `yaml:"enabled" mapstructure:"enabled"`
-	Tick     time.Duration `yaml:"tick" mapstructure:"tick"`
-	First    int  `yaml:"first" mapstructure:"first"`
-	Thereafter int `yaml:"thereafter" mapstructure:"thereafter"`
+	Enabled    bool          `yaml:"enabled" mapstructure:"enabled"`
+	Tick       time.Duration `yaml:"tick" mapstructure:"tick"`
+	First      int           `yaml:"first" mapstructure:"first"`
+	Thereafter int           `yaml:"thereafter" mapstructure:"thereafter"`
 }
 
 type Logger struct {
@@ -52,7 +52,7 @@ type Logger struct {
 }
 
 func NewLogger(config LoggingConfig) (*Logger, error) {
-	
+
 	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
 
 	level, err := parseLogLevel(config.Level)
@@ -68,7 +68,7 @@ func NewLogger(config LoggingConfig) (*Logger, error) {
 	case "stderr":
 		output = os.Stderr
 	default:
-		
+
 		file, err := os.OpenFile(config.Output, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 		if err != nil {
 			return nil, err
@@ -116,7 +116,7 @@ func (l *Logger) WithContext(ctx context.Context) *zerolog.Logger {
 			logger = logger.Interface(key, value)
 		}
 	}
-	
+
 	contextLogger := logger.Logger()
 	return &contextLogger
 }
@@ -242,7 +242,7 @@ func (l *Logger) LoggingMiddleware() func(next http.Handler) http.Handler {
 				Str("user_agent", r.UserAgent()).
 				Str("remote_addr", r.RemoteAddr).
 				Logger()
-			
+
 			logger.Info().Msg("HTTP request started")
 
 			next.ServeHTTP(wrapped, r)
@@ -252,21 +252,21 @@ func (l *Logger) LoggingMiddleware() func(next http.Handler) http.Handler {
 				Int("status_code", wrapped.statusCode).
 				Int64("response_size", wrapped.size).
 				Dur("duration", duration)
-			
+
 			if wrapped.statusCode >= 400 {
 				logEvent = logger.Warn().
 					Int("status_code", wrapped.statusCode).
 					Int64("response_size", wrapped.size).
 					Dur("duration", duration)
 			}
-			
+
 			if wrapped.statusCode >= 500 {
 				logEvent = logger.Error().
 					Int("status_code", wrapped.statusCode).
 					Int64("response_size", wrapped.size).
 					Dur("duration", duration)
 			}
-			
+
 			logEvent.Msg("HTTP request completed")
 		})
 	}
@@ -290,18 +290,18 @@ func (lrw *loggingResponseWriter) Write(data []byte) (int, error) {
 }
 
 type StructuredError struct {
-	Code      string                 `json:"code"`
-	Message   string                 `json:"message"`
-	Details   map[string]interface{} `json:"details,omitempty"`
-	Cause     error                  `json:"cause,omitempty"`
-	Timestamp time.Time              `json:"timestamp"`
+	Code      string         `json:"code"`
+	Message   string         `json:"message"`
+	Details   map[string]any `json:"details,omitempty"`
+	Cause     error          `json:"cause,omitempty"`
+	Timestamp time.Time      `json:"timestamp"`
 }
 
 func (se *StructuredError) Error() string {
 	return se.Message
 }
 
-func NewStructuredError(code, message string, details map[string]interface{}) *StructuredError {
+func NewStructuredError(code, message string, details map[string]any) *StructuredError {
 	return &StructuredError{
 		Code:      code,
 		Message:   message,
@@ -317,16 +317,16 @@ func (se *StructuredError) WithCause(cause error) *StructuredError {
 
 func (l *Logger) LogStructuredError(ctx context.Context, err *StructuredError) {
 	logger := l.WithContext(ctx)
-	
+
 	logEvent := logger.Error().
 		Str("error_code", err.Code).
 		Interface("error_details", err.Details).
 		Time("error_timestamp", err.Timestamp)
-	
+
 	if err.Cause != nil {
 		logEvent = logEvent.AnErr("cause", err.Cause)
 	}
-	
+
 	logEvent.Msg(err.Message)
 }
 

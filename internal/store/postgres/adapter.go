@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/sumandas0/entropic/internal/models"
-	"github.com/sumandas0/entropic/internal/store"
-	"github.com/sumandas0/entropic/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sumandas0/entropic/internal/models"
+	"github.com/sumandas0/entropic/internal/store"
+	"github.com/sumandas0/entropic/pkg/utils"
 )
 
 type PostgresStore struct {
@@ -61,7 +61,7 @@ func (s *PostgresStore) CreateEntity(ctx context.Context, entity *models.Entity)
 	)
 
 	if err != nil {
-		
+
 		if isUniqueViolation(err) {
 			return utils.NewAppError(utils.CodeAlreadyExists, "entity with URN already exists", err).
 				WithDetail("urn", entity.URN)
@@ -323,7 +323,7 @@ func (s *PostgresStore) GetRelationsByEntity(ctx context.Context, entityID uuid.
 		WHERE (from_entity_id = $1 OR to_entity_id = $1) AND deleted_at IS NULL
 	`
 
-	args := []interface{}{entityID}
+	args := []any{entityID}
 
 	if len(relationTypes) > 0 {
 		query += " AND relation_type = ANY($2)"
@@ -777,7 +777,7 @@ func isUniqueViolation(err error) bool {
 	if err == nil {
 		return false
 	}
-	
+
 	return err.Error() == "ERROR: duplicate key value violates unique constraint (SQLSTATE 23505)"
 }
 

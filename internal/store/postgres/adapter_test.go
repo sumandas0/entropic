@@ -7,12 +7,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sumandas0/entropic/internal/models"
-	"github.com/sumandas0/entropic/internal/store/testutils"
-	"github.com/sumandas0/entropic/pkg/utils"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/sumandas0/entropic/internal/models"
+	"github.com/sumandas0/entropic/internal/store/testutils"
+	"github.com/sumandas0/entropic/pkg/utils"
 )
 
 var (
@@ -21,7 +21,7 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	
+
 	var err error
 	testContainer, err = testutils.SetupTestPostgres()
 	if err != nil {
@@ -56,17 +56,17 @@ func TestPostgresStore_EntityOperations(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("CreateEntity", func(t *testing.T) {
-		
+
 		entity := &models.Entity{
 			ID:         uuid.New(),
 			EntityType: "user",
 			URN:        "test:user:" + uuid.New().String(),
-			Properties: map[string]interface{}{
-				"name":        "Test User",
-				"email":       "test@example.com",
-				"age":         30,
-				"tags":        []string{"test", "user"},
-				"metadata":    map[string]interface{}{"created_by": "test"},
+			Properties: map[string]any{
+				"name":     "Test User",
+				"email":    "test@example.com",
+				"age":      30,
+				"tags":     []string{"test", "user"},
+				"metadata": map[string]any{"created_by": "test"},
 			},
 			Version: 1,
 		}
@@ -82,24 +82,24 @@ func TestPostgresStore_EntityOperations(t *testing.T) {
 
 		assert.Equal(t, entity.Properties["name"], retrieved.Properties["name"])
 		assert.Equal(t, entity.Properties["email"], retrieved.Properties["email"])
-		assert.Equal(t, float64(30), retrieved.Properties["age"]) 
+		assert.Equal(t, float64(30), retrieved.Properties["age"])
 
-		retrievedTags, ok := retrieved.Properties["tags"].([]interface{})
+		retrievedTags, ok := retrieved.Properties["tags"].([]any)
 		require.True(t, ok, "tags should be an array")
 		assert.Len(t, retrievedTags, 2)
 		assert.Equal(t, "test", retrievedTags[0])
 		assert.Equal(t, "user", retrievedTags[1])
 
-		retrievedMetadata, ok := retrieved.Properties["metadata"].(map[string]interface{})
+		retrievedMetadata, ok := retrieved.Properties["metadata"].(map[string]any)
 		require.True(t, ok, "metadata should be a map")
 		assert.Equal(t, "test", retrievedMetadata["created_by"])
-		
+
 		assert.NotZero(t, retrieved.CreatedAt)
 		assert.NotZero(t, retrieved.UpdatedAt)
 	})
 
 	t.Run("CreateEntity_WithVector", func(t *testing.T) {
-		
+
 		embedding := make([]float32, 384)
 		for i := range embedding {
 			embedding[i] = float32(i) / 384.0
@@ -109,7 +109,7 @@ func TestPostgresStore_EntityOperations(t *testing.T) {
 			ID:         uuid.New(),
 			EntityType: "document",
 			URN:        "test:document:" + uuid.New().String(),
-			Properties: map[string]interface{}{
+			Properties: map[string]any{
 				"title":     "Test Document",
 				"content":   "This is a test document with vector embedding",
 				"embedding": embedding,
@@ -123,18 +123,18 @@ func TestPostgresStore_EntityOperations(t *testing.T) {
 		retrieved, err := testStore.GetEntity(ctx, entity.EntityType, entity.ID)
 		require.NoError(t, err)
 
-		retrievedEmbedding, ok := retrieved.Properties["embedding"].([]interface{})
+		retrievedEmbedding, ok := retrieved.Properties["embedding"].([]any)
 		require.True(t, ok, "embedding should be an array")
 		assert.Len(t, retrievedEmbedding, 384)
 	})
 
 	t.Run("UpdateEntity", func(t *testing.T) {
-		
+
 		entity := &models.Entity{
 			ID:         uuid.New(),
 			EntityType: "user",
 			URN:        "test:user:" + uuid.New().String(),
-			Properties: map[string]interface{}{
+			Properties: map[string]any{
 				"name": "Original Name",
 				"age":  25,
 			},
@@ -147,7 +147,7 @@ func TestPostgresStore_EntityOperations(t *testing.T) {
 		entity.Properties["name"] = "Updated Name"
 		entity.Properties["age"] = 26
 		entity.Properties["new_field"] = "new value"
-		
+
 		err = testStore.UpdateEntity(ctx, entity)
 		require.NoError(t, err)
 
@@ -161,12 +161,12 @@ func TestPostgresStore_EntityOperations(t *testing.T) {
 	})
 
 	t.Run("DeleteEntity", func(t *testing.T) {
-		
+
 		entity := &models.Entity{
 			ID:         uuid.New(),
 			EntityType: "user",
 			URN:        "test:user:" + uuid.New().String(),
-			Properties: map[string]interface{}{
+			Properties: map[string]any{
 				"name": "To Be Deleted",
 			},
 			Version: 1,
@@ -186,7 +186,7 @@ func TestPostgresStore_EntityOperations(t *testing.T) {
 	})
 
 	t.Run("ListEntities", func(t *testing.T) {
-		
+
 		cleanupTestData(t, ctx)
 
 		entityType := "user"
@@ -195,7 +195,7 @@ func TestPostgresStore_EntityOperations(t *testing.T) {
 				ID:         uuid.New(),
 				EntityType: entityType,
 				URN:        fmt.Sprintf("test:user:list-%d", i),
-				Properties: map[string]interface{}{
+				Properties: map[string]any{
 					"name":  fmt.Sprintf("User %d", i),
 					"index": i,
 				},
@@ -231,7 +231,7 @@ func TestPostgresStore_EntityOperations(t *testing.T) {
 			ID:         uuid.New(),
 			EntityType: "user",
 			URN:        urn,
-			Properties: map[string]interface{}{"name": "Test"},
+			Properties: map[string]any{"name": "Test"},
 			Version:    1,
 		}
 		err = testStore.CreateEntity(ctx, entity)
@@ -247,7 +247,7 @@ func TestPostgresStore_RelationOperations(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("CreateRelation", func(t *testing.T) {
-		
+
 		user := createTestEntity(t, ctx, "user", "relation-test-user")
 		org := createTestEntity(t, ctx, "organization", "relation-test-org")
 
@@ -258,9 +258,9 @@ func TestPostgresStore_RelationOperations(t *testing.T) {
 			FromEntityType: user.EntityType,
 			ToEntityID:     org.ID,
 			ToEntityType:   org.EntityType,
-			Properties: map[string]interface{}{
-				"role":       "admin",
-				"joined_at":  time.Now().Format(time.RFC3339),
+			Properties: map[string]any{
+				"role":      "admin",
+				"joined_at": time.Now().Format(time.RFC3339),
 			},
 		}
 
@@ -277,7 +277,7 @@ func TestPostgresStore_RelationOperations(t *testing.T) {
 	})
 
 	t.Run("DeleteRelation", func(t *testing.T) {
-		
+
 		user := createTestEntity(t, ctx, "user", "delete-relation-user")
 		org := createTestEntity(t, ctx, "organization", "delete-relation-org")
 
@@ -302,7 +302,7 @@ func TestPostgresStore_RelationOperations(t *testing.T) {
 	})
 
 	t.Run("GetRelationsByEntity", func(t *testing.T) {
-		
+
 		user := createTestEntity(t, ctx, "user", "relations-test-user")
 		org1 := createTestEntity(t, ctx, "organization", "relations-test-org1")
 		org2 := createTestEntity(t, ctx, "organization", "relations-test-org2")
@@ -358,7 +358,7 @@ func TestPostgresStore_SchemaOperations(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("EntitySchema_CRUD", func(t *testing.T) {
-		
+
 		schema := &models.EntitySchema{
 			EntityType: "test_entity_" + uuid.New().String()[:8],
 			Properties: models.PropertySchema{
@@ -410,7 +410,7 @@ func TestPostgresStore_SchemaOperations(t *testing.T) {
 	})
 
 	t.Run("RelationshipSchema_CRUD", func(t *testing.T) {
-		
+
 		schema := &models.RelationshipSchema{
 			RelationshipType: "test_rel_" + uuid.New().String()[:8],
 			FromEntityType:   "user",
@@ -471,7 +471,7 @@ func TestPostgresStore_TransactionOperations(t *testing.T) {
 			ID:         uuid.New(),
 			EntityType: "user",
 			URN:        "test:user:tx-commit-" + uuid.New().String(),
-			Properties: map[string]interface{}{
+			Properties: map[string]any{
 				"name": "Transaction Test",
 			},
 			Version: 1,
@@ -496,7 +496,7 @@ func TestPostgresStore_TransactionOperations(t *testing.T) {
 			ID:         uuid.New(),
 			EntityType: "user",
 			URN:        "test:user:tx-rollback-" + uuid.New().String(),
-			Properties: map[string]interface{}{
+			Properties: map[string]any{
 				"name": "Should Not Exist",
 			},
 			Version: 1,
@@ -514,12 +514,12 @@ func TestPostgresStore_TransactionOperations(t *testing.T) {
 	})
 
 	t.Run("Transaction_Isolation", func(t *testing.T) {
-		
+
 		entity := &models.Entity{
 			ID:         uuid.New(),
 			EntityType: "user",
 			URN:        "test:user:tx-isolation-" + uuid.New().String(),
-			Properties: map[string]interface{}{
+			Properties: map[string]any{
 				"counter": 0,
 			},
 			Version: 1,
@@ -562,7 +562,7 @@ func TestPostgresStore_ConcurrentOperations(t *testing.T) {
 					ID:         uuid.New(),
 					EntityType: "user",
 					URN:        fmt.Sprintf("test:user:concurrent-%d-%s", index, uuid.New().String()),
-					Properties: map[string]interface{}{
+					Properties: map[string]any{
 						"name":  fmt.Sprintf("User %d", index),
 						"index": index,
 					},
@@ -594,12 +594,12 @@ func TestPostgresStore_ConcurrentOperations(t *testing.T) {
 	})
 
 	t.Run("Concurrent_Updates", func(t *testing.T) {
-		
+
 		entity := &models.Entity{
 			ID:         uuid.New(),
 			EntityType: "user",
 			URN:        "test:user:concurrent-update-" + uuid.New().String(),
-			Properties: map[string]interface{}{
+			Properties: map[string]any{
 				"counter": 0,
 				"name":    "Concurrent Test",
 			},
@@ -614,7 +614,7 @@ func TestPostgresStore_ConcurrentOperations(t *testing.T) {
 
 		for i := 0; i < numGoroutines; i++ {
 			go func(index int) {
-				
+
 				current, err := testStore.GetEntity(ctx, entity.EntityType, entity.ID)
 				if err != nil {
 					errChan <- err
@@ -623,7 +623,7 @@ func TestPostgresStore_ConcurrentOperations(t *testing.T) {
 
 				current.Properties["counter"] = index
 				current.Properties[fmt.Sprintf("update_%d", index)] = true
-				
+
 				err = testStore.UpdateEntity(ctx, current)
 				if err != nil {
 					errChan <- err
@@ -636,10 +636,10 @@ func TestPostgresStore_ConcurrentOperations(t *testing.T) {
 		for i := 0; i < numGoroutines; i++ {
 			select {
 			case err := <-errChan:
-				
+
 				t.Logf("Update failed (expected for some): %v", err)
 			case <-doneChan:
-				
+
 			case <-time.After(5 * time.Second):
 				t.Fatal("Timeout waiting for concurrent updates")
 			}
@@ -655,7 +655,7 @@ func TestPostgresStore_EdgeCases(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("LargeProperties", func(t *testing.T) {
-		
+
 		largeArray := make([]string, 1000)
 		for i := range largeArray {
 			largeArray[i] = fmt.Sprintf("item_%d_%s", i, uuid.New().String())
@@ -665,12 +665,12 @@ func TestPostgresStore_EdgeCases(t *testing.T) {
 			ID:         uuid.New(),
 			EntityType: "document",
 			URN:        "test:document:large-" + uuid.New().String(),
-			Properties: map[string]interface{}{
+			Properties: map[string]any{
 				"title":       "Large Document",
 				"large_array": largeArray,
-				"nested": map[string]interface{}{
-					"level1": map[string]interface{}{
-						"level2": map[string]interface{}{
+				"nested": map[string]any{
+					"level1": map[string]any{
+						"level2": map[string]any{
 							"level3": "deeply nested value",
 						},
 					},
@@ -684,19 +684,19 @@ func TestPostgresStore_EdgeCases(t *testing.T) {
 
 		retrieved, err := testStore.GetEntity(ctx, entity.EntityType, entity.ID)
 		require.NoError(t, err)
-		
-		retrievedArray, ok := retrieved.Properties["large_array"].([]interface{})
+
+		retrievedArray, ok := retrieved.Properties["large_array"].([]any)
 		require.True(t, ok)
 		assert.Len(t, retrievedArray, 1000)
 	})
 
 	t.Run("SpecialCharacters", func(t *testing.T) {
-		
+
 		entity := &models.Entity{
 			ID:         uuid.New(),
 			EntityType: "test",
 			URN:        "test:special:" + uuid.New().String(),
-			Properties: map[string]interface{}{
+			Properties: map[string]any{
 				"name":         "Test \"quoted\" 'name'",
 				"description":  "Line1\nLine2\tTabbed",
 				"unicode":      "Hello 世界 🌍",
@@ -719,13 +719,13 @@ func TestPostgresStore_EdgeCases(t *testing.T) {
 			ID:         uuid.New(),
 			EntityType: "test",
 			URN:        "test:null:" + uuid.New().String(),
-			Properties: map[string]interface{}{
-				"null_value":  nil,
+			Properties: map[string]any{
+				"null_value":   nil,
 				"empty_string": "",
-				"empty_array": []interface{}{},
-				"empty_object": map[string]interface{}{},
-				"zero_number": 0,
-				"false_bool":  false,
+				"empty_array":  []any{},
+				"empty_object": map[string]any{},
+				"zero_number":  0,
+				"false_bool":   false,
 			},
 			Version: 1,
 		}
@@ -747,7 +747,7 @@ func createTestEntity(t *testing.T, ctx context.Context, entityType, name string
 		ID:         uuid.New(),
 		EntityType: entityType,
 		URN:        fmt.Sprintf("test:%s:%s-%s", entityType, name, uuid.New().String()),
-		Properties: map[string]interface{}{
+		Properties: map[string]any{
 			"name": name,
 		},
 		Version: 1,
@@ -759,7 +759,7 @@ func createTestEntity(t *testing.T, ctx context.Context, entityType, name string
 }
 
 func cleanupTestData(t *testing.T, ctx context.Context) {
-	
+
 	db, err := sql.Open("pgx", testContainer.URL)
 	require.NoError(t, err)
 	defer db.Close()

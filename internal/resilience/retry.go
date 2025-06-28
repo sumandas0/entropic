@@ -108,7 +108,7 @@ func (rm *RetryManager) Execute(ctx context.Context, fn func() error, isRetryabl
 	var lastErr error
 
 	for attempt := 1; attempt <= rm.config.MaxAttempts; attempt++ {
-		
+
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -143,7 +143,7 @@ func (rm *RetryManager) Execute(ctx context.Context, fn func() error, isRetryabl
 	return fmt.Errorf("operation failed after %d attempts: %w", rm.config.MaxAttempts, lastErr)
 }
 
-func (rm *RetryManager) ExecuteWithResult(ctx context.Context, fn func() (interface{}, error), isRetryable IsRetryableError) (interface{}, error) {
+func (rm *RetryManager) ExecuteWithResult(ctx context.Context, fn func() (any, error), isRetryable IsRetryableError) (any, error) {
 	if !rm.config.Enabled {
 		return fn()
 	}
@@ -151,7 +151,7 @@ func (rm *RetryManager) ExecuteWithResult(ctx context.Context, fn func() (interf
 	var lastErr error
 
 	for attempt := 1; attempt <= rm.config.MaxAttempts; attempt++ {
-		
+
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -228,11 +228,11 @@ func (rm *RetryManager) applyJitter(delay time.Duration) time.Duration {
 	}
 
 	jitter := rm.config.JitterFactor * float64(delay)
-	randomJitter := (rand.Float64()*2 - 1) * jitter 
+	randomJitter := (rand.Float64()*2 - 1) * jitter
 
 	finalDelay := time.Duration(float64(delay) + randomJitter)
 	if finalDelay < 0 {
-		finalDelay = time.Duration(float64(delay) * 0.1) 
+		finalDelay = time.Duration(float64(delay) * 0.1)
 	}
 
 	return finalDelay
@@ -256,7 +256,7 @@ func (drw *DatabaseRetryWrapper) Execute(ctx context.Context, fn func() error) e
 	return drw.manager.Execute(ctx, fn, DatabaseRetryableErrors)
 }
 
-func (drw *DatabaseRetryWrapper) ExecuteWithResult(ctx context.Context, fn func() (interface{}, error)) (interface{}, error) {
+func (drw *DatabaseRetryWrapper) ExecuteWithResult(ctx context.Context, fn func() (any, error)) (any, error) {
 	return drw.manager.ExecuteWithResult(ctx, fn, DatabaseRetryableErrors)
 }
 
@@ -274,7 +274,7 @@ func (srw *SearchRetryWrapper) Execute(ctx context.Context, fn func() error) err
 	return srw.manager.Execute(ctx, fn, SearchRetryableErrors)
 }
 
-func (srw *SearchRetryWrapper) ExecuteWithResult(ctx context.Context, fn func() (interface{}, error)) (interface{}, error) {
+func (srw *SearchRetryWrapper) ExecuteWithResult(ctx context.Context, fn func() (any, error)) (any, error) {
 	return srw.manager.ExecuteWithResult(ctx, fn, SearchRetryableErrors)
 }
 
@@ -292,7 +292,7 @@ func (esrw *ExternalServiceRetryWrapper) Execute(ctx context.Context, fn func() 
 	return esrw.manager.Execute(ctx, fn, DefaultRetryableErrors)
 }
 
-func (esrw *ExternalServiceRetryWrapper) ExecuteWithResult(ctx context.Context, fn func() (interface{}, error)) (interface{}, error) {
+func (esrw *ExternalServiceRetryWrapper) ExecuteWithResult(ctx context.Context, fn func() (any, error)) (any, error) {
 	return esrw.manager.ExecuteWithResult(ctx, fn, DefaultRetryableErrors)
 }
 

@@ -129,8 +129,8 @@ func (r *Router) SetupRoutes() http.Handler {
 // @Tags health
 // @Accept json
 // @Produce json
-// @Success 200 {object} map[string]interface{} "Service is healthy"
-// @Failure 503 {object} map[string]interface{} "Service is unhealthy"
+// @Success 200 {object} map[string]any "Service is healthy"
+// @Failure 503 {object} map[string]any "Service is unhealthy"
 // @Router /health [get]
 func (r *Router) healthCheck(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
@@ -154,7 +154,7 @@ func (r *Router) healthCheck(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	response := map[string]interface{}{
+	response := map[string]any{
 		"status":    "healthy",
 		"timestamp": time.Now().UTC(),
 		"version":   "1.0.0",
@@ -171,7 +171,7 @@ func (r *Router) healthCheck(w http.ResponseWriter, req *http.Request) {
 // @Tags health
 // @Accept json
 // @Produce json
-// @Success 200 {object} map[string]interface{} "Service is ready"
+// @Success 200 {object} map[string]any "Service is ready"
 // @Failure 503 "Service is not ready"
 // @Router /ready [get]
 func (r *Router) readinessCheck(w http.ResponseWriter, req *http.Request) {
@@ -182,7 +182,7 @@ func (r *Router) readinessCheck(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	response := map[string]interface{}{
+	response := map[string]any{
 		"status":    "ready",
 		"timestamp": time.Now().UTC(),
 	}
@@ -198,20 +198,20 @@ func (r *Router) readinessCheck(w http.ResponseWriter, req *http.Request) {
 // @Tags monitoring
 // @Accept json
 // @Produce json
-// @Success 200 {object} map[string]interface{} "Service metrics including cache stats, transaction stats, and timestamp"
+// @Success 200 {object} map[string]any "Service metrics including cache stats, transaction stats, and timestamp"
 // @Router /metrics [get]
 func (r *Router) metrics(w http.ResponseWriter, req *http.Request) {
 	stats := r.engine.GetStats()
 
-	response := map[string]interface{}{
-		"cache": map[string]interface{}{
+	response := map[string]any{
+		"cache": map[string]any{
 			"hits":                      stats.CacheStats.Hits,
 			"misses":                    stats.CacheStats.Misses,
 			"hit_rate":                  stats.CacheStats.HitRate,
 			"entity_schema_count":       stats.CacheStats.EntitySchemaCount,
 			"relationship_schema_count": stats.CacheStats.RelationshipSchemaCount,
 		},
-		"transactions": map[string]interface{}{
+		"transactions": map[string]any{
 			"active_transactions": stats.TransactionStats.ActiveTransactions,
 			"total_committed":     stats.TransactionStats.TotalCommitted,
 			"total_rolled_back":   stats.TransactionStats.TotalRolledBack,

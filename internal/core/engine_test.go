@@ -5,11 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sumandas0/entropic/internal/models"
-	"github.com/sumandas0/entropic/tests/testhelpers"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/sumandas0/entropic/internal/models"
+	"github.com/sumandas0/entropic/tests/testhelpers"
 )
 
 func TestEngine_CreateEntitySchema(t *testing.T) {
@@ -29,7 +29,7 @@ func TestEngine_CreateEntitySchema(t *testing.T) {
 		},
 		{
 			name:      "duplicate schema",
-			schema:    testhelpers.CreateTestEntitySchema("user"), 
+			schema:    testhelpers.CreateTestEntitySchema("user"),
 			wantError: true,
 		},
 	}
@@ -76,7 +76,7 @@ func TestEngine_CreateEntity(t *testing.T) {
 				ID:         uuid.New(),
 				EntityType: "unknown_type",
 				URN:        "test:unknown:entity",
-				Properties: map[string]interface{}{"name": "test"},
+				Properties: map[string]any{"name": "test"},
 			},
 			wantError: true,
 		},
@@ -117,7 +117,7 @@ func TestEngine_UpdateEntity(t *testing.T) {
 		ID:         original.ID,
 		EntityType: original.EntityType,
 		URN:        original.URN,
-		Properties: map[string]interface{}{
+		Properties: map[string]any{
 			"name":        "Updated Name",
 			"description": "Updated description",
 			"tags":        []string{"updated", "test"},

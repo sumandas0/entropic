@@ -4,12 +4,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/sumandas0/entropic/internal/models"
 	"github.com/google/uuid"
+	"github.com/sumandas0/entropic/internal/models"
 )
 
 type PrimaryStore interface {
-	
 	CreateEntity(ctx context.Context, entity *models.Entity) error
 	GetEntity(ctx context.Context, entityType string, id uuid.UUID) (*models.Entity, error)
 	UpdateEntity(ctx context.Context, entity *models.Entity) error
@@ -41,7 +40,6 @@ type PrimaryStore interface {
 }
 
 type IndexStore interface {
-	
 	IndexEntity(ctx context.Context, entity *models.Entity) error
 	UpdateEntityIndex(ctx context.Context, entity *models.Entity) error
 	DeleteEntityIndex(ctx context.Context, entityType string, id uuid.UUID) error
@@ -58,7 +56,6 @@ type IndexStore interface {
 }
 
 type Transaction interface {
-	
 	CreateEntity(ctx context.Context, entity *models.Entity) error
 	UpdateEntity(ctx context.Context, entity *models.Entity) error
 	DeleteEntity(ctx context.Context, entityType string, id uuid.UUID) error
@@ -71,8 +68,8 @@ type Transaction interface {
 }
 
 type Cache interface {
-	Get(key string) (interface{}, bool)
-	Set(key string, value interface{}, ttl time.Duration)
+	Get(key string) (any, bool)
+	Set(key string, value any, ttl time.Duration)
 	Delete(key string)
 	Clear()
 }
