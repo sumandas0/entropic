@@ -5,17 +5,26 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/rs/zerolog"
+	"github.com/sumandas0/entropic/internal/integration"
 	"github.com/sumandas0/entropic/internal/lock"
 	"github.com/sumandas0/entropic/internal/models"
+	"github.com/sumandas0/entropic/internal/observability"
 	"github.com/sumandas0/entropic/internal/store"
 	"github.com/sumandas0/entropic/pkg/utils"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type TransactionCoordinator struct {
 	primaryStore store.PrimaryStore
 	indexStore   store.IndexStore
 	lockManager  *lock.LockManager
+	obsManager   *integration.ObservabilityManager
+	logger       zerolog.Logger
+	tracer       trace.Tracer
+	tracing      *observability.TracingManager
 }
 
 func NewTransactionCoordinator(primaryStore store.PrimaryStore, indexStore store.IndexStore, lockManager *lock.LockManager) *TransactionCoordinator {
@@ -23,6 +32,15 @@ func NewTransactionCoordinator(primaryStore store.PrimaryStore, indexStore store
 		primaryStore: primaryStore,
 		indexStore:   indexStore,
 		lockManager:  lockManager,
+	}
+}
+
+func (tc *TransactionCoordinator) SetObservability(obsManager *integration.ObservabilityManager) {
+	if obsManager != nil {
+		tc.obsManager = obsManager
+		tc.logger = obsManager.GetLogging().GetZerologLogger()
+		tc.tracer = obsManager.GetTracing().GetTracer()
+		tc.tracing = obsManager.GetTracing()
 	}
 }
 
@@ -42,32 +60,60 @@ type IndexOperation struct {
 }
 
 func (tc *TransactionCoordinator) BeginTransaction(ctx context.Context) (*TransactionContext, error) {
+	var span trace.Span
+	if tc.tracer != nil {
+		ctx, span = tc.tracer.Start(ctx, "transaction.begin")
+		defer span.End()
+	}
 	
 	primaryTx, err := tc.primaryStore.BeginTx(ctx)
 	if err != nil {
+		if tc.tracing != nil {
+			tc.tracing.SetSpanError(span, err)
+		}
 		return nil, fmt.Errorf("failed to begin primary transaction: %w", err)
 	}
 	
+	txID := uuid.New().String()
 	txCtx := &TransactionContext{
-		ID:              uuid.New().String(),
+		ID:              txID,
 		primaryTx:       primaryTx,
 		indexOperations: make([]IndexOperation, 0),
 		locks:           make([]lock.LockHandle, 0),
 		startTime:       time.Now(),
 	}
 	
+	if span != nil {
+		span.SetAttributes(attribute.String("transaction.id", txID))
+	}
+	
 	return txCtx, nil
 }
 
 func (tc *TransactionCoordinator) CreateEntity(ctx context.Context, txCtx *TransactionContext, entity *models.Entity) error {
+	var span trace.Span
+	if tc.tracing != nil {
+		ctx, span = tc.tracing.StartDatabaseOperation(ctx, "create_entity", "entities")
+		defer span.End()
+		span.SetAttributes(
+			attribute.String("entity.type", entity.EntityType),
+			attribute.String("entity.id", entity.ID.String()),
+		)
+	}
 	
 	lockHandle, err := tc.lockManager.AcquireEntityLock(ctx, entity.EntityType, entity.ID, 30*time.Second)
 	if err != nil {
+		if tc.tracing != nil {
+			tc.tracing.SetSpanError(span, err)
+		}
 		return fmt.Errorf("failed to acquire entity lock: %w", err)
 	}
 	txCtx.locks = append(txCtx.locks, lockHandle)
 
 	if err := txCtx.primaryTx.CreateEntity(ctx, entity); err != nil {
+		if tc.tracing != nil {
+			tc.tracing.SetSpanError(span, err)
+		}
 		return fmt.Errorf("failed to create entity in primary store: %w", err)
 	}
 
@@ -80,14 +126,29 @@ func (tc *TransactionCoordinator) CreateEntity(ctx context.Context, txCtx *Trans
 }
 
 func (tc *TransactionCoordinator) UpdateEntity(ctx context.Context, txCtx *TransactionContext, entity *models.Entity) error {
+	var span trace.Span
+	if tc.tracing != nil {
+		ctx, span = tc.tracing.StartDatabaseOperation(ctx, "update_entity", "entities")
+		defer span.End()
+		span.SetAttributes(
+			attribute.String("entity.type", entity.EntityType),
+			attribute.String("entity.id", entity.ID.String()),
+		)
+	}
 	
 	lockHandle, err := tc.lockManager.AcquireEntityLock(ctx, entity.EntityType, entity.ID, 30*time.Second)
 	if err != nil {
+		if tc.tracing != nil {
+			tc.tracing.SetSpanError(span, err)
+		}
 		return fmt.Errorf("failed to acquire entity lock: %w", err)
 	}
 	txCtx.locks = append(txCtx.locks, lockHandle)
 
 	if err := txCtx.primaryTx.UpdateEntity(ctx, entity); err != nil {
+		if tc.tracing != nil {
+			tc.tracing.SetSpanError(span, err)
+		}
 		return fmt.Errorf("failed to update entity in primary store: %w", err)
 	}
 
@@ -100,14 +161,29 @@ func (tc *TransactionCoordinator) UpdateEntity(ctx context.Context, txCtx *Trans
 }
 
 func (tc *TransactionCoordinator) DeleteEntity(ctx context.Context, txCtx *TransactionContext, entityType string, entityID uuid.UUID) error {
+	var span trace.Span
+	if tc.tracing != nil {
+		ctx, span = tc.tracing.StartDatabaseOperation(ctx, "delete_entity", "entities")
+		defer span.End()
+		span.SetAttributes(
+			attribute.String("entity.type", entityType),
+			attribute.String("entity.id", entityID.String()),
+		)
+	}
 	
 	lockHandle, err := tc.lockManager.AcquireEntityLock(ctx, entityType, entityID, 30*time.Second)
 	if err != nil {
+		if tc.tracing != nil {
+			tc.tracing.SetSpanError(span, err)
+		}
 		return fmt.Errorf("failed to acquire entity lock: %w", err)
 	}
 	txCtx.locks = append(txCtx.locks, lockHandle)
 
 	if err := txCtx.primaryTx.DeleteEntity(ctx, entityType, entityID); err != nil {
+		if tc.tracing != nil {
+			tc.tracing.SetSpanError(span, err)
+		}
 		return fmt.Errorf("failed to delete entity from primary store: %w", err)
 	}
 
@@ -121,20 +197,38 @@ func (tc *TransactionCoordinator) DeleteEntity(ctx context.Context, txCtx *Trans
 }
 
 func (tc *TransactionCoordinator) CreateRelation(ctx context.Context, txCtx *TransactionContext, relation *models.Relation) error {
+	var span trace.Span
+	if tc.tracing != nil {
+		ctx, span = tc.tracing.StartDatabaseOperation(ctx, "create_relation", "relations")
+		defer span.End()
+		span.SetAttributes(
+			attribute.String("relation.type", relation.RelationType),
+			attribute.String("relation.id", relation.ID.String()),
+		)
+	}
 	
 	fromLockHandle, err := tc.lockManager.AcquireEntityLock(ctx, relation.FromEntityType, relation.FromEntityID, 30*time.Second)
 	if err != nil {
+		if tc.tracing != nil {
+			tc.tracing.SetSpanError(span, err)
+		}
 		return fmt.Errorf("failed to acquire from entity lock: %w", err)
 	}
 	txCtx.locks = append(txCtx.locks, fromLockHandle)
 	
 	toLockHandle, err := tc.lockManager.AcquireEntityLock(ctx, relation.ToEntityType, relation.ToEntityID, 30*time.Second)
 	if err != nil {
+		if tc.tracing != nil {
+			tc.tracing.SetSpanError(span, err)
+		}
 		return fmt.Errorf("failed to acquire to entity lock: %w", err)
 	}
 	txCtx.locks = append(txCtx.locks, toLockHandle)
 
 	if err := txCtx.primaryTx.CreateRelation(ctx, relation); err != nil {
+		if tc.tracing != nil {
+			tc.tracing.SetSpanError(span, err)
+		}
 		return fmt.Errorf("failed to create relation in primary store: %w", err)
 	}
 	
@@ -168,9 +262,20 @@ func (tc *TransactionCoordinator) DeleteRelation(ctx context.Context, txCtx *Tra
 }
 
 func (tc *TransactionCoordinator) CommitTransaction(ctx context.Context, txCtx *TransactionContext) error {
+	var span trace.Span
+	if tc.tracer != nil {
+		ctx, span = tc.tracer.Start(ctx, "transaction.commit")
+		defer span.End()
+		span.SetAttributes(
+			attribute.String("transaction.id", txCtx.ID),
+			attribute.Int("index_operations.count", len(txCtx.indexOperations)),
+		)
+	}
 	
 	if err := txCtx.primaryTx.Commit(); err != nil {
-		
+		if tc.tracing != nil {
+			tc.tracing.SetSpanError(span, err)
+		}
 		tc.rollbackTransaction(ctx, txCtx)
 		return utils.NewAppError(utils.CodeTransactionFailed, "primary store commit failed", err)
 	}
@@ -185,7 +290,11 @@ func (tc *TransactionCoordinator) CommitTransaction(ctx context.Context, txCtx *
 	tc.releaseLocks(ctx, txCtx)
 
 	if len(indexErrors) > 0 {
-		return utils.NewAppError(utils.CodeInternal, "index operations failed", fmt.Errorf("%d index operations failed", len(indexErrors)))
+		err := utils.NewAppError(utils.CodeInternal, "index operations failed", fmt.Errorf("%d index operations failed", len(indexErrors)))
+		if tc.tracing != nil {
+			tc.tracing.SetSpanError(span, err)
+		}
+		return err
 	}
 	
 	return nil
@@ -223,21 +332,30 @@ func (tc *TransactionCoordinator) applyIndexOperation(ctx context.Context, op In
 func (tc *TransactionCoordinator) releaseLocks(ctx context.Context, txCtx *TransactionContext) {
 	for _, lockHandle := range txCtx.locks {
 		if err := tc.lockManager.ReleaseLock(ctx, lockHandle); err != nil {
-
-			fmt.Printf("Failed to release lock %s: %v\n", lockHandle.Resource(), err)
+			if tc.logger.GetLevel() != zerolog.Disabled {
+				tc.logger.Error().
+					Err(err).
+					Str("resource", lockHandle.Resource()).
+					Msg("Failed to release lock")
+			}
 		}
 	}
 	txCtx.locks = nil
 }
 
 func (tc *TransactionCoordinator) WithTransaction(ctx context.Context, fn func(context.Context, *TransactionContext) error) error {
+	var span trace.Span
+	if tc.tracer != nil {
+		ctx, span = tc.tracer.Start(ctx, "transaction.with")
+		defer span.End()
+	}
+
 	txCtx, err := tc.BeginTransaction(ctx)
 	if err != nil {
 		return err
 	}
 
 	if err := fn(ctx, txCtx); err != nil {
-		
 		if rollbackErr := tc.RollbackTransaction(ctx, txCtx); rollbackErr != nil {
 			return fmt.Errorf("function failed: %w, rollback failed: %v", err, rollbackErr)
 		}
@@ -260,6 +378,10 @@ type TransactionManager struct {
 	coordinator *TransactionCoordinator
 	stats       TransactionStats
 	timeout     time.Duration
+	obsManager  *integration.ObservabilityManager
+	logger      zerolog.Logger
+	tracer      trace.Tracer
+	tracing     *observability.TracingManager
 }
 
 func NewTransactionManager(coordinator *TransactionCoordinator, timeout time.Duration) *TransactionManager {
@@ -273,7 +395,23 @@ func NewTransactionManager(coordinator *TransactionCoordinator, timeout time.Dur
 	}
 }
 
+func (tm *TransactionManager) SetObservability(obsManager *integration.ObservabilityManager) {
+	if obsManager != nil {
+		tm.obsManager = obsManager
+		tm.logger = obsManager.GetLogging().GetZerologLogger()
+		tm.tracer = obsManager.GetTracing().GetTracer()
+		tm.tracing = obsManager.GetTracing()
+		tm.coordinator.SetObservability(obsManager)
+	}
+}
+
 func (tm *TransactionManager) ExecuteWithTimeout(ctx context.Context, fn func(context.Context, *TransactionContext) error) error {
+	var span trace.Span
+	if tm.tracer != nil {
+		ctx, span = tm.tracer.Start(ctx, "transaction.execute_with_timeout")
+		defer span.End()
+		span.SetAttributes(attribute.String("timeout", tm.timeout.String()))
+	}
 	
 	timeoutCtx, cancel := context.WithTimeout(ctx, tm.timeout)
 	defer cancel()
@@ -282,11 +420,21 @@ func (tm *TransactionManager) ExecuteWithTimeout(ctx context.Context, fn func(co
 	err := tm.coordinator.WithTransaction(timeoutCtx, fn)
 	duration := time.Since(startTime)
 
+	if span != nil {
+		span.SetAttributes(attribute.String("duration", duration.String()))
+	}
+
 	if err != nil {
 		if timeoutCtx.Err() == context.DeadlineExceeded {
 			tm.stats.CommitTimeouts++
+			if tm.tracing != nil {
+				tm.tracing.AddSpanEvent(span, "transaction.timeout")
+			}
 		} else {
 			tm.stats.TotalRolledBack++
+			if tm.tracing != nil {
+				tm.tracing.SetSpanError(span, err)
+			}
 		}
 	} else {
 		tm.stats.TotalCommitted++

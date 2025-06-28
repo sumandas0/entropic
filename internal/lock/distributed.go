@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/sumandas0/entropic/internal/integration"
 )
 
 type DistributedLock interface {
@@ -81,6 +82,10 @@ func NewInMemoryDistributedLock() *InMemoryDistributedLock {
 	}
 }
 
+func (imdl *InMemoryDistributedLock) SetObservability(obsManager *integration.ObservabilityManager) {
+	imdl.Manager.SetObservability(obsManager)
+}
+
 func (imdl *InMemoryDistributedLock) Acquire(ctx context.Context, resource string, ttl time.Duration) (LockHandle, error) {
 	if err := imdl.LockWithTimeout(resource, ttl); err != nil {
 		return nil, err
@@ -124,6 +129,7 @@ type LockManager struct {
 	distributedLock DistributedLock
 	entityLock      *EntityLockManager
 	schemaLock      *SchemaLockManager
+	obsManager      *integration.ObservabilityManager
 }
 
 func NewLockManager(distributedLock DistributedLock) *LockManager {
@@ -135,6 +141,19 @@ func NewLockManager(distributedLock DistributedLock) *LockManager {
 		distributedLock: distributedLock,
 		entityLock:      NewEntityLockManager(),
 		schemaLock:      NewSchemaLockManager(),
+	}
+}
+
+func (lm *LockManager) SetObservability(obsManager *integration.ObservabilityManager) {
+	lm.obsManager = obsManager
+	
+	// Set observability on child managers
+	lm.entityLock.SetObservability(obsManager)
+	lm.schemaLock.SetObservability(obsManager)
+	
+	// Set observability on distributed lock if it's an InMemoryDistributedLock
+	if imdl, ok := lm.distributedLock.(*InMemoryDistributedLock); ok {
+		imdl.SetObservability(obsManager)
 	}
 }
 

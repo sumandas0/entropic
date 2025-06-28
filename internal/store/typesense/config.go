@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/rs/zerolog"
 	"github.com/typesense/typesense-go/typesense"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type Config struct {
@@ -63,6 +65,8 @@ type HealthChecker struct {
 	client   *typesense.Client
 	interval time.Duration
 	stopCh   chan struct{}
+	logger   zerolog.Logger
+	tracer   trace.Tracer
 }
 
 func NewHealthChecker(client *typesense.Client, interval time.Duration) *HealthChecker {
@@ -70,6 +74,8 @@ func NewHealthChecker(client *typesense.Client, interval time.Duration) *HealthC
 		client:   client,
 		interval: interval,
 		stopCh:   make(chan struct{}),
+		logger:   zerolog.Nop(),
+		tracer:   trace.NewNoopTracerProvider().Tracer(""),
 	}
 }
 
@@ -81,8 +87,11 @@ func (h *HealthChecker) Start(ctx context.Context) {
 		select {
 		case <-ticker.C:
 			if err := h.check(ctx); err != nil {
-				
-				fmt.Printf("Typesense health check failed: %v\n", err)
+				if h.logger.GetLevel() != zerolog.Disabled {
+					h.logger.Error().
+						Err(err).
+						Msg("Typesense health check failed")
+				}
 			}
 		case <-h.stopCh:
 			return
@@ -96,7 +105,22 @@ func (h *HealthChecker) Stop() {
 	close(h.stopCh)
 }
 
+func (h *HealthChecker) SetObservability(logger zerolog.Logger, tracer trace.Tracer) {
+	if logger.GetLevel() != zerolog.Disabled {
+		h.logger = logger
+	}
+	if tracer != nil {
+		h.tracer = tracer
+	}
+}
+
 func (h *HealthChecker) check(ctx context.Context) error {
+	var span trace.Span
+	if h.tracer != nil {
+		ctx, span = h.tracer.Start(ctx, "health_checker.check")
+		defer span.End()
+	}
+	
 	healthy, err := h.client.Health(ctx, 5*time.Second)
 	if err != nil {
 		return fmt.Errorf("health check failed: %w", err)

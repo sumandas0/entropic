@@ -10,16 +10,24 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 	"github.com/sumandas0/entropic/internal/cache"
+	"github.com/sumandas0/entropic/internal/integration"
 	"github.com/sumandas0/entropic/internal/models"
+	"github.com/sumandas0/entropic/internal/observability"
 	"github.com/sumandas0/entropic/internal/store"
 	"github.com/sumandas0/entropic/pkg/utils"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type Validator struct {
 	validate     *validator.Validate
 	cacheManager *cache.Manager
 	primaryStore store.PrimaryStore
+	obsManager   *integration.ObservabilityManager
+	logger       zerolog.Logger
+	tracer       trace.Tracer
+	tracing      *observability.TracingManager
 }
 
 func NewValidator(cacheManager *cache.Manager, primaryStore store.PrimaryStore) *Validator {
@@ -36,64 +44,126 @@ func NewValidator(cacheManager *cache.Manager, primaryStore store.PrimaryStore) 
 	return v
 }
 
+func (v *Validator) SetObservability(obsManager *integration.ObservabilityManager) {
+	if obsManager != nil {
+		v.obsManager = obsManager
+		v.logger = obsManager.GetLogging().GetZerologLogger()
+		v.tracer = obsManager.GetTracing().GetTracer()
+		v.tracing = obsManager.GetTracing()
+	}
+}
+
 func (v *Validator) ValidateEntity(ctx context.Context, entity *models.Entity) error {
+	var span trace.Span
+	if v.tracer != nil {
+		ctx, span = v.tracer.Start(ctx, "validator.validate_entity")
+		defer span.End()
+	}
+
 	schema, err := v.cacheManager.GetEntitySchema(ctx, entity.EntityType)
 	if err != nil {
-		return utils.NewAppError(utils.CodeValidation, "entity schema not found", err).
+		appErr := utils.NewAppError(utils.CodeValidation, "entity schema not found", err).
 			WithDetail("entity_type", entity.EntityType)
+		if v.tracing != nil {
+			v.tracing.SetSpanError(span, appErr)
+		}
+		return appErr
 	}
 
 	if err := v.validate.Struct(entity); err != nil {
-		return utils.NewAppError(utils.CodeValidation, "entity structure validation failed", err)
+		appErr := utils.NewAppError(utils.CodeValidation, "entity structure validation failed", err)
+		if v.tracing != nil {
+			v.tracing.SetSpanError(span, appErr)
+		}
+		return appErr
 	}
 
 	if err := v.validateURNUniqueness(ctx, entity); err != nil {
+		if v.tracing != nil {
+			v.tracing.SetSpanError(span, err)
+		}
 		return err
 	}
 
 	if err := v.validateProperties(entity.Properties, schema.Properties); err != nil {
-		return utils.NewAppError(utils.CodeValidation, "property validation failed", err).
+		appErr := utils.NewAppError(utils.CodeValidation, "property validation failed", err).
 			WithDetail("entity_type", entity.EntityType)
+		if v.tracing != nil {
+			v.tracing.SetSpanError(span, appErr)
+		}
+		return appErr
 	}
 
 	return nil
 }
 
 func (v *Validator) ValidateRelation(ctx context.Context, relation *models.Relation) error {
+	var span trace.Span
+	if v.tracer != nil {
+		ctx, span = v.tracer.Start(ctx, "validator.validate_relation")
+		defer span.End()
+	}
+
 	schema, err := v.cacheManager.GetRelationshipSchema(ctx, relation.RelationType)
 	if err != nil {
-		return utils.NewAppError(utils.CodeValidation, "relationship schema not found", err).
+		appErr := utils.NewAppError(utils.CodeValidation, "relationship schema not found", err).
 			WithDetail("relation_type", relation.RelationType)
+		if v.tracing != nil {
+			v.tracing.SetSpanError(span, appErr)
+		}
+		return appErr
 	}
 
 	if err := v.validate.Struct(relation); err != nil {
-		return utils.NewAppError(utils.CodeValidation, "relation structure validation failed", err)
+		appErr := utils.NewAppError(utils.CodeValidation, "relation structure validation failed", err)
+		if v.tracing != nil {
+			v.tracing.SetSpanError(span, appErr)
+		}
+		return appErr
 	}
 
 	if relation.FromEntityType != schema.FromEntityType {
-		return utils.NewAppError(utils.CodeValidation, "from entity type mismatch", nil).
+		appErr := utils.NewAppError(utils.CodeValidation, "from entity type mismatch", nil).
 			WithDetail("expected", schema.FromEntityType).
 			WithDetail("actual", relation.FromEntityType)
+		if v.tracing != nil {
+			v.tracing.SetSpanError(span, appErr)
+		}
+		return appErr
 	}
 
 	if relation.ToEntityType != schema.ToEntityType {
-		return utils.NewAppError(utils.CodeValidation, "to entity type mismatch", nil).
+		appErr := utils.NewAppError(utils.CodeValidation, "to entity type mismatch", nil).
 			WithDetail("expected", schema.ToEntityType).
 			WithDetail("actual", relation.ToEntityType)
+		if v.tracing != nil {
+			v.tracing.SetSpanError(span, appErr)
+		}
+		return appErr
 	}
 
 	if err := v.validateEntityReferences(ctx, relation); err != nil {
+		if v.tracing != nil {
+			v.tracing.SetSpanError(span, err)
+		}
 		return err
 	}
 
 	if err := v.validateCardinality(ctx, relation, schema); err != nil {
+		if v.tracing != nil {
+			v.tracing.SetSpanError(span, err)
+		}
 		return err
 	}
 
 	if len(relation.Properties) > 0 {
 		if err := v.validateProperties(relation.Properties, schema.Properties); err != nil {
-			return utils.NewAppError(utils.CodeValidation, "relation property validation failed", err).
+			appErr := utils.NewAppError(utils.CodeValidation, "relation property validation failed", err).
 				WithDetail("relation_type", relation.RelationType)
+			if v.tracing != nil {
+				v.tracing.SetSpanError(span, appErr)
+			}
+			return appErr
 		}
 	}
 
@@ -101,21 +171,39 @@ func (v *Validator) ValidateRelation(ctx context.Context, relation *models.Relat
 }
 
 func (v *Validator) ValidateEntitySchema(schema *models.EntitySchema) error {
+	var span trace.Span
+	if v.tracer != nil {
+		_, span = v.tracer.Start(context.Background(), "validator.validate_entity_schema")
+		defer span.End()
+	}
+
 	if err := v.validate.Struct(schema); err != nil {
-		return utils.NewAppError(utils.CodeValidation, "entity schema structure validation failed", err)
+		appErr := utils.NewAppError(utils.CodeValidation, "entity schema structure validation failed", err)
+		if v.tracing != nil {
+			v.tracing.SetSpanError(span, appErr)
+		}
+		return appErr
 	}
 
 	for propName, propDef := range schema.Properties {
 		if err := v.validatePropertyDefinition(propName, propDef); err != nil {
-			return utils.NewAppError(utils.CodeValidation, "property definition validation failed", err).
+			appErr := utils.NewAppError(utils.CodeValidation, "property definition validation failed", err).
 				WithDetail("property", propName)
+			if v.tracing != nil {
+				v.tracing.SetSpanError(span, appErr)
+			}
+			return appErr
 		}
 	}
 
 	for _, index := range schema.Indexes {
 		if err := v.validateIndexConfig(index, schema.Properties); err != nil {
-			return utils.NewAppError(utils.CodeValidation, "index configuration validation failed", err).
+			appErr := utils.NewAppError(utils.CodeValidation, "index configuration validation failed", err).
 				WithDetail("index", index.Name)
+			if v.tracing != nil {
+				v.tracing.SetSpanError(span, appErr)
+			}
+			return appErr
 		}
 	}
 
@@ -123,14 +211,28 @@ func (v *Validator) ValidateEntitySchema(schema *models.EntitySchema) error {
 }
 
 func (v *Validator) ValidateRelationshipSchema(schema *models.RelationshipSchema) error {
+	var span trace.Span
+	if v.tracer != nil {
+		_, span = v.tracer.Start(context.Background(), "validator.validate_relationship_schema")
+		defer span.End()
+	}
+
 	if err := v.validate.Struct(schema); err != nil {
-		return utils.NewAppError(utils.CodeValidation, "relationship schema structure validation failed", err)
+		appErr := utils.NewAppError(utils.CodeValidation, "relationship schema structure validation failed", err)
+		if v.tracing != nil {
+			v.tracing.SetSpanError(span, appErr)
+		}
+		return appErr
 	}
 
 	for propName, propDef := range schema.Properties {
 		if err := v.validatePropertyDefinition(propName, propDef); err != nil {
-			return utils.NewAppError(utils.CodeValidation, "property definition validation failed", err).
+			appErr := utils.NewAppError(utils.CodeValidation, "property definition validation failed", err).
 				WithDetail("property", propName)
+			if v.tracing != nil {
+				v.tracing.SetSpanError(span, appErr)
+			}
+			return appErr
 		}
 	}
 

@@ -5,12 +5,16 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/rs/zerolog"
 	"github.com/sumandas0/entropic/internal/cache"
+	"github.com/sumandas0/entropic/internal/integration"
 	"github.com/sumandas0/entropic/internal/lock"
 	"github.com/sumandas0/entropic/internal/models"
+	"github.com/sumandas0/entropic/internal/observability"
 	"github.com/sumandas0/entropic/internal/store"
 	"github.com/sumandas0/entropic/pkg/utils"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type Engine struct {
@@ -22,6 +26,10 @@ type Engine struct {
 	txCoordinator       *TransactionCoordinator
 	txManager           *TransactionManager
 	denormalizationMgr  *DenormalizationManager
+	obsManager          *integration.ObservabilityManager
+	logger              zerolog.Logger
+	tracer              trace.Tracer
+	tracing             *observability.TracingManager
 }
 
 func NewEngine(
@@ -29,12 +37,24 @@ func NewEngine(
 	indexStore store.IndexStore,
 	cacheManager *cache.CacheAwareManager,
 	lockManager *lock.LockManager,
+	obsManager *integration.ObservabilityManager,
 ) (*Engine, error) {
 	
 	validator := NewValidator(cacheManager.Manager, primaryStore)
 	txCoordinator := NewTransactionCoordinator(primaryStore, indexStore, lockManager)
 	txManager := NewTransactionManager(txCoordinator, 30*time.Second)
 	denormalizationMgr := NewDenormalizationManager(primaryStore, cacheManager.Manager)
+	
+	// Set observability for transaction components
+	if obsManager != nil {
+		txManager.SetObservability(obsManager)
+		validator.SetObservability(obsManager)
+		denormalizationMgr.SetObservability(obsManager)
+	}
+	
+	logger := obsManager.GetLogging().GetZerologLogger()
+	tracer := obsManager.GetTracing().GetTracer()
+	tracing := obsManager.GetTracing()
 	
 	engine := &Engine{
 		primaryStore:        primaryStore,
@@ -45,12 +65,19 @@ func NewEngine(
 		txCoordinator:       txCoordinator,
 		txManager:           txManager,
 		denormalizationMgr:  denormalizationMgr,
+		obsManager:          obsManager,
+		logger:              logger,
+		tracer:              tracer,
+		tracing:             tracing,
 	}
 	
 	return engine, nil
 }
 
 func (e *Engine) CreateEntity(ctx context.Context, entity *models.Entity) error {
+	ctx, span := e.tracing.StartEntityOperation(ctx, "create", entity.EntityType, entity.ID.String())
+	defer span.End()
+
 	if entity.CreatedAt.IsZero() {
 		entity.CreatedAt = time.Now()
 	}
@@ -62,6 +89,7 @@ func (e *Engine) CreateEntity(ctx context.Context, entity *models.Entity) error 
 	}
 	
 	if err := e.validator.ValidateEntity(ctx, entity); err != nil {
+		e.tracing.SetSpanError(span, err)
 		return err
 	}
 	
@@ -71,7 +99,10 @@ func (e *Engine) CreateEntity(ctx context.Context, entity *models.Entity) error 
 		}
 		
 		if err := e.ensureIndexCollection(ctx, entity.EntityType); err != nil {
-			fmt.Printf("Warning: failed to ensure index collection for %s: %v\n", entity.EntityType, err)
+			e.logger.Warn().
+				Err(err).
+				Str("entity_type", entity.EntityType).
+				Msg("Failed to ensure index collection")
 		}
 		
 		return nil
@@ -79,14 +110,26 @@ func (e *Engine) CreateEntity(ctx context.Context, entity *models.Entity) error 
 }
 
 func (e *Engine) GetEntity(ctx context.Context, entityType string, id uuid.UUID) (*models.Entity, error) {
-	return e.primaryStore.GetEntity(ctx, entityType, id)
+	ctx, span := e.tracing.StartEntityOperation(ctx, "get", entityType, id.String())
+	defer span.End()
+
+	entity, err := e.primaryStore.GetEntity(ctx, entityType, id)
+	if err != nil {
+		e.tracing.SetSpanError(span, err)
+		return nil, err
+	}
+	return entity, nil
 }
 
 func (e *Engine) UpdateEntity(ctx context.Context, entity *models.Entity) error {
+	ctx, span := e.tracing.StartEntityOperation(ctx, "update", entity.EntityType, entity.ID.String())
+	defer span.End()
+
 	entity.UpdatedAt = time.Now()
 	entity.Version++
 	
 	if err := e.validator.ValidateEntity(ctx, entity); err != nil {
+		e.tracing.SetSpanError(span, err)
 		return err
 	}
 	
@@ -96,8 +139,10 @@ func (e *Engine) UpdateEntity(ctx context.Context, entity *models.Entity) error 
 		}
 		
 		if err := e.denormalizationMgr.UpdateDenormalizedData(ctx, entity); err != nil {
-			
-			fmt.Printf("Warning: failed to update denormalized data for entity %s: %v\n", entity.ID, err)
+			e.logger.Warn().
+				Err(err).
+				Str("entity_id", entity.ID.String()).
+				Msg("Failed to update denormalized data")
 		}
 		
 		return nil
@@ -105,6 +150,9 @@ func (e *Engine) UpdateEntity(ctx context.Context, entity *models.Entity) error 
 }
 
 func (e *Engine) DeleteEntity(ctx context.Context, entityType string, id uuid.UUID) error {
+	ctx, span := e.tracing.StartEntityOperation(ctx, "delete", entityType, id.String())
+	defer span.End()
+
 	return e.txManager.ExecuteWithTimeout(ctx, func(ctx context.Context, txCtx *TransactionContext) error {
 		relations, err := e.primaryStore.GetRelationsByEntity(ctx, id, nil)
 		if err != nil {
@@ -122,6 +170,9 @@ func (e *Engine) DeleteEntity(ctx context.Context, entityType string, id uuid.UU
 }
 
 func (e *Engine) ListEntities(ctx context.Context, entityType string, limit, offset int) ([]*models.Entity, error) {
+	ctx, span := e.tracing.StartEntityOperation(ctx, "list", entityType, "")
+	defer span.End()
+
 	if limit <= 0 || limit > 1000 {
 		limit = 100
 	}
@@ -129,10 +180,18 @@ func (e *Engine) ListEntities(ctx context.Context, entityType string, limit, off
 		offset = 0
 	}
 	
-	return e.primaryStore.ListEntities(ctx, entityType, limit, offset)
+	entities, err := e.primaryStore.ListEntities(ctx, entityType, limit, offset)
+	if err != nil {
+		e.tracing.SetSpanError(span, err)
+		return nil, err
+	}
+	return entities, nil
 }
 
 func (e *Engine) CreateRelation(ctx context.Context, relation *models.Relation) error {
+	ctx, span := e.tracing.StartRelationOperation(ctx, "create", relation.RelationType, relation.ID.String())
+	defer span.End()
+
 	if relation.CreatedAt.IsZero() {
 		relation.CreatedAt = time.Now()
 	}
@@ -141,6 +200,7 @@ func (e *Engine) CreateRelation(ctx context.Context, relation *models.Relation) 
 	}
 	
 	if err := e.validator.ValidateRelation(ctx, relation); err != nil {
+		e.tracing.SetSpanError(span, err)
 		return err
 	}
 	
@@ -150,8 +210,10 @@ func (e *Engine) CreateRelation(ctx context.Context, relation *models.Relation) 
 		}
 		
 		if err := e.denormalizationMgr.HandleRelationCreation(ctx, relation); err != nil {
-			
-			fmt.Printf("Warning: failed to handle denormalization for relation %s: %v\n", relation.ID, err)
+			e.logger.Warn().
+				Err(err).
+				Str("relation_id", relation.ID.String()).
+				Msg("Failed to handle denormalization for relation")
 		}
 		
 		return nil
@@ -159,10 +221,21 @@ func (e *Engine) CreateRelation(ctx context.Context, relation *models.Relation) 
 }
 
 func (e *Engine) GetRelation(ctx context.Context, id uuid.UUID) (*models.Relation, error) {
-	return e.primaryStore.GetRelation(ctx, id)
+	ctx, span := e.tracing.StartRelationOperation(ctx, "get", "", id.String())
+	defer span.End()
+
+	relation, err := e.primaryStore.GetRelation(ctx, id)
+	if err != nil {
+		e.tracing.SetSpanError(span, err)
+		return nil, err
+	}
+	return relation, nil
 }
 
 func (e *Engine) DeleteRelation(ctx context.Context, id uuid.UUID) error {
+	ctx, span := e.tracing.StartRelationOperation(ctx, "delete", "", id.String())
+	defer span.End()
+
 	return e.txManager.ExecuteWithTimeout(ctx, func(ctx context.Context, txCtx *TransactionContext) error {
 		relation, err := e.primaryStore.GetRelation(ctx, id)
 		if err != nil {
@@ -174,7 +247,10 @@ func (e *Engine) DeleteRelation(ctx context.Context, id uuid.UUID) error {
 		}
 		
 		if err := e.denormalizationMgr.HandleRelationDeletion(ctx, relation); err != nil {
-			fmt.Printf("Warning: failed to handle denormalization cleanup for relation %s: %v\n", id, err)
+			e.logger.Warn().
+				Err(err).
+				Str("relation_id", id.String()).
+				Msg("Failed to handle denormalization cleanup for relation")
 		}
 		
 		return nil
@@ -182,10 +258,21 @@ func (e *Engine) DeleteRelation(ctx context.Context, id uuid.UUID) error {
 }
 
 func (e *Engine) GetRelationsByEntity(ctx context.Context, entityID uuid.UUID, relationTypes []string) ([]*models.Relation, error) {
-	return e.primaryStore.GetRelationsByEntity(ctx, entityID, relationTypes)
+	ctx, span := e.tracing.StartRelationOperation(ctx, "list_by_entity", "", entityID.String())
+	defer span.End()
+
+	relations, err := e.primaryStore.GetRelationsByEntity(ctx, entityID, relationTypes)
+	if err != nil {
+		e.tracing.SetSpanError(span, err)
+		return nil, err
+	}
+	return relations, nil
 }
 
 func (e *Engine) CreateEntitySchema(ctx context.Context, schema *models.EntitySchema) error {
+	ctx, span := e.tracer.Start(ctx, "engine.create_entity_schema")
+	defer span.End()
+
 	if schema.CreatedAt.IsZero() {
 		schema.CreatedAt = time.Now()
 	}
@@ -197,6 +284,7 @@ func (e *Engine) CreateEntitySchema(ctx context.Context, schema *models.EntitySc
 	}
 	
 	if err := e.validator.ValidateEntitySchema(schema); err != nil {
+		e.tracing.SetSpanError(span, err)
 		return err
 	}
 	
@@ -206,7 +294,10 @@ func (e *Engine) CreateEntitySchema(ctx context.Context, schema *models.EntitySc
 		}
 		
 		if err := e.indexStore.CreateCollection(ctx, schema.EntityType, schema); err != nil {
-			fmt.Printf("Warning: failed to create index collection for %s: %v\n", schema.EntityType, err)
+			e.logger.Warn().
+				Err(err).
+				Str("entity_type", schema.EntityType).
+				Msg("Failed to create index collection")
 		}
 		
 		e.cacheManager.SetEntitySchema(schema.EntityType, schema)
@@ -218,14 +309,26 @@ func (e *Engine) CreateEntitySchema(ctx context.Context, schema *models.EntitySc
 }
 
 func (e *Engine) GetEntitySchema(ctx context.Context, entityType string) (*models.EntitySchema, error) {
-	return e.cacheManager.GetEntitySchema(ctx, entityType)
+	ctx, span := e.tracer.Start(ctx, "engine.get_entity_schema")
+	defer span.End()
+
+	schema, err := e.cacheManager.GetEntitySchema(ctx, entityType)
+	if err != nil {
+		e.tracing.SetSpanError(span, err)
+		return nil, err
+	}
+	return schema, nil
 }
 
 func (e *Engine) UpdateEntitySchema(ctx context.Context, schema *models.EntitySchema) error {
+	ctx, span := e.tracer.Start(ctx, "engine.update_entity_schema")
+	defer span.End()
+
 	schema.UpdatedAt = time.Now()
 	schema.Version++
 	
 	if err := e.validator.ValidateEntitySchema(schema); err != nil {
+		e.tracing.SetSpanError(span, err)
 		return err
 	}
 	
@@ -235,8 +338,10 @@ func (e *Engine) UpdateEntitySchema(ctx context.Context, schema *models.EntitySc
 		}
 		
 		if err := e.indexStore.UpdateCollection(ctx, schema.EntityType, schema); err != nil {
-			
-			fmt.Printf("Warning: failed to update index collection for %s: %v\n", schema.EntityType, err)
+			e.logger.Warn().
+				Err(err).
+				Str("entity_type", schema.EntityType).
+				Msg("Failed to update index collection")
 		}
 		
 		e.cacheManager.SetEntitySchema(schema.EntityType, schema)
@@ -248,6 +353,9 @@ func (e *Engine) UpdateEntitySchema(ctx context.Context, schema *models.EntitySc
 }
 
 func (e *Engine) DeleteEntitySchema(ctx context.Context, entityType string) error {
+	ctx, span := e.tracer.Start(ctx, "engine.delete_entity_schema")
+	defer span.End()
+
 	return e.lockManager.WithSchemaLock(ctx, "entity", entityType, 30*time.Second, func() error {
 		entities, err := e.primaryStore.ListEntities(ctx, entityType, 1, 0)
 		if err != nil {
@@ -265,8 +373,10 @@ func (e *Engine) DeleteEntitySchema(ctx context.Context, entityType string) erro
 		}
 		
 		if err := e.indexStore.DeleteCollection(ctx, entityType); err != nil {
-			
-			fmt.Printf("Warning: failed to delete index collection for %s: %v\n", entityType, err)
+			e.logger.Warn().
+				Err(err).
+				Str("entity_type", entityType).
+				Msg("Failed to delete index collection")
 		}
 		
 		e.cacheManager.InvalidateEntitySchema(entityType)
@@ -278,10 +388,21 @@ func (e *Engine) DeleteEntitySchema(ctx context.Context, entityType string) erro
 }
 
 func (e *Engine) ListEntitySchemas(ctx context.Context) ([]*models.EntitySchema, error) {
-	return e.primaryStore.ListEntitySchemas(ctx)
+	ctx, span := e.tracer.Start(ctx, "engine.list_entity_schemas")
+	defer span.End()
+
+	schemas, err := e.primaryStore.ListEntitySchemas(ctx)
+	if err != nil {
+		e.tracing.SetSpanError(span, err)
+		return nil, err
+	}
+	return schemas, nil
 }
 
 func (e *Engine) CreateRelationshipSchema(ctx context.Context, schema *models.RelationshipSchema) error {
+	ctx, span := e.tracer.Start(ctx, "engine.create_relationship_schema")
+	defer span.End()
+
 	if schema.CreatedAt.IsZero() {
 		schema.CreatedAt = time.Now()
 	}
@@ -293,6 +414,7 @@ func (e *Engine) CreateRelationshipSchema(ctx context.Context, schema *models.Re
 	}
 	
 	if err := e.validator.ValidateRelationshipSchema(schema); err != nil {
+		e.tracing.SetSpanError(span, err)
 		return err
 	}
 	
@@ -310,14 +432,26 @@ func (e *Engine) CreateRelationshipSchema(ctx context.Context, schema *models.Re
 }
 
 func (e *Engine) GetRelationshipSchema(ctx context.Context, relationshipType string) (*models.RelationshipSchema, error) {
-	return e.cacheManager.GetRelationshipSchema(ctx, relationshipType)
+	ctx, span := e.tracer.Start(ctx, "engine.get_relationship_schema")
+	defer span.End()
+
+	schema, err := e.cacheManager.GetRelationshipSchema(ctx, relationshipType)
+	if err != nil {
+		e.tracing.SetSpanError(span, err)
+		return nil, err
+	}
+	return schema, nil
 }
 
 func (e *Engine) UpdateRelationshipSchema(ctx context.Context, schema *models.RelationshipSchema) error {
+	ctx, span := e.tracer.Start(ctx, "engine.update_relationship_schema")
+	defer span.End()
+
 	schema.UpdatedAt = time.Now()
 	schema.Version++
 	
 	if err := e.validator.ValidateRelationshipSchema(schema); err != nil {
+		e.tracing.SetSpanError(span, err)
 		return err
 	}
 	
@@ -335,6 +469,9 @@ func (e *Engine) UpdateRelationshipSchema(ctx context.Context, schema *models.Re
 }
 
 func (e *Engine) DeleteRelationshipSchema(ctx context.Context, relationshipType string) error {
+	ctx, span := e.tracer.Start(ctx, "engine.delete_relationship_schema")
+	defer span.End()
+
 	return e.lockManager.WithSchemaLock(ctx, "relationship", relationshipType, 30*time.Second, func() error {
 		if err := e.primaryStore.DeleteRelationshipSchema(ctx, relationshipType); err != nil {
 			return err
@@ -349,23 +486,52 @@ func (e *Engine) DeleteRelationshipSchema(ctx context.Context, relationshipType 
 }
 
 func (e *Engine) ListRelationshipSchemas(ctx context.Context) ([]*models.RelationshipSchema, error) {
-	return e.primaryStore.ListRelationshipSchemas(ctx)
+	ctx, span := e.tracer.Start(ctx, "engine.list_relationship_schemas")
+	defer span.End()
+
+	schemas, err := e.primaryStore.ListRelationshipSchemas(ctx)
+	if err != nil {
+		e.tracing.SetSpanError(span, err)
+		return nil, err
+	}
+	return schemas, nil
 }
 
 func (e *Engine) Search(ctx context.Context, query *models.SearchQuery) (*models.SearchResult, error) {
-	return e.indexStore.Search(ctx, query)
+	ctx, span := e.tracing.StartSearchOperation(ctx, "text", query.Query, query.EntityTypes)
+	defer span.End()
+
+	result, err := e.indexStore.Search(ctx, query)
+	if err != nil {
+		e.tracing.SetSpanError(span, err)
+		return nil, err
+	}
+	return result, nil
 }
 
 func (e *Engine) VectorSearch(ctx context.Context, query *models.VectorQuery) (*models.SearchResult, error) {
-	return e.indexStore.VectorSearch(ctx, query)
+	ctx, span := e.tracing.StartSearchOperation(ctx, "vector", query.VectorField, query.EntityTypes)
+	defer span.End()
+
+	result, err := e.indexStore.VectorSearch(ctx, query)
+	if err != nil {
+		e.tracing.SetSpanError(span, err)
+		return nil, err
+	}
+	return result, nil
 }
 
 func (e *Engine) HealthCheck(ctx context.Context) error {
+	ctx, span := e.tracer.Start(ctx, "engine.health_check")
+	defer span.End()
+
 	if err := e.primaryStore.Ping(ctx); err != nil {
+		e.tracing.SetSpanError(span, err)
 		return fmt.Errorf("primary store health check failed: %w", err)
 	}
 	
 	if err := e.indexStore.Ping(ctx); err != nil {
+		e.tracing.SetSpanError(span, err)
 		return fmt.Errorf("index store health check failed: %w", err)
 	}
 	
@@ -388,6 +554,9 @@ type EngineStats struct {
 }
 
 func (e *Engine) ensureIndexCollection(ctx context.Context, entityType string) error {
+	ctx, span := e.tracer.Start(ctx, "engine.ensure_index_collection")
+	defer span.End()
+
 	schema, err := e.cacheManager.GetEntitySchema(ctx, entityType)
 	if err != nil {
 		return nil
@@ -397,6 +566,9 @@ func (e *Engine) ensureIndexCollection(ctx context.Context, entityType string) e
 }
 
 func (e *Engine) Close() error {
+	_, span := e.tracer.Start(context.Background(), "engine.close")
+	defer span.End()
+
 	var errors []error
 	
 	if err := e.primaryStore.Close(); err != nil {
@@ -412,6 +584,7 @@ func (e *Engine) Close() error {
 	}
 	
 	if len(errors) > 0 {
+		e.tracing.SetSpanError(span, fmt.Errorf("engine close failed with %d errors", len(errors)))
 		return fmt.Errorf("engine close failed with %d errors: %v", len(errors), errors[0])
 	}
 	

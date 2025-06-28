@@ -7,6 +7,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
+	"github.com/sumandas0/entropic/internal/integration"
+	"github.com/sumandas0/entropic/internal/observability"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type Manager struct {
@@ -18,6 +23,11 @@ type Manager struct {
 
 	mu    sync.RWMutex
 	stats LockStats
+	
+	obsManager *integration.ObservabilityManager
+	logger     zerolog.Logger
+	tracer     trace.Tracer
+	tracing    *observability.TracingManager
 }
 
 type resourceLock struct {
@@ -50,12 +60,32 @@ func NewManager(defaultTimeout, maxWaitTime time.Duration) *Manager {
 	}
 }
 
+func (m *Manager) SetObservability(obsManager *integration.ObservabilityManager) {
+	if obsManager != nil {
+		m.obsManager = obsManager
+		m.logger = obsManager.GetLogging().GetZerologLogger()
+		m.tracer = obsManager.GetTracing().GetTracer()
+		m.tracing = obsManager.GetTracing()
+	}
+}
+
 func (m *Manager) Lock(resource string) error {
 	return m.LockWithTimeout(resource, m.defaultTimeout)
 }
 
 func (m *Manager) LockWithTimeout(resource string, timeout time.Duration) error {
+	var span trace.Span
+	if m.tracer != nil {
+		_, span = m.tracer.Start(context.Background(), "lock.acquire")
+		defer span.End()
+		span.SetAttributes(
+			attribute.String("resource", resource),
+			attribute.String("timeout", timeout.String()),
+		)
+	}
+	
 	holderID := uuid.New().String()
+	startTime := time.Now()
 
 	lockInterface, _ := m.locks.LoadOrStore(resource, &resourceLock{})
 	resLock := lockInterface.(*resourceLock)
@@ -71,6 +101,22 @@ func (m *Manager) LockWithTimeout(resource string, timeout time.Duration) error 
 
 	select {
 	case <-acquired:
+		waitTime := time.Since(startTime)
+		if span != nil {
+			span.SetAttributes(
+				attribute.Bool("acquired", true),
+				attribute.String("wait_time", waitTime.String()),
+			)
+		}
+		
+		if m.logger.GetLevel() != zerolog.Disabled {
+			m.logger.Debug().
+				Str("resource", resource).
+				Dur("wait_time", waitTime).
+				Str("holder_id", holderID).
+				Msg("Lock acquired")
+		}
+		
 		m.recordAcquisition()
 
 		go m.monitorTimeout(resource, holderID, timeout)
@@ -78,6 +124,12 @@ func (m *Manager) LockWithTimeout(resource string, timeout time.Duration) error 
 		return nil
 
 	case <-time.After(m.maxWaitTime):
+		if span != nil {
+			span.SetAttributes(attribute.Bool("acquired", false))
+			if m.tracing != nil {
+				m.tracing.SetSpanError(span, fmt.Errorf("lock acquisition timeout"))
+			}
+		}
 		return fmt.Errorf("failed to acquire lock on resource %s: timeout", resource)
 	}
 }
@@ -104,14 +156,33 @@ func (m *Manager) TryLock(resource string, timeout time.Duration) error {
 }
 
 func (m *Manager) Unlock(resource string) error {
+	var span trace.Span
+	if m.tracer != nil {
+		_, span = m.tracer.Start(context.Background(), "lock.release")
+		defer span.End()
+		span.SetAttributes(attribute.String("resource", resource))
+	}
+	
 	lockInterface, ok := m.locks.Load(resource)
 	if !ok {
-		return fmt.Errorf("no lock found for resource %s", resource)
+		err := fmt.Errorf("no lock found for resource %s", resource)
+		if m.tracing != nil {
+			m.tracing.SetSpanError(span, err)
+		}
+		return err
 	}
 
 	resLock := lockInterface.(*resourceLock)
+	holdTime := time.Since(resLock.acquired)
 	resLock.holder = ""
 	resLock.mu.Unlock()
+
+	if m.logger.GetLevel() != zerolog.Disabled {
+		m.logger.Debug().
+			Str("resource", resource).
+			Dur("hold_time", holdTime).
+			Msg("Lock released")
+	}
 
 	m.recordRelease()
 
@@ -172,6 +243,13 @@ func (m *Manager) monitorTimeout(resource, holderID string, timeout time.Duratio
 
 	resLock := lockInterface.(*resourceLock)
 	if resLock.holder == holderID {
+		if m.logger.GetLevel() != zerolog.Disabled {
+			m.logger.Warn().
+				Str("resource", resource).
+				Str("holder_id", holderID).
+				Dur("timeout", timeout).
+				Msg("Lock timeout - forcibly releasing")
+		}
 
 		resLock.holder = ""
 		resLock.mu.Unlock()
@@ -273,6 +351,10 @@ func NewSchemaLockManager() *SchemaLockManager {
 	}
 }
 
+func (slm *SchemaLockManager) SetObservability(obsManager *integration.ObservabilityManager) {
+	slm.Manager.SetObservability(obsManager)
+}
+
 func (slm *SchemaLockManager) LockEntitySchema(entityType string) error {
 	return slm.Lock(fmt.Sprintf("schema:entity:%s", entityType))
 }
@@ -297,6 +379,10 @@ func NewEntityLockManager() *EntityLockManager {
 	return &EntityLockManager{
 		Manager: NewManager(10*time.Second, 1*time.Minute),
 	}
+}
+
+func (elm *EntityLockManager) SetObservability(obsManager *integration.ObservabilityManager) {
+	elm.Manager.SetObservability(obsManager)
 }
 
 func (elm *EntityLockManager) LockEntity(entityType string, entityID uuid.UUID) error {

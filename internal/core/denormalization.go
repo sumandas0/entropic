@@ -5,14 +5,22 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 	"github.com/sumandas0/entropic/internal/cache"
+	"github.com/sumandas0/entropic/internal/integration"
 	"github.com/sumandas0/entropic/internal/models"
+	"github.com/sumandas0/entropic/internal/observability"
 	"github.com/sumandas0/entropic/internal/store"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type DenormalizationManager struct {
 	primaryStore store.PrimaryStore
 	cacheManager *cache.Manager
+	obsManager   *integration.ObservabilityManager
+	logger       zerolog.Logger
+	tracer       trace.Tracer
+	tracing      *observability.TracingManager
 }
 
 func NewDenormalizationManager(primaryStore store.PrimaryStore, cacheManager *cache.Manager) *DenormalizationManager {
@@ -22,11 +30,25 @@ func NewDenormalizationManager(primaryStore store.PrimaryStore, cacheManager *ca
 	}
 }
 
+func (dm *DenormalizationManager) SetObservability(obsManager *integration.ObservabilityManager) {
+	if obsManager != nil {
+		dm.obsManager = obsManager
+		dm.logger = obsManager.GetLogging().GetZerologLogger()
+		dm.tracer = obsManager.GetTracing().GetTracer()
+		dm.tracing = obsManager.GetTracing()
+	}
+}
+
 func (dm *DenormalizationManager) HandleRelationCreation(ctx context.Context, relation *models.Relation) error {
+	var span trace.Span
+	if dm.tracer != nil {
+		ctx, span = dm.tracer.Start(ctx, "denormalization.handle_relation_creation")
+		defer span.End()
+	}
 	
 	schema, err := dm.cacheManager.GetRelationshipSchema(ctx, relation.RelationType)
 	if err != nil {
-		
+		// Schema not found is not an error for denormalization
 		return nil
 	}
 
@@ -36,12 +58,18 @@ func (dm *DenormalizationManager) HandleRelationCreation(ctx context.Context, re
 
 	if len(schema.DenormalizationConfig.DenormalizeToFrom) > 0 {
 		if err := dm.denormalizeToFrom(ctx, relation, schema); err != nil {
+			if dm.tracing != nil {
+				dm.tracing.SetSpanError(span, err)
+			}
 			return fmt.Errorf("failed to denormalize to->from: %w", err)
 		}
 	}
 
 	if len(schema.DenormalizationConfig.DenormalizeFromTo) > 0 {
 		if err := dm.denormalizeFromTo(ctx, relation, schema); err != nil {
+			if dm.tracing != nil {
+				dm.tracing.SetSpanError(span, err)
+			}
 			return fmt.Errorf("failed to denormalize from->to: %w", err)
 		}
 	}
@@ -50,10 +78,15 @@ func (dm *DenormalizationManager) HandleRelationCreation(ctx context.Context, re
 }
 
 func (dm *DenormalizationManager) HandleRelationDeletion(ctx context.Context, relation *models.Relation) error {
+	var span trace.Span
+	if dm.tracer != nil {
+		ctx, span = dm.tracer.Start(ctx, "denormalization.handle_relation_deletion")
+		defer span.End()
+	}
 	
 	schema, err := dm.cacheManager.GetRelationshipSchema(ctx, relation.RelationType)
 	if err != nil {
-		
+		// Schema not found is not an error for denormalization
 		return nil
 	}
 
@@ -63,12 +96,18 @@ func (dm *DenormalizationManager) HandleRelationDeletion(ctx context.Context, re
 
 	if len(schema.DenormalizationConfig.DenormalizeToFrom) > 0 {
 		if err := dm.cleanupDenormalizedData(ctx, relation.FromEntityType, relation.FromEntityID, schema.DenormalizationConfig.DenormalizeToFrom); err != nil {
+			if dm.tracing != nil {
+				dm.tracing.SetSpanError(span, err)
+			}
 			return fmt.Errorf("failed to cleanup denormalized data in from entity: %w", err)
 		}
 	}
 
 	if len(schema.DenormalizationConfig.DenormalizeFromTo) > 0 {
 		if err := dm.cleanupDenormalizedData(ctx, relation.ToEntityType, relation.ToEntityID, schema.DenormalizationConfig.DenormalizeFromTo); err != nil {
+			if dm.tracing != nil {
+				dm.tracing.SetSpanError(span, err)
+			}
 			return fmt.Errorf("failed to cleanup denormalized data in to entity: %w", err)
 		}
 	}
@@ -77,16 +116,28 @@ func (dm *DenormalizationManager) HandleRelationDeletion(ctx context.Context, re
 }
 
 func (dm *DenormalizationManager) UpdateDenormalizedData(ctx context.Context, entity *models.Entity) error {
+	var span trace.Span
+	if dm.tracer != nil {
+		ctx, span = dm.tracer.Start(ctx, "denormalization.update_denormalized_data")
+		defer span.End()
+	}
 	
 	relations, err := dm.primaryStore.GetRelationsByEntity(ctx, entity.ID, nil)
 	if err != nil {
+		if dm.tracing != nil {
+			dm.tracing.SetSpanError(span, err)
+		}
 		return fmt.Errorf("failed to get relations for entity: %w", err)
 	}
 
 	for _, relation := range relations {
 		if err := dm.updateRelationDenormalization(ctx, relation, entity); err != nil {
-			
-			fmt.Printf("Warning: failed to update denormalization for relation %s: %v\n", relation.ID, err)
+			if dm.logger.GetLevel() != zerolog.Disabled {
+				dm.logger.Warn().
+					Err(err).
+					Str("relation_id", relation.ID.String()).
+					Msg("Failed to update denormalization for relation")
+			}
 		}
 	}
 

@@ -8,16 +8,25 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
+	"github.com/sumandas0/entropic/internal/integration"
 	"github.com/sumandas0/entropic/internal/models"
+	"github.com/sumandas0/entropic/internal/observability"
 	"github.com/sumandas0/entropic/internal/store"
 	"github.com/sumandas0/entropic/pkg/utils"
 	"github.com/typesense/typesense-go/typesense"
 	"github.com/typesense/typesense-go/typesense/api"
 	"github.com/typesense/typesense-go/typesense/api/pointer"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type TypesenseStore struct {
-	client *typesense.Client
+	client     *typesense.Client
+	obsManager *integration.ObservabilityManager
+	logger     zerolog.Logger
+	tracer     trace.Tracer
+	tracing    *observability.TracingManager
 }
 
 func boolPtr(b bool) *bool {
@@ -40,13 +49,35 @@ func NewTypesenseStore(serverURL, apiKey string) (*TypesenseStore, error) {
 	}, nil
 }
 
+func (s *TypesenseStore) SetObservability(obsManager *integration.ObservabilityManager) {
+	if obsManager != nil {
+		s.obsManager = obsManager
+		s.logger = obsManager.GetLogging().GetZerologLogger()
+		s.tracer = obsManager.GetTracing().GetTracer()
+		s.tracing = obsManager.GetTracing()
+	}
+}
+
 func (s *TypesenseStore) IndexEntity(ctx context.Context, entity *models.Entity) error {
+	var span trace.Span
+	if s.tracer != nil {
+		ctx, span = s.tracer.Start(ctx, "typesense.index_entity")
+		defer span.End()
+		span.SetAttributes(
+			attribute.String("entity.type", entity.EntityType),
+			attribute.String("entity.id", entity.ID.String()),
+		)
+	}
+
 	collectionName := s.getCollectionName(entity.EntityType)
 
 	document := s.flattenEntity(entity)
 
 	_, err := s.client.Collection(collectionName).Documents().Upsert(ctx, document)
 	if err != nil {
+		if s.tracing != nil {
+			s.tracing.SetSpanError(span, err)
+		}
 		return fmt.Errorf("failed to index entity: %w", err)
 	}
 
@@ -54,18 +85,31 @@ func (s *TypesenseStore) IndexEntity(ctx context.Context, entity *models.Entity)
 }
 
 func (s *TypesenseStore) UpdateEntityIndex(ctx context.Context, entity *models.Entity) error {
-
+	// UpdateEntityIndex uses IndexEntity with upsert
 	return s.IndexEntity(ctx, entity)
 }
 
 func (s *TypesenseStore) DeleteEntityIndex(ctx context.Context, entityType string, id uuid.UUID) error {
+	var span trace.Span
+	if s.tracer != nil {
+		ctx, span = s.tracer.Start(ctx, "typesense.delete_entity_index")
+		defer span.End()
+		span.SetAttributes(
+			attribute.String("entity.type", entityType),
+			attribute.String("entity.id", id.String()),
+		)
+	}
+
 	collectionName := s.getCollectionName(entityType)
 
 	_, err := s.client.Collection(collectionName).Document(id.String()).Delete(ctx)
 	if err != nil {
-
+		// Not found is not an error for deletion
 		if strings.Contains(err.Error(), "not found") {
 			return nil
+		}
+		if s.tracing != nil {
+			s.tracing.SetSpanError(span, err)
 		}
 		return fmt.Errorf("failed to delete entity from index: %w", err)
 	}
@@ -74,8 +118,18 @@ func (s *TypesenseStore) DeleteEntityIndex(ctx context.Context, entityType strin
 }
 
 func (s *TypesenseStore) Search(ctx context.Context, query *models.SearchQuery) (*models.SearchResult, error) {
+	var span trace.Span
+	if s.tracing != nil {
+		ctx, span = s.tracing.StartSearchOperation(ctx, "text", query.Query, query.EntityTypes)
+		defer span.End()
+	}
+
 	if len(query.EntityTypes) == 0 {
-		return nil, utils.NewAppError(utils.CodeInvalidInput, "at least one entity type is required", nil)
+		err := utils.NewAppError(utils.CodeInvalidInput, "at least one entity type is required", nil)
+		if s.tracing != nil {
+			s.tracing.SetSpanError(span, err)
+		}
+		return nil, err
 	}
 
 	if len(query.EntityTypes) > 1 {
@@ -110,6 +164,9 @@ func (s *TypesenseStore) Search(ctx context.Context, query *models.SearchQuery) 
 	startTime := time.Now()
 	result, err := s.client.Collection(collectionName).Documents().Search(ctx, searchParams)
 	if err != nil {
+		if s.tracing != nil {
+			s.tracing.SetSpanError(span, err)
+		}
 		return nil, fmt.Errorf("search failed: %w", err)
 	}
 
@@ -117,8 +174,18 @@ func (s *TypesenseStore) Search(ctx context.Context, query *models.SearchQuery) 
 }
 
 func (s *TypesenseStore) VectorSearch(ctx context.Context, query *models.VectorQuery) (*models.SearchResult, error) {
+	var span trace.Span
+	if s.tracing != nil {
+		ctx, span = s.tracing.StartSearchOperation(ctx, "vector", query.VectorField, query.EntityTypes)
+		defer span.End()
+	}
+
 	if len(query.EntityTypes) == 0 {
-		return nil, utils.NewAppError(utils.CodeInvalidInput, "at least one entity type is required", nil)
+		err := utils.NewAppError(utils.CodeInvalidInput, "at least one entity type is required", nil)
+		if s.tracing != nil {
+			s.tracing.SetSpanError(span, err)
+		}
+		return nil, err
 	}
 
 	if len(query.EntityTypes) > 1 {
@@ -152,6 +219,9 @@ func (s *TypesenseStore) VectorSearch(ctx context.Context, query *models.VectorQ
 	startTime := time.Now()
 	result, err := s.client.Collection(collectionName).Documents().Search(ctx, searchParams)
 	if err != nil {
+		if s.tracing != nil {
+			s.tracing.SetSpanError(span, err)
+		}
 		return nil, fmt.Errorf("vector search failed: %w", err)
 	}
 
@@ -172,6 +242,13 @@ func (s *TypesenseStore) VectorSearch(ctx context.Context, query *models.VectorQ
 }
 
 func (s *TypesenseStore) CreateCollection(ctx context.Context, entityType string, schema *models.EntitySchema) error {
+	var span trace.Span
+	if s.tracer != nil {
+		ctx, span = s.tracer.Start(ctx, "typesense.create_collection")
+		defer span.End()
+		span.SetAttributes(attribute.String("entity.type", entityType))
+	}
+
 	collectionName := s.getCollectionName(entityType)
 
 	fields := s.buildFieldsFromSchema(schema)
@@ -206,10 +283,12 @@ func (s *TypesenseStore) CreateCollection(ctx context.Context, entityType string
 
 	_, err := s.client.Collections().Create(ctx, collectionSchema)
 	if err != nil {
-
+		// If collection already exists, try to update it
 		if strings.Contains(err.Error(), "already exists") {
-
 			return s.UpdateCollection(ctx, entityType, schema)
+		}
+		if s.tracing != nil {
+			s.tracing.SetSpanError(span, err)
 		}
 		return fmt.Errorf("failed to create collection: %w", err)
 	}
@@ -218,13 +297,23 @@ func (s *TypesenseStore) CreateCollection(ctx context.Context, entityType string
 }
 
 func (s *TypesenseStore) UpdateCollection(ctx context.Context, entityType string, schema *models.EntitySchema) error {
+	var span trace.Span
+	if s.tracer != nil {
+		ctx, span = s.tracer.Start(ctx, "typesense.update_collection")
+		defer span.End()
+		span.SetAttributes(attribute.String("entity.type", entityType))
+	}
+
 	collectionName := s.getCollectionName(entityType)
 
 	existingCollection, err := s.client.Collection(collectionName).Retrieve(ctx)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
-
+			// If collection doesn't exist, create it
 			return s.CreateCollection(ctx, entityType, schema)
+		}
+		if s.tracing != nil {
+			s.tracing.SetSpanError(span, err)
 		}
 		return fmt.Errorf("failed to retrieve collection: %w", err)
 	}
@@ -243,6 +332,9 @@ func (s *TypesenseStore) UpdateCollection(ctx context.Context, entityType string
 			}
 			_, err := s.client.Collection(collectionName).Update(ctx, updateSchema)
 			if err != nil {
+				if s.tracing != nil {
+					s.tracing.SetSpanError(span, err)
+				}
 				return fmt.Errorf("failed to add field %s: %w", field.Name, err)
 			}
 		}
@@ -252,12 +344,22 @@ func (s *TypesenseStore) UpdateCollection(ctx context.Context, entityType string
 }
 
 func (s *TypesenseStore) DeleteCollection(ctx context.Context, entityType string) error {
+	var span trace.Span
+	if s.tracer != nil {
+		ctx, span = s.tracer.Start(ctx, "typesense.delete_collection")
+		defer span.End()
+		span.SetAttributes(attribute.String("entity.type", entityType))
+	}
+
 	collectionName := s.getCollectionName(entityType)
 
 	_, err := s.client.Collection(collectionName).Delete(ctx)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			return nil
+		}
+		if s.tracing != nil {
+			s.tracing.SetSpanError(span, err)
 		}
 		return fmt.Errorf("failed to delete collection: %w", err)
 	}
@@ -266,7 +368,16 @@ func (s *TypesenseStore) DeleteCollection(ctx context.Context, entityType string
 }
 
 func (s *TypesenseStore) Ping(ctx context.Context) error {
+	var span trace.Span
+	if s.tracer != nil {
+		ctx, span = s.tracer.Start(ctx, "typesense.ping")
+		defer span.End()
+	}
+
 	_, err := s.client.Health(ctx, 5*time.Second)
+	if err != nil && s.tracing != nil {
+		s.tracing.SetSpanError(span, err)
+	}
 	return err
 }
 
@@ -486,6 +597,15 @@ func (s *TypesenseStore) convertSearchResult(tsResult *api.SearchResult, query a
 }
 
 func (s *TypesenseStore) multiSearch(ctx context.Context, query *models.SearchQuery) (*models.SearchResult, error) {
+	var span trace.Span
+	if s.tracer != nil {
+		ctx, span = s.tracer.Start(ctx, "typesense.multi_search")
+		defer span.End()
+		span.SetAttributes(
+			attribute.String("query", query.Query),
+			attribute.Int("entity_types_count", len(query.EntityTypes)),
+		)
+	}
 
 	searches := make([]api.MultiSearchCollectionParameters, len(query.EntityTypes))
 
@@ -515,6 +635,9 @@ func (s *TypesenseStore) multiSearch(ctx context.Context, query *models.SearchQu
 	}
 	multiResult, err := s.client.MultiSearch.Perform(ctx, &api.MultiSearchParams{}, searchRequests)
 	if err != nil {
+		if s.tracing != nil {
+			s.tracing.SetSpanError(span, err)
+		}
 		return nil, fmt.Errorf("multi-search failed: %w", err)
 	}
 
@@ -553,6 +676,16 @@ func (s *TypesenseStore) multiSearch(ctx context.Context, query *models.SearchQu
 }
 
 func (s *TypesenseStore) multiVectorSearch(ctx context.Context, query *models.VectorQuery) (*models.SearchResult, error) {
+	var span trace.Span
+	if s.tracer != nil {
+		ctx, span = s.tracer.Start(ctx, "typesense.multi_vector_search")
+		defer span.End()
+		span.SetAttributes(
+			attribute.String("vector_field", query.VectorField),
+			attribute.Int("entity_types_count", len(query.EntityTypes)),
+			attribute.Int("top_k", query.TopK),
+		)
+	}
 
 	searches := make([]api.MultiSearchCollectionParameters, len(query.EntityTypes))
 	vectorStr := s.vectorToString(query.Vector)
@@ -583,6 +716,9 @@ func (s *TypesenseStore) multiVectorSearch(ctx context.Context, query *models.Ve
 	}
 	multiResult, err := s.client.MultiSearch.Perform(ctx, &api.MultiSearchParams{}, searchRequests)
 	if err != nil {
+		if s.tracing != nil {
+			s.tracing.SetSpanError(span, err)
+		}
 		return nil, fmt.Errorf("multi-vector-search failed: %w", err)
 	}
 

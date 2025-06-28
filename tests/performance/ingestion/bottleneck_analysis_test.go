@@ -312,7 +312,8 @@ func TestComponentIsolation(t *testing.T) {
 			name: "Without indexing",
 			operation: func(entity *models.Entity) error {
 				// Create a temporary engine without index store
-				tempEngine, _ := core.NewEngine(env.PrimaryStore, nil, env.CacheManager, env.LockManager)
+				obsManager := testhelpers.NewTestObservabilityManager(t)
+				tempEngine, _ := core.NewEngine(env.PrimaryStore, nil, env.CacheManager, env.LockManager, obsManager)
 				return tempEngine.CreateEntity(ctx, entity)
 			},
 		},

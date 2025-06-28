@@ -146,7 +146,10 @@ func SetupTestEnvironment(t *testing.T, ctx context.Context) *TestEnvironment {
 	distributedLock := lock.NewInMemoryDistributedLock()
 	lockManager := lock.NewLockManager(distributedLock)
 
-	engine, err := core.NewEngine(primaryStore, indexStore, cacheManager, lockManager)
+	// Create no-op observability manager for tests
+	obsManager := NewTestObservabilityManager(t)
+	
+	engine, err := core.NewEngine(primaryStore, indexStore, cacheManager, lockManager, obsManager)
 	require.NoError(t, err)
 
 	return &TestEnvironment{

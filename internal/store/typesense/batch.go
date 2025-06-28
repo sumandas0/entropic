@@ -6,8 +6,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rs/zerolog"
 	"github.com/sumandas0/entropic/internal/models"
 	"github.com/typesense/typesense-go/typesense/api"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type BatchIndexer struct {
@@ -19,16 +22,25 @@ type BatchIndexer struct {
 	batches map[string][]map[string]any
 	stopCh  chan struct{}
 	wg      sync.WaitGroup
+	logger  zerolog.Logger
+	tracer  trace.Tracer
 }
 
 func NewBatchIndexer(store *TypesenseStore, batchSize int, flushInterval time.Duration) *BatchIndexer {
-	return &BatchIndexer{
+	bi := &BatchIndexer{
 		store:         store,
 		batchSize:     batchSize,
 		flushInterval: flushInterval,
 		batches:       make(map[string][]map[string]any),
 		stopCh:        make(chan struct{}),
 	}
+	
+	if store.obsManager != nil {
+		bi.logger = store.obsManager.GetLogging().GetZerologLogger()
+		bi.tracer = store.obsManager.GetTracing().GetTracer()
+	}
+	
+	return bi
 }
 
 func (b *BatchIndexer) Start(ctx context.Context) {
@@ -59,6 +71,16 @@ func (b *BatchIndexer) Stop() {
 }
 
 func (b *BatchIndexer) IndexEntity(ctx context.Context, entity *models.Entity) error {
+	var span trace.Span
+	if b.tracer != nil {
+		ctx, span = b.tracer.Start(ctx, "batch_indexer.index_entity")
+		defer span.End()
+		span.SetAttributes(
+			attribute.String("entity.type", entity.EntityType),
+			attribute.String("entity.id", entity.ID.String()),
+		)
+	}
+	
 	collectionName := b.store.getCollectionName(entity.EntityType)
 	document := b.store.flattenEntity(entity)
 
@@ -107,6 +129,16 @@ func (b *BatchIndexer) flushBatch(ctx context.Context, collectionName string, do
 	if len(documents) == 0 {
 		return
 	}
+	
+	var span trace.Span
+	if b.tracer != nil {
+		ctx, span = b.tracer.Start(ctx, "batch_indexer.flush_batch")
+		defer span.End()
+		span.SetAttributes(
+			attribute.String("collection", collectionName),
+			attribute.Int("batch_size", len(documents)),
+		)
+	}
 
 	interfaceDocs := make([]any, len(documents))
 	for i, doc := range documents {
@@ -120,8 +152,13 @@ func (b *BatchIndexer) flushBatch(ctx context.Context, collectionName string, do
 	_, err := b.store.client.Collection(collectionName).Documents().Import(ctx, interfaceDocs, params)
 	if err != nil {
 
-		fmt.Printf("Failed to batch index %d documents to collection %s: %v\n",
-			len(documents), collectionName, err)
+		if b.logger.GetLevel() != zerolog.Disabled {
+			b.logger.Error().
+				Err(err).
+				Str("collection", collectionName).
+				Int("document_count", len(documents)).
+				Msg("Failed to batch index documents")
+		}
 
 		b.retryIndividual(ctx, collectionName, documents)
 	}
@@ -133,7 +170,12 @@ func (b *BatchIndexer) retryIndividual(ctx context.Context, collectionName strin
 		if err != nil {
 
 			if id, ok := doc["id"].(string); ok {
-				fmt.Printf("Failed to index document %s: %v\n", id, err)
+				if b.logger.GetLevel() != zerolog.Disabled {
+					b.logger.Error().
+						Err(err).
+						Str("document_id", id).
+						Msg("Failed to index document")
+				}
 			}
 		}
 	}
@@ -143,17 +185,32 @@ type BulkReindexer struct {
 	store       *TypesenseStore
 	batchSize   int
 	concurrency int
+	logger      zerolog.Logger
+	tracer      trace.Tracer
 }
 
 func NewBulkReindexer(store *TypesenseStore, batchSize, concurrency int) *BulkReindexer {
-	return &BulkReindexer{
+	br := &BulkReindexer{
 		store:       store,
 		batchSize:   batchSize,
 		concurrency: concurrency,
 	}
+	
+	if store.obsManager != nil {
+		br.logger = store.obsManager.GetLogging().GetZerologLogger()
+		br.tracer = store.obsManager.GetTracing().GetTracer()
+	}
+	
+	return br
 }
 
 func (r *BulkReindexer) ReindexEntities(ctx context.Context, entities []*models.Entity) error {
+	var span trace.Span
+	if r.tracer != nil {
+		ctx, span = r.tracer.Start(ctx, "bulk_reindexer.reindex_entities")
+		defer span.End()
+		span.SetAttributes(attribute.Int("entity_count", len(entities)))
+	}
 
 	entityGroups := make(map[string][]*models.Entity)
 	for _, entity := range entities {
@@ -189,6 +246,16 @@ func (r *BulkReindexer) ReindexEntities(ctx context.Context, entities []*models.
 }
 
 func (r *BulkReindexer) reindexEntityType(ctx context.Context, entityType string, entities []*models.Entity) error {
+	var span trace.Span
+	if r.tracer != nil {
+		ctx, span = r.tracer.Start(ctx, "bulk_reindexer.reindex_entity_type")
+		defer span.End()
+		span.SetAttributes(
+			attribute.String("entity_type", entityType),
+			attribute.Int("entity_count", len(entities)),
+		)
+	}
+	
 	collectionName := r.store.getCollectionName(entityType)
 
 	for i := 0; i < len(entities); i += r.batchSize {

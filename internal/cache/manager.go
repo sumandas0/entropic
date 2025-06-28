@@ -6,8 +6,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rs/zerolog"
+	"github.com/sumandas0/entropic/internal/integration"
 	"github.com/sumandas0/entropic/internal/models"
+	"github.com/sumandas0/entropic/internal/observability"
 	"github.com/sumandas0/entropic/internal/store"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type Manager struct {
@@ -21,6 +26,11 @@ type Manager struct {
 	hits   uint64
 	misses uint64
 	mu     sync.RWMutex
+	
+	obsManager *integration.ObservabilityManager
+	logger     zerolog.Logger
+	tracer     trace.Tracer
+	tracing    *observability.TracingManager
 }
 
 func NewManager(primaryStore store.PrimaryStore, schemaTTL time.Duration) *Manager {
@@ -34,6 +44,15 @@ func NewManager(primaryStore store.PrimaryStore, schemaTTL time.Duration) *Manag
 	}
 }
 
+func (m *Manager) SetObservability(obsManager *integration.ObservabilityManager) {
+	if obsManager != nil {
+		m.obsManager = obsManager
+		m.logger = obsManager.GetLogging().GetZerologLogger()
+		m.tracer = obsManager.GetTracing().GetTracer()
+		m.tracing = obsManager.GetTracing()
+	}
+}
+
 type cacheEntry struct {
 	value      any
 	expiration time.Time
@@ -44,11 +63,20 @@ func (e *cacheEntry) isExpired() bool {
 }
 
 func (m *Manager) GetEntitySchema(ctx context.Context, entityType string) (*models.EntitySchema, error) {
+	var span trace.Span
+	if m.tracer != nil {
+		ctx, span = m.tracer.Start(ctx, "cache.get_entity_schema")
+		defer span.End()
+		span.SetAttributes(attribute.String("entity_type", entityType))
+	}
 
 	if cached, ok := m.entitySchemas.Load(entityType); ok {
 		entry := cached.(*cacheEntry)
 		if !entry.isExpired() {
 			m.recordHit()
+			if span != nil {
+				span.SetAttributes(attribute.Bool("cache_hit", true))
+			}
 			return entry.value.(*models.EntitySchema), nil
 		}
 
@@ -56,9 +84,15 @@ func (m *Manager) GetEntitySchema(ctx context.Context, entityType string) (*mode
 	}
 
 	m.recordMiss()
+	if span != nil {
+		span.SetAttributes(attribute.Bool("cache_hit", false))
+	}
 
 	schema, err := m.primaryStore.GetEntitySchema(ctx, entityType)
 	if err != nil {
+		if m.tracing != nil {
+			m.tracing.SetSpanError(span, err)
+		}
 		return nil, err
 	}
 
@@ -80,11 +114,20 @@ func (m *Manager) InvalidateEntitySchema(entityType string) {
 }
 
 func (m *Manager) GetRelationshipSchema(ctx context.Context, relationshipType string) (*models.RelationshipSchema, error) {
+	var span trace.Span
+	if m.tracer != nil {
+		ctx, span = m.tracer.Start(ctx, "cache.get_relationship_schema")
+		defer span.End()
+		span.SetAttributes(attribute.String("relationship_type", relationshipType))
+	}
 
 	if cached, ok := m.relationshipSchemas.Load(relationshipType); ok {
 		entry := cached.(*cacheEntry)
 		if !entry.isExpired() {
 			m.recordHit()
+			if span != nil {
+				span.SetAttributes(attribute.Bool("cache_hit", true))
+			}
 			return entry.value.(*models.RelationshipSchema), nil
 		}
 
@@ -92,9 +135,15 @@ func (m *Manager) GetRelationshipSchema(ctx context.Context, relationshipType st
 	}
 
 	m.recordMiss()
+	if span != nil {
+		span.SetAttributes(attribute.Bool("cache_hit", false))
+	}
 
 	schema, err := m.primaryStore.GetRelationshipSchema(ctx, relationshipType)
 	if err != nil {
+		if m.tracing != nil {
+			m.tracing.SetSpanError(span, err)
+		}
 		return nil, err
 	}
 
@@ -116,9 +165,17 @@ func (m *Manager) InvalidateRelationshipSchema(relationshipType string) {
 }
 
 func (m *Manager) PreloadSchemas(ctx context.Context) error {
+	var span trace.Span
+	if m.tracer != nil {
+		ctx, span = m.tracer.Start(ctx, "cache.preload_schemas")
+		defer span.End()
+	}
 
 	entitySchemas, err := m.primaryStore.ListEntitySchemas(ctx)
 	if err != nil {
+		if m.tracing != nil {
+			m.tracing.SetSpanError(span, err)
+		}
 		return fmt.Errorf("failed to preload entity schemas: %w", err)
 	}
 
@@ -126,13 +183,31 @@ func (m *Manager) PreloadSchemas(ctx context.Context) error {
 		m.SetEntitySchema(schema.EntityType, schema)
 	}
 
+	if span != nil {
+		span.SetAttributes(attribute.Int("entity_schemas_loaded", len(entitySchemas)))
+	}
+
 	relationshipSchemas, err := m.primaryStore.ListRelationshipSchemas(ctx)
 	if err != nil {
+		if m.tracing != nil {
+			m.tracing.SetSpanError(span, err)
+		}
 		return fmt.Errorf("failed to preload relationship schemas: %w", err)
 	}
 
 	for _, schema := range relationshipSchemas {
 		m.SetRelationshipSchema(schema.RelationshipType, schema)
+	}
+
+	if span != nil {
+		span.SetAttributes(attribute.Int("relationship_schemas_loaded", len(relationshipSchemas)))
+	}
+
+	if m.logger.GetLevel() != zerolog.Disabled {
+		m.logger.Info().
+			Int("entity_schemas", len(entitySchemas)).
+			Int("relationship_schemas", len(relationshipSchemas)).
+			Msg("Schemas preloaded into cache")
 	}
 
 	return nil
@@ -156,12 +231,21 @@ func (m *Manager) Clear() {
 }
 
 func (m *Manager) CleanupExpired() {
+	var span trace.Span
+	if m.tracer != nil {
+		_, span = m.tracer.Start(context.Background(), "cache.cleanup_expired")
+		defer span.End()
+	}
+	
 	now := time.Now()
+	entityCount := 0
+	relationshipCount := 0
 
 	m.entitySchemas.Range(func(key, value any) bool {
 		entry := value.(*cacheEntry)
 		if now.After(entry.expiration) {
 			m.entitySchemas.Delete(key)
+			entityCount++
 		}
 		return true
 	})
@@ -170,9 +254,24 @@ func (m *Manager) CleanupExpired() {
 		entry := value.(*cacheEntry)
 		if now.After(entry.expiration) {
 			m.relationshipSchemas.Delete(key)
+			relationshipCount++
 		}
 		return true
 	})
+	
+	if span != nil {
+		span.SetAttributes(
+			attribute.Int("entity_schemas_expired", entityCount),
+			attribute.Int("relationship_schemas_expired", relationshipCount),
+		)
+	}
+	
+	if m.logger.GetLevel() != zerolog.Disabled && (entityCount > 0 || relationshipCount > 0) {
+		m.logger.Debug().
+			Int("entity_schemas_expired", entityCount).
+			Int("relationship_schemas_expired", relationshipCount).
+			Msg("Cache cleanup completed")
+	}
 }
 
 func (m *Manager) StartCleanupRoutine(ctx context.Context, interval time.Duration) {
@@ -302,6 +401,10 @@ func NewCacheAwareManager(primaryStore store.PrimaryStore, schemaTTL time.Durati
 	notifier.AddListener(cam)
 
 	return cam
+}
+
+func (cam *CacheAwareManager) SetObservability(obsManager *integration.ObservabilityManager) {
+	cam.Manager.SetObservability(obsManager)
 }
 
 func (cam *CacheAwareManager) OnEntitySchemaChange(entityType string, action string) {

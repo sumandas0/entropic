@@ -9,14 +9,16 @@ import (
 )
 
 type Config struct {
-	Server     ServerConfig     `mapstructure:"server"`
-	Database   DatabaseConfig   `mapstructure:"database"`
-	Search     SearchConfig     `mapstructure:"search"`
-	Cache      CacheConfig      `mapstructure:"cache"`
-	Lock       LockConfig       `mapstructure:"lock"`
-	Logging    LoggingConfig    `mapstructure:"logging"`
-	Metrics    MetricsConfig    `mapstructure:"metrics"`
-	Security   SecurityConfig   `mapstructure:"security"`
+	Server      ServerConfig     `mapstructure:"server"`
+	Database    DatabaseConfig   `mapstructure:"database"`
+	Search      SearchConfig     `mapstructure:"search"`
+	Cache       CacheConfig      `mapstructure:"cache"`
+	Lock        LockConfig       `mapstructure:"lock"`
+	Logging     LoggingConfig    `mapstructure:"logging"`
+	Metrics     MetricsConfig    `mapstructure:"metrics"`
+	Tracing     TracingConfig    `mapstructure:"tracing"`
+	Security    SecurityConfig   `mapstructure:"security"`
+	Environment string           `mapstructure:"environment"`
 }
 
 type ServerConfig struct {
@@ -97,13 +99,17 @@ type RedisConfig struct {
 type LoggingConfig struct {
 	Level  string `mapstructure:"level"`  
 	Format string `mapstructure:"format"` 
-	File   string `mapstructure:"file"`   
+	File   string `mapstructure:"file"`
+	Output string `mapstructure:"output"`   
 }
 
 type MetricsConfig struct {
-	Enabled  bool   `mapstructure:"enabled"`
-	Path     string `mapstructure:"path"`
-	Interval time.Duration `mapstructure:"interval"`
+	Enabled          bool          `mapstructure:"enabled"`
+	Path             string        `mapstructure:"path"`
+	Interval         time.Duration `mapstructure:"interval"`
+	PrometheusPort   int           `mapstructure:"prometheus_port"`
+	CollectionPeriod time.Duration `mapstructure:"collection_period"`
+	HistogramBuckets []float64     `mapstructure:"histogram_buckets"`
 }
 
 type SecurityConfig struct {
@@ -121,6 +127,12 @@ type RateLimitConfig struct {
 type RequestSizeConfig struct {
 	MaxBodySize    int64 `mapstructure:"max_body_size"`    
 	MaxHeaderSize  int   `mapstructure:"max_header_size"`  
+}
+
+type TracingConfig struct {
+	Enabled     bool    `mapstructure:"enabled"`
+	JaegerURL   string  `mapstructure:"jaeger_url"`
+	SampleRate  float64 `mapstructure:"sample_rate"`
 }
 
 func LoadConfig(configPath string) (*Config, error) {
@@ -216,17 +228,27 @@ func setDefaults() {
 	viper.SetDefault("logging.level", "info")
 	viper.SetDefault("logging.format", "console")
 	viper.SetDefault("logging.file", "")
+	viper.SetDefault("logging.output", "stdout")
 
 	viper.SetDefault("metrics.enabled", true)
 	viper.SetDefault("metrics.path", "/metrics")
 	viper.SetDefault("metrics.interval", "15s")
+	viper.SetDefault("metrics.prometheus_port", 9090)
+	viper.SetDefault("metrics.collection_period", "10s")
+	viper.SetDefault("metrics.histogram_buckets", []float64{0.1, 0.5, 1, 2, 5, 10})
 
 	viper.SetDefault("security.rate_limit.enabled", true)
 	viper.SetDefault("security.rate_limit.rate", 100)
 	viper.SetDefault("security.rate_limit.period", "1m")
 	viper.SetDefault("security.rate_limit.burst_size", 10)
 	viper.SetDefault("security.request_size.max_body_size", 10485760) 
-	viper.SetDefault("security.request_size.max_header_size", 8192)   
+	viper.SetDefault("security.request_size.max_header_size", 8192)
+
+	viper.SetDefault("tracing.enabled", false)
+	viper.SetDefault("tracing.jaeger_url", "http://localhost:14268/api/traces")
+	viper.SetDefault("tracing.sample_rate", 1.0)
+
+	viper.SetDefault("environment", "development")   
 }
 
 func validateConfig(config *Config) error {

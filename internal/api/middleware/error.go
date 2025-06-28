@@ -7,7 +7,10 @@ import (
 	"runtime/debug"
 	"time"
 
+	"github.com/rs/zerolog"
+	"github.com/sumandas0/entropic/internal/integration"
 	"github.com/sumandas0/entropic/pkg/utils"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // ErrorResponse represents the standard error response format
@@ -32,6 +35,27 @@ func ErrorHandler() func(next http.Handler) http.Handler {
 			defer func() {
 				if err := recover(); err != nil {
 					handlePanic(w, r, err)
+				}
+			}()
+
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func ErrorHandlerWithObservability(obsManager *integration.ObservabilityManager) func(next http.Handler) http.Handler {
+	logger := zerolog.Nop()
+	tracer := trace.NewNoopTracerProvider().Tracer("")
+	if obsManager != nil {
+		logger = obsManager.GetLogging().GetZerologLogger()
+		tracer = obsManager.GetTracing().GetTracer()
+	}
+	
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			defer func() {
+				if err := recover(); err != nil {
+					handlePanicWithLogger(w, r, err, logger, tracer)
 				}
 			}()
 
@@ -146,6 +170,30 @@ func handlePanic(w http.ResponseWriter, r *http.Request, err any) {
 		err,
 		debug.Stack(),
 	)
+
+	SendInternalError(w, r, "Internal server error")
+}
+
+func handlePanicWithLogger(w http.ResponseWriter, r *http.Request, err any, logger zerolog.Logger, tracer trace.Tracer) {
+	ctx := r.Context()
+	
+	var span trace.Span
+	if tracer != nil {
+		ctx, span = tracer.Start(ctx, "middleware.panic_recovery")
+		defer span.End()
+		if span != nil {
+			span.RecordError(fmt.Errorf("panic: %v", err))
+		}
+	}
+	
+	if logger.GetLevel() != zerolog.Disabled {
+		logger.Error().
+			Str("method", r.Method).
+			Str("path", r.RequestURI).
+			Interface("error", err).
+			Str("stack", string(debug.Stack())).
+			Msg("PANIC recovered")
+	}
 
 	SendInternalError(w, r, "Internal server error")
 }

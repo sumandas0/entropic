@@ -9,13 +9,22 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rs/zerolog"
+	"github.com/sumandas0/entropic/internal/integration"
 	"github.com/sumandas0/entropic/internal/models"
+	"github.com/sumandas0/entropic/internal/observability"
 	"github.com/sumandas0/entropic/internal/store"
 	"github.com/sumandas0/entropic/pkg/utils"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type PostgresStore struct {
-	pool *pgxpool.Pool
+	pool       *pgxpool.Pool
+	obsManager *integration.ObservabilityManager
+	logger     zerolog.Logger
+	tracer     trace.Tracer
+	tracing    *observability.TracingManager
 }
 
 func NewPostgresStore(connectionString string) (*PostgresStore, error) {
@@ -39,9 +48,31 @@ func NewPostgresStore(connectionString string) (*PostgresStore, error) {
 	}, nil
 }
 
+func (s *PostgresStore) SetObservability(obsManager *integration.ObservabilityManager) {
+	if obsManager != nil {
+		s.obsManager = obsManager
+		s.logger = obsManager.GetLogging().GetZerologLogger()
+		s.tracer = obsManager.GetTracing().GetTracer()
+		s.tracing = obsManager.GetTracing()
+	}
+}
+
 func (s *PostgresStore) CreateEntity(ctx context.Context, entity *models.Entity) error {
+	var span trace.Span
+	if s.tracing != nil {
+		ctx, span = s.tracing.StartDatabaseOperation(ctx, "INSERT", "entities")
+		defer span.End()
+		span.SetAttributes(
+			attribute.String("entity.type", entity.EntityType),
+			attribute.String("entity.id", entity.ID.String()),
+		)
+	}
+
 	propertiesJSON, err := json.Marshal(entity.Properties)
 	if err != nil {
+		if s.tracing != nil {
+			s.tracing.SetSpanError(span, err)
+		}
 		return fmt.Errorf("failed to marshal properties: %w", err)
 	}
 
@@ -61,7 +92,9 @@ func (s *PostgresStore) CreateEntity(ctx context.Context, entity *models.Entity)
 	)
 
 	if err != nil {
-
+		if s.tracing != nil {
+			s.tracing.SetSpanError(span, err)
+		}
 		if isUniqueViolation(err) {
 			return utils.NewAppError(utils.CodeAlreadyExists, "entity with URN already exists", err).
 				WithDetail("urn", entity.URN)
@@ -73,6 +106,16 @@ func (s *PostgresStore) CreateEntity(ctx context.Context, entity *models.Entity)
 }
 
 func (s *PostgresStore) GetEntity(ctx context.Context, entityType string, id uuid.UUID) (*models.Entity, error) {
+	var span trace.Span
+	if s.tracing != nil {
+		ctx, span = s.tracing.StartDatabaseOperation(ctx, "SELECT", "entities")
+		defer span.End()
+		span.SetAttributes(
+			attribute.String("entity.type", entityType),
+			attribute.String("entity.id", id.String()),
+		)
+	}
+
 	query := `
 		SELECT id, entity_type, urn, properties, created_at, updated_at, version
 		FROM entities
@@ -93,6 +136,9 @@ func (s *PostgresStore) GetEntity(ctx context.Context, entityType string, id uui
 	)
 
 	if err != nil {
+		if s.tracing != nil {
+			s.tracing.SetSpanError(span, err)
+		}
 		if err == pgx.ErrNoRows {
 			return nil, utils.NewAppError(utils.CodeNotFound, "entity not found", err).
 				WithDetail("entity_type", entityType).
@@ -102,6 +148,9 @@ func (s *PostgresStore) GetEntity(ctx context.Context, entityType string, id uui
 	}
 
 	if err := json.Unmarshal(propertiesJSON, &entity.Properties); err != nil {
+		if s.tracing != nil {
+			s.tracing.SetSpanError(span, err)
+		}
 		return nil, fmt.Errorf("failed to unmarshal properties: %w", err)
 	}
 
@@ -109,8 +158,21 @@ func (s *PostgresStore) GetEntity(ctx context.Context, entityType string, id uui
 }
 
 func (s *PostgresStore) UpdateEntity(ctx context.Context, entity *models.Entity) error {
+	var span trace.Span
+	if s.tracing != nil {
+		ctx, span = s.tracing.StartDatabaseOperation(ctx, "UPDATE", "entities")
+		defer span.End()
+		span.SetAttributes(
+			attribute.String("entity.type", entity.EntityType),
+			attribute.String("entity.id", entity.ID.String()),
+		)
+	}
+
 	propertiesJSON, err := json.Marshal(entity.Properties)
 	if err != nil {
+		if s.tracing != nil {
+			s.tracing.SetSpanError(span, err)
+		}
 		return fmt.Errorf("failed to marshal properties: %w", err)
 	}
 
@@ -129,6 +191,9 @@ func (s *PostgresStore) UpdateEntity(ctx context.Context, entity *models.Entity)
 	)
 
 	if err != nil {
+		if s.tracing != nil {
+			s.tracing.SetSpanError(span, err)
+		}
 		return fmt.Errorf("failed to update entity: %w", err)
 	}
 
@@ -143,6 +208,16 @@ func (s *PostgresStore) UpdateEntity(ctx context.Context, entity *models.Entity)
 }
 
 func (s *PostgresStore) DeleteEntity(ctx context.Context, entityType string, id uuid.UUID) error {
+	var span trace.Span
+	if s.tracing != nil {
+		ctx, span = s.tracing.StartDatabaseOperation(ctx, "DELETE", "entities")
+		defer span.End()
+		span.SetAttributes(
+			attribute.String("entity.type", entityType),
+			attribute.String("entity.id", id.String()),
+		)
+	}
+
 	query := `
 		UPDATE entities
 		SET deleted_at = $1
@@ -151,6 +226,9 @@ func (s *PostgresStore) DeleteEntity(ctx context.Context, entityType string, id 
 
 	result, err := s.pool.Exec(ctx, query, time.Now(), entityType, id)
 	if err != nil {
+		if s.tracing != nil {
+			s.tracing.SetSpanError(span, err)
+		}
 		return fmt.Errorf("failed to delete entity: %w", err)
 	}
 
@@ -164,6 +242,13 @@ func (s *PostgresStore) DeleteEntity(ctx context.Context, entityType string, id 
 }
 
 func (s *PostgresStore) CheckURNExists(ctx context.Context, urn string) (bool, error) {
+	var span trace.Span
+	if s.tracing != nil {
+		ctx, span = s.tracing.StartDatabaseOperation(ctx, "EXISTS", "entities")
+		defer span.End()
+		span.SetAttributes(attribute.String("urn", urn))
+	}
+
 	query := `
 		SELECT EXISTS(
 			SELECT 1 FROM entities WHERE urn = $1 AND deleted_at IS NULL
@@ -173,6 +258,9 @@ func (s *PostgresStore) CheckURNExists(ctx context.Context, urn string) (bool, e
 	var exists bool
 	err := s.pool.QueryRow(ctx, query, urn).Scan(&exists)
 	if err != nil {
+		if s.tracing != nil {
+			s.tracing.SetSpanError(span, err)
+		}
 		return false, fmt.Errorf("failed to check URN existence: %w", err)
 	}
 
@@ -180,6 +268,17 @@ func (s *PostgresStore) CheckURNExists(ctx context.Context, urn string) (bool, e
 }
 
 func (s *PostgresStore) ListEntities(ctx context.Context, entityType string, limit, offset int) ([]*models.Entity, error) {
+	var span trace.Span
+	if s.tracing != nil {
+		ctx, span = s.tracing.StartDatabaseOperation(ctx, "SELECT_LIST", "entities")
+		defer span.End()
+		span.SetAttributes(
+			attribute.String("entity.type", entityType),
+			attribute.Int("limit", limit),
+			attribute.Int("offset", offset),
+		)
+	}
+
 	query := `
 		SELECT id, entity_type, urn, properties, created_at, updated_at, version
 		FROM entities
@@ -190,6 +289,9 @@ func (s *PostgresStore) ListEntities(ctx context.Context, entityType string, lim
 
 	rows, err := s.pool.Query(ctx, query, entityType, limit, offset)
 	if err != nil {
+		if s.tracing != nil {
+			s.tracing.SetSpanError(span, err)
+		}
 		return nil, fmt.Errorf("failed to list entities: %w", err)
 	}
 	defer rows.Close()
@@ -209,10 +311,16 @@ func (s *PostgresStore) ListEntities(ctx context.Context, entityType string, lim
 			&entity.Version,
 		)
 		if err != nil {
+			if s.tracing != nil {
+				s.tracing.SetSpanError(span, err)
+			}
 			return nil, fmt.Errorf("failed to scan entity: %w", err)
 		}
 
 		if err := json.Unmarshal(propertiesJSON, &entity.Properties); err != nil {
+			if s.tracing != nil {
+				s.tracing.SetSpanError(span, err)
+			}
 			return nil, fmt.Errorf("failed to unmarshal properties: %w", err)
 		}
 
@@ -223,8 +331,21 @@ func (s *PostgresStore) ListEntities(ctx context.Context, entityType string, lim
 }
 
 func (s *PostgresStore) CreateRelation(ctx context.Context, relation *models.Relation) error {
+	var span trace.Span
+	if s.tracing != nil {
+		ctx, span = s.tracing.StartDatabaseOperation(ctx, "INSERT", "relations")
+		defer span.End()
+		span.SetAttributes(
+			attribute.String("relation.type", relation.RelationType),
+			attribute.String("relation.id", relation.ID.String()),
+		)
+	}
+
 	propertiesJSON, err := json.Marshal(relation.Properties)
 	if err != nil {
+		if s.tracing != nil {
+			s.tracing.SetSpanError(span, err)
+		}
 		return fmt.Errorf("failed to marshal properties: %w", err)
 	}
 
@@ -249,6 +370,9 @@ func (s *PostgresStore) CreateRelation(ctx context.Context, relation *models.Rel
 	)
 
 	if err != nil {
+		if s.tracing != nil {
+			s.tracing.SetSpanError(span, err)
+		}
 		return fmt.Errorf("failed to create relation: %w", err)
 	}
 
@@ -256,6 +380,13 @@ func (s *PostgresStore) CreateRelation(ctx context.Context, relation *models.Rel
 }
 
 func (s *PostgresStore) GetRelation(ctx context.Context, id uuid.UUID) (*models.Relation, error) {
+	var span trace.Span
+	if s.tracing != nil {
+		ctx, span = s.tracing.StartDatabaseOperation(ctx, "SELECT", "relations")
+		defer span.End()
+		span.SetAttributes(attribute.String("relation.id", id.String()))
+	}
+
 	query := `
 		SELECT id, relation_type, from_entity_id, from_entity_type,
 			   to_entity_id, to_entity_type, properties, created_at, updated_at
@@ -279,6 +410,9 @@ func (s *PostgresStore) GetRelation(ctx context.Context, id uuid.UUID) (*models.
 	)
 
 	if err != nil {
+		if s.tracing != nil {
+			s.tracing.SetSpanError(span, err)
+		}
 		if err == pgx.ErrNoRows {
 			return nil, utils.NewAppError(utils.CodeNotFound, "relation not found", err).
 				WithDetail("id", id.String())
@@ -288,6 +422,9 @@ func (s *PostgresStore) GetRelation(ctx context.Context, id uuid.UUID) (*models.
 
 	if len(propertiesJSON) > 0 {
 		if err := json.Unmarshal(propertiesJSON, &relation.Properties); err != nil {
+			if s.tracing != nil {
+				s.tracing.SetSpanError(span, err)
+			}
 			return nil, fmt.Errorf("failed to unmarshal properties: %w", err)
 		}
 	}
@@ -296,6 +433,13 @@ func (s *PostgresStore) GetRelation(ctx context.Context, id uuid.UUID) (*models.
 }
 
 func (s *PostgresStore) DeleteRelation(ctx context.Context, id uuid.UUID) error {
+	var span trace.Span
+	if s.tracing != nil {
+		ctx, span = s.tracing.StartDatabaseOperation(ctx, "DELETE", "relations")
+		defer span.End()
+		span.SetAttributes(attribute.String("relation.id", id.String()))
+	}
+
 	query := `
 		UPDATE relations
 		SET deleted_at = $1
@@ -304,6 +448,9 @@ func (s *PostgresStore) DeleteRelation(ctx context.Context, id uuid.UUID) error 
 
 	result, err := s.pool.Exec(ctx, query, time.Now(), id)
 	if err != nil {
+		if s.tracing != nil {
+			s.tracing.SetSpanError(span, err)
+		}
 		return fmt.Errorf("failed to delete relation: %w", err)
 	}
 
@@ -316,6 +463,13 @@ func (s *PostgresStore) DeleteRelation(ctx context.Context, id uuid.UUID) error 
 }
 
 func (s *PostgresStore) GetRelationsByEntity(ctx context.Context, entityID uuid.UUID, relationTypes []string) ([]*models.Relation, error) {
+	var span trace.Span
+	if s.tracing != nil {
+		ctx, span = s.tracing.StartDatabaseOperation(ctx, "SELECT_BY_ENTITY", "relations")
+		defer span.End()
+		span.SetAttributes(attribute.String("entity.id", entityID.String()))
+	}
+
 	query := `
 		SELECT id, relation_type, from_entity_id, from_entity_type,
 			   to_entity_id, to_entity_type, properties, created_at, updated_at
@@ -334,6 +488,9 @@ func (s *PostgresStore) GetRelationsByEntity(ctx context.Context, entityID uuid.
 
 	rows, err := s.pool.Query(ctx, query, args...)
 	if err != nil {
+		if s.tracing != nil {
+			s.tracing.SetSpanError(span, err)
+		}
 		return nil, fmt.Errorf("failed to get relations by entity: %w", err)
 	}
 	defer rows.Close()

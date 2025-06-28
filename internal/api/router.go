@@ -12,6 +12,7 @@ import (
 	"github.com/sumandas0/entropic/internal/api/middleware"
 	"github.com/sumandas0/entropic/internal/core"
 	"github.com/sumandas0/entropic/internal/health"
+	"github.com/sumandas0/entropic/internal/integration"
 	httpSwagger "github.com/swaggo/http-swagger"
 )
 
@@ -21,26 +22,37 @@ type Router struct {
 	relationHandler *handlers.RelationHandler
 	schemaHandler   *handlers.SchemaHandler
 	healthChecker   *health.HealthChecker
+	obsManager      *integration.ObservabilityManager
 }
 
-func NewRouter(engine *core.Engine, healthChecker *health.HealthChecker) *Router {
+func NewRouter(engine *core.Engine, healthChecker *health.HealthChecker, obsManager *integration.ObservabilityManager) *Router {
 	return &Router{
 		engine:          engine,
 		entityHandler:   handlers.NewEntityHandler(engine),
 		relationHandler: handlers.NewRelationHandler(engine),
 		schemaHandler:   handlers.NewSchemaHandler(engine),
 		healthChecker:   healthChecker,
+		obsManager:      obsManager,
 	}
 }
 
 func (r *Router) SetupRoutes() http.Handler {
 	router := chi.NewRouter()
 
+	// Add tracing middleware first
+	if r.obsManager != nil && r.obsManager.GetTracing().IsEnabled() {
+		router.Use(r.obsManager.GetTracing().TraceMiddleware())
+	}
+
+	// Add logging middleware
+	if r.obsManager != nil {
+		router.Use(r.obsManager.GetLogging().LoggingMiddleware())
+	}
+
 	router.Use(chiMiddleware.RequestID)
 	router.Use(chiMiddleware.RealIP)
-	router.Use(middleware.Logger())
 	router.Use(chiMiddleware.Recoverer)
-	router.Use(middleware.ErrorHandler())
+	router.Use(middleware.ErrorHandlerWithObservability(r.obsManager))
 
 	router.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{"https://*", "http://*"},
