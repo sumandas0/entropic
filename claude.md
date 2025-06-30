@@ -594,6 +594,525 @@ go install github.com/swaggo/swag/cmd/swag@latest
 swag init -g cmd/server/main.go -o docs
 ```
 
+## Go SDK
+
+Entropic provides a comprehensive Go SDK for easy integration with Go applications. The SDK offers type-safe, idiomatic interfaces to all Entropic APIs.
+
+### SDK Features
+
+- **Full API Coverage**: Complete access to entities, relations, schemas, and search APIs
+- **Type Safety**: Strongly typed requests/responses with compile-time validation
+- **Builder Patterns**: Fluent interfaces for constructing complex requests
+- **Error Handling**: Typed errors with helper methods for common scenarios
+- **Zero Dependencies**: Uses only standard library and project dependencies
+- **Context Support**: All operations support Go contexts for cancellation/timeouts
+
+### Installation
+
+```bash
+go get github.com/sumandas0/entropic/pkg/sdk
+```
+
+### Quick Example
+
+```go
+import "github.com/sumandas0/entropic/pkg/sdk"
+
+// Create client
+client, err := sdk.NewClient("http://localhost:8080")
+
+// Create entity
+user := sdk.NewEntityBuilder().
+    WithURN("urn:entropic:user:123").
+    WithProperty("name", "John Doe").
+    WithProperty("email", "john@example.com").
+    Build()
+
+created, err := client.Entities.Create(ctx, "user", user)
+
+// Search entities
+query := sdk.NewSearchQueryBuilder([]string{"user"}, "john").
+    WithFilter("status", "active").
+    WithLimit(20).
+    Build()
+
+results, err := client.Search.Search(ctx, query)
+
+// Vector search
+vectorQuery := sdk.NewVectorQueryBuilder(
+    []string{"document"},
+    embeddings,
+    "content_embedding",
+).WithTopK(10).Build()
+
+results, err := client.Search.VectorSearch(ctx, vectorQuery)
+```
+
+### Detailed Examples
+
+#### 1. Complete Entity Lifecycle with Schema
+
+```go
+// Define and create a schema for a product entity
+productSchema := sdk.NewEntitySchemaBuilder("product").
+    AddStringProperty("name", true, true, true).           // required, indexed, searchable
+    AddStringProperty("description", true, false, true).    // required, not indexed, searchable
+    AddNumberProperty("price", true, true, true).          // required, indexed, sortable
+    AddStringProperty("category", true, true, true).       // for faceting
+    AddNumberProperty("stock", true, true, false).         // inventory tracking
+    AddVectorProperty("description_embedding", 768, false). // for semantic search
+    AddProperty("metadata", sdk.PropertyDefinition{
+        Type:     sdk.PropertyTypeObject,
+        Required: false,
+    }).
+    AddIndex("category_price_idx", []string{"category", "price"}, false).
+    Build()
+
+_, err := client.Schemas.CreateEntitySchema(ctx, productSchema)
+
+// Create a product entity
+product := sdk.NewEntityBuilder().
+    WithURN("urn:entropic:product:laptop-001").
+    WithProperty("name", "ThinkPad X1 Carbon").
+    WithProperty("description", "Premium business laptop with Intel Core i7").
+    WithProperty("price", 1499.99).
+    WithProperty("category", "Electronics").
+    WithProperty("stock", 25).
+    WithProperty("metadata", map[string]interface{}{
+        "brand":        "Lenovo",
+        "warranty":     "3 years",
+        "weight":       "2.4 lbs",
+        "release_year": 2024,
+    }).
+    Build()
+
+created, err := client.Entities.Create(ctx, "product", product)
+
+// Update stock after a sale
+updateReq := &sdk.EntityRequest{
+    URN: created.URN,
+    Properties: map[string]interface{}{
+        "name":        created.Properties["name"],
+        "description": created.Properties["description"],
+        "price":       created.Properties["price"],
+        "category":    created.Properties["category"],
+        "stock":       23, // Decreased by 2
+        "metadata":    created.Properties["metadata"],
+    },
+}
+
+updated, err := client.Entities.Update(ctx, "product", created.ID, updateReq)
+```
+
+#### 2. Building a Social Network with Relations
+
+```go
+// Create user schema with social properties
+userSchema := sdk.NewEntitySchemaBuilder("user").
+    AddStringProperty("username", true, true, false).  // unique username
+    AddStringProperty("display_name", true, true, true).
+    AddStringProperty("bio", false, false, true).
+    AddStringProperty("location", false, true, true).
+    AddProperty("interests", sdk.PropertyDefinition{
+        Type:      sdk.PropertyTypeArray,
+        Required:  false,
+        Facetable: true,
+    }).
+    AddIndex("username_idx", []string{"username"}, true). // unique index
+    Build()
+
+_, _ = client.Schemas.CreateEntitySchema(ctx, userSchema)
+
+// Create relationship schemas
+followsSchema := &sdk.RelationshipSchemaRequest{
+    RelationshipType: "follows",
+    FromEntityType:   "user",
+    ToEntityType:     "user",
+    Cardinality:      sdk.CardinalityManyToMany,
+    Properties: sdk.PropertySchema{
+        "followed_at": sdk.PropertyDefinition{
+            Type:     sdk.PropertyTypeDate,
+            Required: true,
+        },
+        "notifications_enabled": sdk.PropertyDefinition{
+            Type:     sdk.PropertyTypeBoolean,
+            Required: false,
+        },
+    },
+}
+
+_, _ = client.Schemas.CreateRelationshipSchema(ctx, followsSchema)
+
+// Create users
+alice := sdk.NewEntityBuilder().
+    WithURN("urn:entropic:user:alice").
+    WithProperty("username", "alice_wonder").
+    WithProperty("display_name", "Alice").
+    WithProperty("bio", "Software engineer and coffee enthusiast").
+    WithProperty("location", "San Francisco").
+    WithProperty("interests", []string{"coding", "coffee", "hiking"}).
+    Build()
+
+bob := sdk.NewEntityBuilder().
+    WithURN("urn:entropic:user:bob").
+    WithProperty("username", "bob_builder").
+    WithProperty("display_name", "Bob").
+    WithProperty("bio", "Can we fix it? Yes we can!").
+    WithProperty("location", "New York").
+    WithProperty("interests", []string{"construction", "tools", "DIY"}).
+    Build()
+
+aliceEntity, _ := client.Entities.Create(ctx, "user", alice)
+bobEntity, _ := client.Entities.Create(ctx, "user", bob)
+
+// Create follow relationship
+followRelation := sdk.NewRelationBuilder("follows").
+    From("user", aliceEntity.ID).
+    To("user", bobEntity.ID).
+    WithProperty("followed_at", time.Now()).
+    WithProperty("notifications_enabled", true).
+    Build()
+
+_, _ = client.Relations.Create(ctx, followRelation)
+
+// Find all users that Alice follows
+relations, _ := client.Entities.GetRelations(ctx, "user", aliceEntity.ID, []string{"follows"})
+
+// Search for users interested in coding
+searchQuery := sdk.NewSearchQueryBuilder([]string{"user"}, "").
+    WithFilter("interests", "coding").
+    WithFacets("location", "interests").
+    WithLimit(10).
+    Build()
+
+results, _ := client.Search.Search(ctx, searchQuery)
+```
+
+#### 3. Document Management with Vector Search
+
+```go
+// Schema for documents with embeddings
+docSchema := sdk.NewEntitySchemaBuilder("document").
+    AddStringProperty("title", true, true, true).
+    AddStringProperty("content", true, false, true).
+    AddStringProperty("author", true, true, true).
+    AddStringProperty("department", true, true, true).
+    AddProperty("tags", sdk.PropertyDefinition{
+        Type:      sdk.PropertyTypeArray,
+        Required:  false,
+        Facetable: true,
+    }).
+    AddVectorProperty("content_embedding", 1536, true). // OpenAI embeddings
+    AddProperty("metadata", sdk.PropertyDefinition{
+        Type:     sdk.PropertyTypeObject,
+        Required: false,
+    }).
+    Build()
+
+_, _ = client.Schemas.CreateEntitySchema(ctx, docSchema)
+
+// Function to create document with embedding
+func createDocument(client *sdk.Client, title, content, author, dept string, embedding []float32) (*sdk.Entity, error) {
+    doc := sdk.NewEntityBuilder().
+        WithURN(fmt.Sprintf("urn:entropic:document:%s", sanitizeTitle(title))).
+        WithProperty("title", title).
+        WithProperty("content", content).
+        WithProperty("author", author).
+        WithProperty("department", dept).
+        WithProperty("tags", extractTags(content)).
+        WithProperty("content_embedding", embedding).
+        WithProperty("metadata", map[string]interface{}{
+            "word_count":   len(strings.Fields(content)),
+            "created_date": time.Now(),
+            "version":      "1.0",
+        }).
+        Build()
+    
+    return client.Entities.Create(context.Background(), "document", doc)
+}
+
+// Semantic search for similar documents
+queryEmbedding := getEmbedding("How to implement authentication in microservices")
+
+vectorQuery := sdk.NewVectorQueryBuilder(
+    []string{"document"},
+    queryEmbedding,
+    "content_embedding",
+).
+    WithTopK(5).
+    WithMinScore(0.75).
+    WithFilter("department", "Engineering").
+    Build()
+
+similarDocs, _ := client.Search.VectorSearch(ctx, vectorQuery)
+
+// Hybrid search combining text and vector similarity
+textResults, _ := client.Search.Search(ctx, 
+    sdk.NewSearchQueryBuilder([]string{"document"}, "authentication microservices").
+        WithFilter("department", "Engineering").
+        WithLimit(20).
+        Build())
+
+// Process and rank results using both text relevance and semantic similarity
+```
+
+#### 4. Error Handling and Retry Logic
+
+```go
+// Robust entity creation with retry
+func createEntityWithRetry(client *sdk.Client, entityType string, req *sdk.EntityRequest, maxRetries int) (*sdk.Entity, error) {
+    var lastErr error
+    
+    for i := 0; i < maxRetries; i++ {
+        entity, err := client.Entities.Create(context.Background(), entityType, req)
+        if err == nil {
+            return entity, nil
+        }
+        
+        // Check error type and decide whether to retry
+        if apiErr, ok := sdk.AsAPIError(err); ok {
+            switch {
+            case apiErr.IsAlreadyExists():
+                // Entity already exists, try to get it instead
+                // Extract ID from URN or error details
+                if existingID, ok := apiErr.Details["entity_id"].(string); ok {
+                    if uid, err := sdk.ParseUUID(existingID); err == nil {
+                        return client.Entities.Get(context.Background(), entityType, uid)
+                    }
+                }
+                return nil, err // Don't retry
+                
+            case apiErr.IsValidation():
+                // Validation errors won't be fixed by retry
+                return nil, err
+                
+            case apiErr.IsNotFound():
+                // Schema might not exist, try creating it
+                if i == 0 && entityType == "custom_type" {
+                    // Create a basic schema and retry
+                    createDefaultSchema(client, entityType)
+                    continue
+                }
+                return nil, err
+                
+            case apiErr.IsInternal():
+                // Internal errors might be transient, retry with backoff
+                lastErr = err
+                time.Sleep(time.Duration(i+1) * time.Second)
+                continue
+            }
+        }
+        
+        // Network or other errors, retry with backoff
+        lastErr = err
+        time.Sleep(time.Duration(i+1) * time.Second)
+    }
+    
+    return nil, fmt.Errorf("failed after %d retries: %w", maxRetries, lastErr)
+}
+
+// Usage
+entity, err := createEntityWithRetry(client, "user", userRequest, 3)
+if err != nil {
+    log.Printf("Failed to create entity: %v", err)
+}
+```
+
+#### 5. Batch Operations and Performance
+
+```go
+// Batch entity creation with goroutines
+func batchCreateEntities(client *sdk.Client, entityType string, requests []*sdk.EntityRequest) ([]*sdk.Entity, []error) {
+    results := make([]*sdk.Entity, len(requests))
+    errors := make([]error, len(requests))
+    
+    var wg sync.WaitGroup
+    semaphore := make(chan struct{}, 10) // Limit concurrent requests
+    
+    for i, req := range requests {
+        wg.Add(1)
+        go func(index int, request *sdk.EntityRequest) {
+            defer wg.Done()
+            
+            semaphore <- struct{}{}        // Acquire
+            defer func() { <-semaphore }() // Release
+            
+            ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+            defer cancel()
+            
+            entity, err := client.Entities.Create(ctx, entityType, request)
+            results[index] = entity
+            errors[index] = err
+        }(i, req)
+    }
+    
+    wg.Wait()
+    return results, errors
+}
+
+// Streaming search results with pagination
+func streamSearchResults(client *sdk.Client, query *sdk.SearchQuery, processFunc func(*sdk.SearchHit) error) error {
+    iterator := client.Search.NewIterator(query)
+    
+    for iterator.HasMore() {
+        results, err := iterator.Next(context.Background())
+        if err != nil {
+            return fmt.Errorf("search failed: %w", err)
+        }
+        
+        for _, hit := range results.Hits {
+            if err := processFunc(&hit); err != nil {
+                return fmt.Errorf("processing failed: %w", err)
+            }
+        }
+    }
+    
+    return nil
+}
+
+// Usage
+query := sdk.NewSearchQueryBuilder([]string{"product"}, "").
+    WithFilter("category", "Electronics").
+    WithSort("price", sdk.SortAsc).
+    WithLimit(100).
+    Build()
+
+err := streamSearchResults(client, query, func(hit *sdk.SearchHit) error {
+    fmt.Printf("Product: %s - Price: $%.2f\n", 
+        hit.Properties["name"], 
+        hit.Properties["price"])
+    return nil
+})
+```
+
+#### 6. Advanced Schema Management
+
+```go
+// Create a complex e-commerce schema with denormalization
+func setupEcommerceSchema(client *sdk.Client) error {
+    // Customer schema
+    customerSchema := sdk.NewEntitySchemaBuilder("customer").
+        AddStringProperty("email", true, true, false).
+        AddStringProperty("name", true, true, true).
+        AddProperty("address", sdk.PropertyDefinition{
+            Type:     sdk.PropertyTypeObject,
+            Required: true,
+        }).
+        AddProperty("preferences", sdk.PropertyDefinition{
+            Type:     sdk.PropertyTypeObject,
+            Required: false,
+        }).
+        Build()
+    
+    // Order schema with denormalized customer info
+    orderSchema := sdk.NewEntitySchemaBuilder("order").
+        AddStringProperty("order_number", true, true, false).
+        AddNumberProperty("total_amount", true, true, true).
+        AddStringProperty("status", true, true, true).
+        AddProperty("customer_info", sdk.PropertyDefinition{
+            Type:        sdk.PropertyTypeObject,
+            Required:    true,
+            Description: "Denormalized customer data",
+        }).
+        AddProperty("items", sdk.PropertyDefinition{
+            Type:     sdk.PropertyTypeArray,
+            Required: true,
+        }).
+        Build()
+    
+    // Create schemas
+    _, err := client.Schemas.CreateEntitySchema(context.Background(), customerSchema)
+    if err != nil && !isAlreadyExists(err) {
+        return err
+    }
+    
+    _, err = client.Schemas.CreateEntitySchema(context.Background(), orderSchema)
+    if err != nil && !isAlreadyExists(err) {
+        return err
+    }
+    
+    // Create relationship with denormalization
+    placedBySchema := &sdk.RelationshipSchemaRequest{
+        RelationshipType: "placed_by",
+        FromEntityType:   "order",
+        ToEntityType:     "customer",
+        Cardinality:      sdk.CardinalityManyToOne,
+        DenormalizationConfig: sdk.DenormalizationConfig{
+            DenormalizeToSource: true,
+            TargetFields:        []string{"name", "email"}, // Denormalize to order
+        },
+    }
+    
+    _, err = client.Schemas.CreateRelationshipSchema(context.Background(), placedBySchema)
+    return err
+}
+```
+
+### SDK Structure
+
+Located in `pkg/sdk/`:
+- `client.go` - Main client with configuration options
+- `entity_service.go` - Entity CRUD operations
+- `relation_service.go` - Relation management
+- `schema_service.go` - Schema operations
+- `search_service.go` - Text and vector search
+- `types.go` - Request/response types with builders
+- `errors.go` - Typed error handling
+
+### Common SDK Prompts
+
+**Creating entities with the SDK:**
+```
+Show me how to use the Entropic Go SDK to create a user entity with custom properties and then establish relationships with other entities.
+```
+
+**Implementing vector search:**
+```
+Demonstrate using the SDK to perform vector similarity search with filters and show how to handle pagination for large result sets.
+```
+
+**Error handling patterns:**
+```
+Show best practices for error handling with the SDK, including checking for specific error types like NotFound or AlreadyExists.
+```
+
+**Building a social network:**
+```
+Help me implement a social network using the SDK with users, posts, and follow relationships. Include search functionality.
+```
+
+**E-commerce schema setup:**
+```
+Show how to create an e-commerce system with the SDK including products, customers, orders with proper denormalization.
+```
+
+**Batch operations:**
+```
+Demonstrate efficient batch creation of entities using the SDK with concurrent requests and proper error handling.
+```
+
+**Document management system:**
+```
+Implement a document management system with the SDK including vector embeddings for semantic search and metadata.
+```
+
+**Schema migration:**
+```
+Show how to safely update existing schemas using the SDK while maintaining backward compatibility.
+```
+
+**Performance optimization:**
+```
+Demonstrate SDK best practices for high-performance operations including connection pooling and request batching.
+```
+
+**Complex queries:**
+```
+Show advanced search queries using the SDK with multiple filters, facets, sorting, and hybrid text/vector search.
+```
+
+See `pkg/sdk/README.md` for complete documentation and `examples/sdk/` for working examples.
+
 ## Next Steps
 
 After implementing the base system:
