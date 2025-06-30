@@ -1,0 +1,143 @@
+version: '3.8'
+
+services:
+  # Distributed Tracing with Jaeger
+  jaeger:
+    image: jaegertracing/all-in-one:1.54
+    container_name: entropic-jaeger
+    environment:
+      COLLECTOR_OTLP_ENABLED: true
+      COLLECTOR_ZIPKIN_HOST_PORT: :9411
+    ports:
+      - "5775:5775/udp"   # Jaeger agent - Thrift compact
+      - "6831:6831/udp"   # Jaeger agent - Thrift binary
+      - "6832:6832/udp"   # Jaeger agent - Thrift binary
+      - "5778:5778"       # Jaeger agent - Configuration
+      - "16686:16686"     # Jaeger UI
+      - "14268:14268"     # Jaeger collector - Thrift
+      - "14250:14250"     # Jaeger collector - gRPC
+      - "9411:9411"       # Zipkin compatible endpoint
+      - "4317:4317"       # OTLP gRPC receiver
+      - "4318:4318"       # OTLP HTTP receiver
+    networks:
+      - entropic-network
+    restart: unless-stopped
+
+  # Metrics collection with Prometheus
+  prometheus:
+    image: prom/prometheus:v2.48.1
+    container_name: entropic-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+      - '--storage.tsdb.retention.time=15d'
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus:/etc/prometheus:ro
+      - prometheus_data:/prometheus
+    networks:
+      - entropic-network
+    restart: unless-stopped
+    depends_on:
+      - entropic
+
+  # Visualization with Grafana
+  grafana:
+    image: grafana/grafana:10.2.3
+    container_name: entropic-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: false
+      GF_INSTALL_PLUGINS: grafana-clock-panel,grafana-simple-json-datasource
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    networks:
+      - entropic-network
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+      - loki
+
+  # Log aggregation with Loki
+  loki:
+    image: grafana/loki:2.9.4
+    container_name: entropic-loki
+    command: -config.file=/etc/loki/local-config.yaml
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./monitoring/loki:/etc/loki:ro
+      - loki_data:/loki
+    networks:
+      - entropic-network
+    restart: unless-stopped
+
+  # Log shipping with Promtail
+  promtail:
+    image: grafana/promtail:2.9.4
+    container_name: entropic-promtail
+    command: -config.file=/etc/promtail/config.yml
+    volumes:
+      - ./monitoring/promtail:/etc/promtail:ro
+      - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - entropic_logs:/var/log/entropic:ro
+    networks:
+      - entropic-network
+    restart: unless-stopped
+    depends_on:
+      - loki
+
+  # Optional: Node Exporter for system metrics
+  node-exporter:
+    image: prom/node-exporter:v1.7.0
+    container_name: entropic-node-exporter
+    ports:
+      - "9100:9100"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    networks:
+      - entropic-network
+    restart: unless-stopped
+
+  # Optional: Postgres Exporter for database metrics
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: entropic-postgres-exporter
+    environment:
+      DATA_SOURCE_NAME: "postgresql://postgres:postgres@postgres:5432/entropic?sslmode=disable"
+    ports:
+      - "9187:9187"
+    networks:
+      - entropic-network
+    restart: unless-stopped
+    depends_on:
+      - postgres
+
+volumes:
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  loki_data:
+    driver: local
+  entropic_logs:
+    external: true
+
+networks:
+  entropic-network:
+    external: true

@@ -1,0 +1,142 @@
+groups:
+  - name: entropic_alerts
+    interval: 30s
+    rules:
+      # High Error Rate Alert
+      - alert: EntropicHighErrorRate
+        expr: |
+          (
+            sum(rate(entropic_http_requests_total{status_code=~"5.."}[5m])) by (service)
+            /
+            sum(rate(entropic_http_requests_total[5m])) by (service)
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          service: entropic
+        annotations:
+          summary: "High error rate detected for Entropic"
+          description: "Error rate is {{ humanizePercentage $value }} for {{ $labels.service }}"
+
+      # High Request Latency
+      - alert: EntropicHighLatency
+        expr: |
+          histogram_quantile(0.95, 
+            sum(rate(entropic_http_request_duration_seconds_bucket[5m])) by (le, method, path)
+          ) > 1
+        for: 5m
+        labels:
+          severity: warning
+          service: entropic
+        annotations:
+          summary: "High request latency detected"
+          description: "95th percentile latency is {{ $value }}s for {{ $labels.method }} {{ $labels.path }}"
+
+      # Database Connection Pool Exhaustion
+      - alert: EntropicDatabaseConnectionExhaustion
+        expr: |
+          (entropic_database_connections_active / entropic_database_connections_max) > 0.9
+        for: 5m
+        labels:
+          severity: critical
+          service: entropic
+          component: database
+        annotations:
+          summary: "Database connection pool near exhaustion"
+          description: "Connection pool is {{ humanizePercentage $value }} utilized"
+
+      # Cache Miss Rate Too High
+      - alert: EntropicHighCacheMissRate
+        expr: |
+          (
+            sum(rate(entropic_cache_misses_total[5m])) by (cache_type)
+            /
+            (sum(rate(entropic_cache_hits_total[5m])) by (cache_type) + sum(rate(entropic_cache_misses_total[5m])) by (cache_type))
+          ) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+          service: entropic
+          component: cache
+        annotations:
+          summary: "High cache miss rate detected"
+          description: "Cache miss rate is {{ humanizePercentage $value }} for {{ $labels.cache_type }}"
+
+      # Entity Creation Failures
+      - alert: EntropicEntityCreationFailures
+        expr: |
+          sum(rate(entropic_storage_entity_operations_total{operation="create",status="error"}[5m])) by (entity_type) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: entropic
+          component: storage
+        annotations:
+          summary: "Entity creation failures detected"
+          description: "{{ $value }} creation failures per second for entity type {{ $labels.entity_type }}"
+
+      # Search Service Degradation
+      - alert: EntropicSearchDegradation
+        expr: |
+          histogram_quantile(0.99, 
+            sum(rate(entropic_storage_search_duration_seconds_bucket[5m])) by (le, search_type)
+          ) > 5
+        for: 10m
+        labels:
+          severity: warning
+          service: entropic
+          component: search
+        annotations:
+          summary: "Search service degradation detected"
+          description: "99th percentile search latency is {{ $value }}s for {{ $labels.search_type }}"
+
+      # Service Down
+      - alert: EntropicServiceDown
+        expr: up{job="entropic"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: entropic
+        annotations:
+          summary: "Entropic service is down"
+          description: "Entropic service has been down for more than 1 minute"
+
+      # Database Down
+      - alert: EntropicDatabaseDown
+        expr: up{job="postgres"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: postgres
+          component: database
+        annotations:
+          summary: "PostgreSQL database is down"
+          description: "PostgreSQL database has been down for more than 1 minute"
+
+      # Lock Contention
+      - alert: EntropicLockContention
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(entropic_lock_wait_duration_seconds_bucket[5m])) by (le, lock_type)
+          ) > 1
+        for: 5m
+        labels:
+          severity: warning
+          service: entropic
+          component: locks
+        annotations:
+          summary: "High lock contention detected"
+          description: "95th percentile lock wait time is {{ $value }}s for {{ $labels.lock_type }}"
+
+      # Memory Usage High (if Go metrics enabled)
+      - alert: EntropicHighMemoryUsage
+        expr: |
+          (go_memstats_heap_inuse_bytes{job="entropic"} / 1024 / 1024 / 1024) > 2
+        for: 10m
+        labels:
+          severity: warning
+          service: entropic
+          component: memory
+        annotations:
+          summary: "High memory usage detected"
+          description: "Heap memory usage is {{ $value }}GB"

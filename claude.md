@@ -1113,6 +1113,48 @@ Show advanced search queries using the SDK with multiple filters, facets, sortin
 
 See `pkg/sdk/README.md` for complete documentation and `examples/sdk/` for working examples.
 
+## Observability
+
+Entropic provides comprehensive observability through OpenTelemetry integration, Prometheus metrics, and structured logging. The system supports distributed tracing, metrics collection, and log aggregation using open-source tools.
+
+### Quick Start
+```bash
+# Start the observability stack
+docker-compose -f docker-compose.observability.yml up -d
+
+# Access the tools
+# - Prometheus: http://localhost:9090
+# - Jaeger: http://localhost:16686
+# - Grafana: http://localhost:3000 (admin/admin)
+# - Loki: http://localhost:3100/metrics
+```
+
+### Key Features
+- **Distributed Tracing**: Full request flow visibility with Jaeger
+- **Metrics Collection**: Comprehensive metrics with Prometheus
+- **Log Aggregation**: Centralized logging with Loki
+- **Visualization**: Create custom dashboards with Grafana
+- **Alerting**: Pre-configured alerts for common issues
+
+### Configuration
+```yaml
+# Enable observability features in entropic.yaml
+metrics:
+  enabled: true
+  path: "/metrics"
+
+tracing:
+  enabled: true
+  jaeger_url: "http://localhost:14268/api/traces"
+  sample_rate: 1.0  # 100% for dev, reduce for production
+
+logging:
+  level: "info"
+  format: "json"
+```
+
+See the [Observability Guide](docs/observability.md) for detailed setup instructions, debugging scenarios, and best practices.
+
 ## Next Steps
 
 After implementing the base system:
