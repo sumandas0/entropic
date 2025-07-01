@@ -35,6 +35,7 @@ type resourceLock struct {
 	holder   string
 	acquired time.Time
 	timeout  time.Duration
+	waiters  []chan bool
 }
 
 type LockStats struct {
@@ -74,9 +75,13 @@ func (m *Manager) Lock(resource string) error {
 }
 
 func (m *Manager) LockWithTimeout(resource string, timeout time.Duration) error {
+	return m.LockWithContext(context.Background(), resource, timeout)
+}
+
+func (m *Manager) LockWithContext(ctx context.Context, resource string, timeout time.Duration) error {
 	var span trace.Span
 	if m.tracer != nil {
-		_, span = m.tracer.Start(context.Background(), "lock.acquire")
+		_, span = m.tracer.Start(ctx, "lock.acquire")
 		defer span.End()
 		span.SetAttributes(
 			attribute.String("resource", resource),
@@ -84,53 +89,80 @@ func (m *Manager) LockWithTimeout(resource string, timeout time.Duration) error 
 		)
 	}
 	
+	// Check context before starting
+	select {
+	case <-ctx.Done():
+		err := fmt.Errorf("context cancelled: %w", ctx.Err())
+		if span != nil && m.tracing != nil {
+			m.tracing.SetSpanError(span, err)
+		}
+		return err
+	default:
+	}
+	
 	holderID := uuid.New().String()
 	startTime := time.Now()
+	deadline := startTime.Add(m.maxWaitTime)
 
 	lockInterface, _ := m.locks.LoadOrStore(resource, &resourceLock{})
 	resLock := lockInterface.(*resourceLock)
 
-	acquired := make(chan bool, 1)
-	go func() {
+	// Keep trying to acquire the lock until deadline
+	for {
 		resLock.mu.Lock()
-		resLock.holder = holderID
-		resLock.acquired = time.Now()
-		resLock.timeout = timeout
-		acquired <- true
-	}()
-
-	select {
-	case <-acquired:
-		waitTime := time.Since(startTime)
-		if span != nil {
-			span.SetAttributes(
-				attribute.Bool("acquired", true),
-				attribute.String("wait_time", waitTime.String()),
-			)
+		
+		// Check if lock is available or expired
+		if resLock.holder == "" || time.Now().After(resLock.acquired.Add(resLock.timeout)) {
+			// Lock is available or expired, acquire it
+			resLock.holder = holderID
+			resLock.acquired = time.Now()
+			resLock.timeout = timeout
+			resLock.mu.Unlock()
+			
+			waitTime := time.Since(startTime)
+			if span != nil {
+				span.SetAttributes(
+					attribute.Bool("acquired", true),
+					attribute.String("wait_time", waitTime.String()),
+				)
+			}
+			
+			if m.logger.GetLevel() != zerolog.Disabled {
+				m.logger.Debug().
+					Str("resource", resource).
+					Dur("wait_time", waitTime).
+					Str("holder_id", holderID).
+					Msg("Lock acquired")
+			}
+			
+			m.recordAcquisition()
+			go m.monitorTimeout(resource, holderID, timeout)
+			
+			return nil
 		}
 		
-		if m.logger.GetLevel() != zerolog.Disabled {
-			m.logger.Debug().
-				Str("resource", resource).
-				Dur("wait_time", waitTime).
-				Str("holder_id", holderID).
-				Msg("Lock acquired")
-		}
+		resLock.mu.Unlock()
 		
-		m.recordAcquisition()
-
-		go m.monitorTimeout(resource, holderID, timeout)
-
-		return nil
-
-	case <-time.After(m.maxWaitTime):
-		if span != nil {
-			span.SetAttributes(attribute.Bool("acquired", false))
-			if m.tracing != nil {
-				m.tracing.SetSpanError(span, fmt.Errorf("lock acquisition timeout"))
+		// Check for timeout or context cancellation
+		select {
+		case <-ctx.Done():
+			err := fmt.Errorf("context cancelled: %w", ctx.Err())
+			if span != nil && m.tracing != nil {
+				m.tracing.SetSpanError(span, err)
+			}
+			return err
+		case <-time.After(10 * time.Millisecond): // Small delay before retrying
+			if time.Now().After(deadline) {
+				err := fmt.Errorf("failed to acquire lock on resource %s: timeout", resource)
+				if span != nil {
+					span.SetAttributes(attribute.Bool("acquired", false))
+					if m.tracing != nil {
+						m.tracing.SetSpanError(span, err)
+					}
+				}
+				return err
 			}
 		}
-		return fmt.Errorf("failed to acquire lock on resource %s: timeout", resource)
 	}
 }
 
@@ -140,10 +172,15 @@ func (m *Manager) TryLock(resource string, timeout time.Duration) error {
 	lockInterface, _ := m.locks.LoadOrStore(resource, &resourceLock{})
 	resLock := lockInterface.(*resourceLock)
 
-	if !resLock.mu.TryLock() {
+	resLock.mu.Lock()
+	defer resLock.mu.Unlock()
+	
+	// Check if lock is already held and not expired
+	if resLock.holder != "" && time.Now().Before(resLock.acquired.Add(resLock.timeout)) {
 		return fmt.Errorf("resource %s is already locked", resource)
 	}
 
+	// Lock is available or expired, acquire it
 	resLock.holder = holderID
 	resLock.acquired = time.Now()
 	resLock.timeout = timeout
@@ -156,9 +193,13 @@ func (m *Manager) TryLock(resource string, timeout time.Duration) error {
 }
 
 func (m *Manager) Unlock(resource string) error {
+	return m.UnlockWithContext(context.Background(), resource)
+}
+
+func (m *Manager) UnlockWithContext(ctx context.Context, resource string) error {
 	var span trace.Span
 	if m.tracer != nil {
-		_, span = m.tracer.Start(context.Background(), "lock.release")
+		_, span = m.tracer.Start(ctx, "lock.release")
 		defer span.End()
 		span.SetAttributes(attribute.String("resource", resource))
 	}
@@ -173,6 +214,18 @@ func (m *Manager) Unlock(resource string) error {
 	}
 
 	resLock := lockInterface.(*resourceLock)
+	
+	resLock.mu.Lock()
+	// Check if the lock is actually held
+	if resLock.holder == "" {
+		resLock.mu.Unlock()
+		err := fmt.Errorf("resource %s is not locked", resource)
+		if m.tracing != nil {
+			m.tracing.SetSpanError(span, err)
+		}
+		return err
+	}
+	
 	holdTime := time.Since(resLock.acquired)
 	resLock.holder = ""
 	resLock.mu.Unlock()
@@ -198,12 +251,11 @@ func (m *Manager) IsLocked(resource string) bool {
 	}
 
 	resLock := lockInterface.(*resourceLock)
-
-	if resLock.mu.TryLock() {
-		resLock.mu.Unlock()
-		return false
-	}
-	return true
+	resLock.mu.Lock()
+	defer resLock.mu.Unlock()
+	
+	// Check if lock is held and not expired
+	return resLock.holder != "" && time.Now().Before(resLock.acquired.Add(resLock.timeout))
 }
 
 func (m *Manager) WaitForUnlock(ctx context.Context, resource string) error {
@@ -242,6 +294,7 @@ func (m *Manager) monitorTimeout(resource, holderID string, timeout time.Duratio
 	}
 
 	resLock := lockInterface.(*resourceLock)
+	resLock.mu.Lock()
 	if resLock.holder == holderID {
 		if m.logger.GetLevel() != zerolog.Disabled {
 			m.logger.Warn().
@@ -256,6 +309,8 @@ func (m *Manager) monitorTimeout(resource, holderID string, timeout time.Duratio
 
 		m.recordTimeout()
 		m.notifyWaiters(resource)
+	} else {
+		resLock.mu.Unlock()
 	}
 }
 

@@ -11,29 +11,27 @@ import (
 )
 
 func TestLockManager_Lock(t *testing.T) {
-	manager := NewLockManager(NewInMemoryDistributedLock())
+	manager := NewManager(30*time.Second, 5*time.Minute)
 
-	ctx := context.Background()
 	resource := "test-resource"
 
-	err := manager.Lock(ctx, resource, 5*time.Second)
+	err := manager.LockWithTimeout(resource, 5*time.Second)
 	require.NoError(t, err)
 
 	assert.True(t, manager.IsLocked(resource))
 
-	err = manager.Unlock(ctx, resource)
+	err = manager.Unlock(resource)
 	require.NoError(t, err)
 
 	assert.False(t, manager.IsLocked(resource))
 }
 
 func TestLockManager_LockTimeout(t *testing.T) {
-	manager := NewLockManager(NewInMemoryDistributedLock())
+	manager := NewManager(30*time.Second, 5*time.Minute)
 
-	ctx := context.Background()
 	resource := "test-resource"
 
-	err := manager.Lock(ctx, resource, 100*time.Millisecond)
+	err := manager.LockWithTimeout(resource, 100*time.Millisecond)
 	require.NoError(t, err)
 
 	time.Sleep(200 * time.Millisecond)
@@ -42,9 +40,8 @@ func TestLockManager_LockTimeout(t *testing.T) {
 }
 
 func TestLockManager_ConcurrentLocking(t *testing.T) {
-	manager := NewLockManager(NewInMemoryDistributedLock())
+	manager := NewManager(30*time.Second, 5*time.Minute)
 
-	ctx := context.Background()
 	resource := "test-resource"
 	numGoroutines := 10
 	var executionOrder []int
@@ -57,7 +54,7 @@ func TestLockManager_ConcurrentLocking(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 			
-			err := manager.Lock(ctx, resource, 5*time.Second)
+			err := manager.LockWithTimeout(resource, 5*time.Second)
 			if err == nil {
 				
 				mu.Lock()
@@ -66,7 +63,7 @@ func TestLockManager_ConcurrentLocking(t *testing.T) {
 
 				time.Sleep(10 * time.Millisecond)
 				
-				manager.Unlock(ctx, resource)
+				manager.Unlock(resource)
 			}
 		}(i)
 	}
@@ -78,77 +75,74 @@ func TestLockManager_ConcurrentLocking(t *testing.T) {
 }
 
 func TestLockManager_DoubleUnlock(t *testing.T) {
-	manager := NewLockManager(NewInMemoryDistributedLock())
+	manager := NewManager(30*time.Second, 5*time.Minute)
 
-	ctx := context.Background()
 	resource := "test-resource"
 
-	err := manager.Lock(ctx, resource, 5*time.Second)
+	err := manager.LockWithTimeout(resource, 5*time.Second)
 	require.NoError(t, err)
 
-	err = manager.Unlock(ctx, resource)
+	err = manager.Unlock(resource)
 	require.NoError(t, err)
 
-	err = manager.Unlock(ctx, resource)
+	err = manager.Unlock(resource)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "not locked")
 }
 
 func TestLockManager_LockAlreadyHeld(t *testing.T) {
-	manager := NewLockManager(NewInMemoryDistributedLock())
+	manager := NewManager(30*time.Second, 5*time.Minute)
 
-	ctx := context.Background()
 	resource := "test-resource"
 
-	err := manager.Lock(ctx, resource, 5*time.Second)
+	err := manager.LockWithTimeout(resource, 5*time.Second)
 	require.NoError(t, err)
 
-	err = manager.Lock(ctx, resource, 1*time.Second)
+	// Try to acquire the same lock again - should fail immediately
+	err = manager.TryLock(resource, 1*time.Second)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "already locked")
 
-	manager.Unlock(ctx, resource)
+	manager.Unlock(resource)
 }
 
 func TestLockManager_ContextCancellation(t *testing.T) {
-	manager := NewLockManager(NewInMemoryDistributedLock())
+	manager := NewManager(30*time.Second, 5*time.Minute)
 
 	resource := "test-resource"
 
-	ctx1 := context.Background()
-	err := manager.Lock(ctx1, resource, 10*time.Second)
+	err := manager.LockWithTimeout(resource, 10*time.Second)
 	require.NoError(t, err)
 
-	ctx2, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
 	cancel() 
 
-	err = manager.Lock(ctx2, resource, 5*time.Second)
+	err = manager.LockWithContext(ctx, resource, 5*time.Second)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "context")
 
-	manager.Unlock(ctx1, resource)
+	manager.Unlock(resource)
 }
 
 func TestLockManager_MultipleResources(t *testing.T) {
-	manager := NewLockManager(NewInMemoryDistributedLock())
+	manager := NewManager(30*time.Second, 5*time.Minute)
 
-	ctx := context.Background()
 	resource1 := "test-resource-1"
 	resource2 := "test-resource-2"
 
-	err := manager.Lock(ctx, resource1, 5*time.Second)
+	err := manager.LockWithTimeout(resource1, 5*time.Second)
 	require.NoError(t, err)
 
-	err = manager.Lock(ctx, resource2, 5*time.Second)
+	err = manager.LockWithTimeout(resource2, 5*time.Second)
 	require.NoError(t, err)
 
 	assert.True(t, manager.IsLocked(resource1))
 	assert.True(t, manager.IsLocked(resource2))
 
-	err = manager.Unlock(ctx, resource1)
+	err = manager.Unlock(resource1)
 	require.NoError(t, err)
 
-	err = manager.Unlock(ctx, resource2)
+	err = manager.Unlock(resource2)
 	require.NoError(t, err)
 
 	assert.False(t, manager.IsLocked(resource1))
@@ -228,7 +222,8 @@ func TestInMemoryDistributedLock_ConcurrentAccess(t *testing.T) {
 }
 
 func TestLockManager_EntityLocking(t *testing.T) {
-	manager := NewLockManager(NewInMemoryDistributedLock())
+	distributedLock := NewInMemoryDistributedLock()
+	manager := NewLockManager(distributedLock)
 
 	ctx := context.Background()
 	entityType := "user"
@@ -247,7 +242,8 @@ func TestLockManager_EntityLocking(t *testing.T) {
 }
 
 func TestLockManager_SchemaLocking(t *testing.T) {
-	manager := NewLockManager(NewInMemoryDistributedLock())
+	distributedLock := NewInMemoryDistributedLock()
+	manager := NewLockManager(distributedLock)
 
 	ctx := context.Background()
 	entityType := "user"
@@ -265,9 +261,8 @@ func TestLockManager_SchemaLocking(t *testing.T) {
 }
 
 func TestLockManager_DeadlockPrevention(t *testing.T) {
-	manager := NewLockManager(NewInMemoryDistributedLock())
+	manager := NewManager(30*time.Second, 5*time.Minute)
 
-	ctx := context.Background()
 	resource1 := "resource-1"
 	resource2 := "resource-2"
 
@@ -277,32 +272,32 @@ func TestLockManager_DeadlockPrevention(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		
-		err := manager.Lock(ctx, resource1, 2*time.Second)
+		err := manager.LockWithTimeout(resource1, 2*time.Second)
 		if err == nil {
 			time.Sleep(100 * time.Millisecond)
 			
-			err = manager.Lock(ctx, resource2, 1*time.Second)
+			err = manager.LockWithTimeout(resource2, 1*time.Second)
 			if err == nil {
-				manager.Unlock(ctx, resource2)
+				manager.Unlock(resource2)
 			}
 			
-			manager.Unlock(ctx, resource1)
+			manager.Unlock(resource1)
 		}
 	}()
 
 	go func() {
 		defer wg.Done()
 		
-		err := manager.Lock(ctx, resource2, 2*time.Second)
+		err := manager.LockWithTimeout(resource2, 2*time.Second)
 		if err == nil {
 			time.Sleep(100 * time.Millisecond)
 			
-			err = manager.Lock(ctx, resource1, 1*time.Second)
+			err = manager.LockWithTimeout(resource1, 1*time.Second)
 			if err == nil {
-				manager.Unlock(ctx, resource1)
+				manager.Unlock(resource1)
 			}
 			
-			manager.Unlock(ctx, resource2)
+			manager.Unlock(resource2)
 		}
 	}()
 
@@ -321,29 +316,27 @@ func TestLockManager_DeadlockPrevention(t *testing.T) {
 }
 
 func BenchmarkLockManager_Lock(b *testing.B) {
-	manager := NewLockManager(NewInMemoryDistributedLock())
-	ctx := context.Background()
+	manager := NewManager(30*time.Second, 5*time.Minute)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		resource := "test-resource"
-		manager.Lock(ctx, resource, 1*time.Second)
-		manager.Unlock(ctx, resource)
+		manager.LockWithTimeout(resource, 1*time.Second)
+		manager.Unlock(resource)
 	}
 }
 
 func BenchmarkLockManager_ConcurrentLocking(b *testing.B) {
-	manager := NewLockManager(NewInMemoryDistributedLock())
-	ctx := context.Background()
+	manager := NewManager(30*time.Second, 5*time.Minute)
 
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		i := 0
 		for pb.Next() {
 			resource := "test-resource"
-			err := manager.Lock(ctx, resource, 10*time.Millisecond)
+			err := manager.LockWithTimeout(resource, 10*time.Millisecond)
 			if err == nil {
-				manager.Unlock(ctx, resource)
+				manager.Unlock(resource)
 			}
 			i++
 		}

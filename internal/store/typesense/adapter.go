@@ -75,6 +75,60 @@ func (s *TypesenseStore) IndexEntity(ctx context.Context, entity *models.Entity)
 
 	_, err := s.client.Collection(collectionName).Documents().Upsert(ctx, document)
 	if err != nil {
+		// If collection doesn't exist (404), create it with a basic schema
+		if strings.Contains(err.Error(), "404") || strings.Contains(err.Error(), "Not Found") {
+			// Create a basic schema for the collection
+			basicSchema := &models.EntitySchema{
+				EntityType: entity.EntityType,
+				Properties: make(models.PropertySchema),
+			}
+
+			// Infer properties from the entity
+			for key, value := range entity.Properties {
+				propDef := models.PropertyDefinition{
+					Type:     s.inferPropertyType(value),
+					Required: false,
+				}
+				
+				// For arrays, try to infer the element type
+				if propDef.Type == "array" {
+					switch v := value.(type) {
+					case []string:
+						propDef.ElementType = "string"
+					case []int, []int32, []int64:
+						propDef.ElementType = "number"
+					case []any:
+						if len(v) > 0 {
+							// Infer from first element
+							propDef.ElementType = s.inferPropertyType(v[0])
+						} else {
+							propDef.ElementType = "string" // Default to string
+						}
+					}
+				}
+				
+				basicSchema.Properties[key] = propDef
+			}
+
+			// Try to create the collection
+			if createErr := s.CreateCollection(ctx, entity.EntityType, basicSchema); createErr != nil {
+				if s.tracing != nil {
+					s.tracing.SetSpanError(span, createErr)
+				}
+				return fmt.Errorf("failed to create collection: %w", createErr)
+			}
+
+			// Retry the upsert
+			_, err = s.client.Collection(collectionName).Documents().Upsert(ctx, document)
+			if err != nil {
+				if s.tracing != nil {
+					s.tracing.SetSpanError(span, err)
+				}
+				return fmt.Errorf("failed to index entity after creating collection: %w", err)
+			}
+			return nil
+		}
+
 		if s.tracing != nil {
 			s.tracing.SetSpanError(span, err)
 		}
@@ -105,7 +159,7 @@ func (s *TypesenseStore) DeleteEntityIndex(ctx context.Context, entityType strin
 	_, err := s.client.Collection(collectionName).Document(id.String()).Delete(ctx)
 	if err != nil {
 		// Not found is not an error for deletion
-		if strings.Contains(err.Error(), "not found") {
+		if strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "Not Found") || strings.Contains(err.Error(), "404") {
 			return nil
 		}
 		if s.tracing != nil {
@@ -131,6 +185,14 @@ func (s *TypesenseStore) Search(ctx context.Context, query *models.SearchQuery) 
 		}
 		return nil, err
 	}
+	
+	if query.Limit <= 0 || query.Limit > 1000 {
+		err := utils.NewAppError(utils.CodeInvalidInput, "limit must be between 1 and 1000", nil)
+		if s.tracing != nil {
+			s.tracing.SetSpanError(span, err)
+		}
+		return nil, err
+	}
 
 	if len(query.EntityTypes) > 1 {
 		return s.multiSearch(ctx, query)
@@ -141,7 +203,7 @@ func (s *TypesenseStore) Search(ctx context.Context, query *models.SearchQuery) 
 	searchParams := &api.SearchCollectionParams{
 		Q:       query.Query,
 		QueryBy: "*",
-		Page:    pointer.Int(query.Offset/query.Limit + 1),
+		Page:    pointer.Int(s.calculatePage(query.Offset, query.Limit)),
 		PerPage: pointer.Int(query.Limit),
 	}
 
@@ -187,58 +249,17 @@ func (s *TypesenseStore) VectorSearch(ctx context.Context, query *models.VectorQ
 		}
 		return nil, err
 	}
-
-	if len(query.EntityTypes) > 1 {
-		return s.multiVectorSearch(ctx, query)
-	}
-
-	collectionName := s.getCollectionName(query.EntityTypes[0])
-
-	vectorStr := s.vectorToString(query.Vector)
-
-	searchParams := &api.SearchCollectionParams{
-		Q:             "*",
-		VectorQuery:   pointer.String(fmt.Sprintf("%s:(%s, k:%d)", query.VectorField, vectorStr, query.TopK)),
-		Page:          pointer.Int(1),
-		PerPage:       pointer.Int(query.TopK),
-		IncludeFields: pointer.String("*"),
-		ExcludeFields: pointer.String(""),
-	}
-
-	if len(query.Filters) > 0 {
-		filterStr := s.buildFilterString(query.Filters)
-		if filterStr != "" {
-			searchParams.FilterBy = pointer.String(filterStr)
-		}
-	}
-
-	if !query.IncludeVectors {
-		searchParams.ExcludeFields = pointer.String(query.VectorField)
-	}
-
-	startTime := time.Now()
-	result, err := s.client.Collection(collectionName).Documents().Search(ctx, searchParams)
-	if err != nil {
+	
+	if query.TopK <= 0 || query.TopK > 1000 {
+		err := utils.NewAppError(utils.CodeInvalidInput, "top_k must be between 1 and 1000", nil)
 		if s.tracing != nil {
 			s.tracing.SetSpanError(span, err)
 		}
-		return nil, fmt.Errorf("vector search failed: %w", err)
+		return nil, err
 	}
 
-	searchResult := s.convertSearchResult(result, query, time.Since(startTime))
-
-	if query.MinScore > 0 {
-		filteredHits := []models.SearchHit{}
-		for _, hit := range searchResult.Hits {
-			if hit.Score >= query.MinScore {
-				filteredHits = append(filteredHits, hit)
-			}
-		}
-		searchResult.Hits = filteredHits
-		searchResult.TotalHits = int64(len(filteredHits))
-	}
-
-	return searchResult, nil
+	// Always use multi-search for vector queries to avoid query length limits
+	return s.multiVectorSearch(ctx, query)
 }
 
 func (s *TypesenseStore) CreateCollection(ctx context.Context, entityType string, schema *models.EntitySchema) error {
@@ -428,6 +449,7 @@ func (s *TypesenseStore) buildFieldsFromSchema(schema *models.EntitySchema) []ap
 			field.Type = s.mapPropertyTypeToTypesense(propDef.ElementType) + "[]"
 		}
 
+		// Make string, number, and boolean fields facetable by default
 		if propDef.Type == "string" || propDef.Type == "number" || propDef.Type == "boolean" {
 			field.Facet = boolPtr(true)
 		}
@@ -484,7 +506,14 @@ func (s *TypesenseStore) buildFilterString(filters map[string]any) string {
 			}
 			filterParts = append(filterParts, fmt.Sprintf("%s:[%s]", field, strings.Join(values, ",")))
 		case map[string]any:
-
+			// Handle range filters
+			if min, ok := v[">="]; ok {
+				filterParts = append(filterParts, fmt.Sprintf("%s:>=%v", field, min))
+			}
+			if max, ok := v["<="]; ok {
+				filterParts = append(filterParts, fmt.Sprintf("%s:<=%v", field, max))
+			}
+			// Also support min/max format
 			if min, ok := v["min"]; ok {
 				filterParts = append(filterParts, fmt.Sprintf("%s:>=%v", field, min))
 			}
@@ -520,17 +549,29 @@ func (s *TypesenseStore) vectorToString(vector []float32) string {
 }
 
 func (s *TypesenseStore) convertSearchResult(tsResult *api.SearchResult, query any, searchTime time.Duration) *models.SearchResult {
+	var hitCount int
+	var totalHits int64
+	
+	if tsResult.Hits != nil {
+		hitCount = len(*tsResult.Hits)
+	}
+	
+	if tsResult.Found != nil {
+		totalHits = int64(*tsResult.Found)
+	}
+	
 	result := &models.SearchResult{
-		Hits:       make([]models.SearchHit, 0, len(*tsResult.Hits)),
-		TotalHits:  int64(*tsResult.Found),
+		Hits:       make([]models.SearchHit, 0, hitCount),
+		TotalHits:  totalHits,
 		SearchTime: searchTime.Milliseconds(),
 		Query:      query,
 	}
 
-	for _, tsHit := range *tsResult.Hits {
-		hit := models.SearchHit{
-			Score: float32(1.0),
-		}
+	if tsResult.Hits != nil {
+		for _, tsHit := range *tsResult.Hits {
+			hit := models.SearchHit{
+				Score: float32(1.0),
+			}
 
 		if doc := tsHit.Document; doc != nil {
 			docMap := *doc
@@ -573,6 +614,7 @@ func (s *TypesenseStore) convertSearchResult(tsResult *api.SearchResult, query a
 		}
 
 		result.Hits = append(result.Hits, hit)
+		}
 	}
 
 	if tsResult.FacetCounts != nil && len(*tsResult.FacetCounts) > 0 {
@@ -772,6 +814,52 @@ func (s *TypesenseStore) sortHitsByScore(hits []models.SearchHit) []models.Searc
 		}
 	}
 	return hits
+}
+
+// calculatePage calculates the page number from offset and limit
+func (s *TypesenseStore) calculatePage(offset, limit int) int {
+	if limit <= 0 {
+		limit = 1
+	}
+	return (offset / limit) + 1
+}
+
+// inferPropertyType infers the Typesense property type from a Go value
+func (s *TypesenseStore) inferPropertyType(value any) string {
+	switch v := value.(type) {
+	case string:
+		return "string"
+	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
+		return "number"
+	case float32, float64:
+		return "number"
+	case bool:
+		return "boolean"
+	case []float32, []float64:
+		return "vector"
+	case []string:
+		return "array"  // String array
+	case []int, []int32, []int64:
+		return "array"  // Number array
+	case []map[string]any:
+		return "object"  // Array of objects stored as JSON
+	case []any:
+		if len(v) > 0 {
+			// Check if it's an array of objects
+			if _, ok := v[0].(map[string]any); ok {
+				return "object"  // Typesense will store as JSON string
+			}
+			// Otherwise, regular array
+			return "array"
+		}
+		return "array"
+	case map[string]any:
+		return "object"
+	case time.Time:
+		return "datetime"
+	default:
+		return "string"
+	}
 }
 
 var _ store.IndexStore = (*TypesenseStore)(nil)

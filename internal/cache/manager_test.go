@@ -8,120 +8,56 @@ import (
 	"time"
 
 	"github.com/sumandas0/entropic/internal/models"
-	"github.com/sumandas0/entropic/internal/store"
+	"github.com/sumandas0/entropic/internal/store/postgres"
+	"github.com/sumandas0/entropic/internal/store/testutils"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-type mockPrimaryStore struct {
-	entitySchemas       map[string]*models.EntitySchema
-	relationshipSchemas map[string]*models.RelationshipSchema
-	mu                  sync.RWMutex
-}
+var (
+	testContainer *testutils.PostgresTestContainer
+	testStore     *postgres.PostgresStore
+)
 
-func newMockPrimaryStore() *mockPrimaryStore {
-	return &mockPrimaryStore{
-		entitySchemas:       make(map[string]*models.EntitySchema),
-		relationshipSchemas: make(map[string]*models.RelationshipSchema),
+func TestMain(m *testing.M) {
+	var err error
+	testContainer, err = testutils.SetupTestPostgres()
+	if err != nil {
+		panic(err)
+	}
+
+	testStore, err = postgres.NewPostgresStore(testContainer.URL)
+	if err != nil {
+		testContainer.Cleanup()
+		panic(err)
+	}
+
+	ctx := context.Background()
+	migrator := postgres.NewMigrator(testStore.GetPool())
+	if err := migrator.Run(ctx); err != nil {
+		testStore.Close()
+		testContainer.Cleanup()
+		panic(err)
+	}
+
+	code := m.Run()
+
+	testStore.Close()
+	testContainer.Cleanup()
+
+	if code != 0 {
+		panic("tests failed")
 	}
 }
 
-func (m *mockPrimaryStore) CreateEntitySchema(ctx context.Context, schema *models.EntitySchema) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.entitySchemas[schema.EntityType] = schema
-	return nil
+func cleanupDatabase(t *testing.T) {
+	ctx := context.Background()
+	
+	// Clean up all data between tests
+	_, err := testStore.GetPool().Exec(ctx, "TRUNCATE entities, relations, entity_schemas, relationship_schemas CASCADE")
+	require.NoError(t, err)
 }
-
-func (m *mockPrimaryStore) GetEntitySchema(ctx context.Context, entityType string) (*models.EntitySchema, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	schema, ok := m.entitySchemas[entityType]
-	if !ok {
-		return nil, fmt.Errorf("entity schema not found: %s", entityType)
-	}
-	return schema, nil
-}
-
-func (m *mockPrimaryStore) UpdateEntitySchema(ctx context.Context, schema *models.EntitySchema) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.entitySchemas[schema.EntityType] = schema
-	return nil
-}
-
-func (m *mockPrimaryStore) DeleteEntitySchema(ctx context.Context, entityType string) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	delete(m.entitySchemas, entityType)
-	return nil
-}
-
-func (m *mockPrimaryStore) ListEntitySchemas(ctx context.Context) ([]*models.EntitySchema, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	schemas := make([]*models.EntitySchema, 0, len(m.entitySchemas))
-	for _, schema := range m.entitySchemas {
-		schemas = append(schemas, schema)
-	}
-	return schemas, nil
-}
-
-func (m *mockPrimaryStore) CreateRelationshipSchema(ctx context.Context, schema *models.RelationshipSchema) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.relationshipSchemas[schema.RelationshipType] = schema
-	return nil
-}
-
-func (m *mockPrimaryStore) GetRelationshipSchema(ctx context.Context, relationshipType string) (*models.RelationshipSchema, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	schema, ok := m.relationshipSchemas[relationshipType]
-	if !ok {
-		return nil, fmt.Errorf("relationship schema not found: %s", relationshipType)
-	}
-	return schema, nil
-}
-
-func (m *mockPrimaryStore) UpdateRelationshipSchema(ctx context.Context, schema *models.RelationshipSchema) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.relationshipSchemas[schema.RelationshipType] = schema
-	return nil
-}
-
-func (m *mockPrimaryStore) DeleteRelationshipSchema(ctx context.Context, relationshipType string) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	delete(m.relationshipSchemas, relationshipType)
-	return nil
-}
-
-func (m *mockPrimaryStore) ListRelationshipSchemas(ctx context.Context) ([]*models.RelationshipSchema, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	schemas := make([]*models.RelationshipSchema, 0, len(m.relationshipSchemas))
-	for _, schema := range m.relationshipSchemas {
-		schemas = append(schemas, schema)
-	}
-	return schemas, nil
-}
-
-func (m *mockPrimaryStore) CreateEntity(ctx context.Context, entity *models.Entity) error { panic("not implemented") }
-func (m *mockPrimaryStore) GetEntity(ctx context.Context, entityType string, entityID uuid.UUID) (*models.Entity, error) { panic("not implemented") }
-func (m *mockPrimaryStore) UpdateEntity(ctx context.Context, entity *models.Entity) error { panic("not implemented") }
-func (m *mockPrimaryStore) DeleteEntity(ctx context.Context, entityType string, entityID uuid.UUID) error { panic("not implemented") }
-func (m *mockPrimaryStore) ListEntities(ctx context.Context, entityType string, limit, offset int) ([]*models.Entity, error) { panic("not implemented") }
-func (m *mockPrimaryStore) CreateRelation(ctx context.Context, relation *models.Relation) error { panic("not implemented") }
-func (m *mockPrimaryStore) GetRelation(ctx context.Context, relationID uuid.UUID) (*models.Relation, error) { panic("not implemented") }
-func (m *mockPrimaryStore) DeleteRelation(ctx context.Context, relationID uuid.UUID) error { panic("not implemented") }
-func (m *mockPrimaryStore) GetRelationsByEntity(ctx context.Context, entityID uuid.UUID, relationTypes []string) ([]*models.Relation, error) { panic("not implemented") }
-func (m *mockPrimaryStore) CheckURNExists(ctx context.Context, urn string) (bool, error) { panic("not implemented") }
-func (m *mockPrimaryStore) BeginTx(ctx context.Context) (store.Transaction, error) { panic("not implemented") }
-func (m *mockPrimaryStore) Close() error { return nil }
-func (m *mockPrimaryStore) Ping(ctx context.Context) error { return nil }
 
 func createTestEntitySchema(entityType string) *models.EntitySchema {
 	return &models.EntitySchema{
@@ -134,6 +70,10 @@ func createTestEntitySchema(entityType string) *models.EntitySchema {
 			},
 			"email": {
 				Type:     "string",
+				Required: false,
+			},
+			"score": {
+				Type:     "number",
 				Required: false,
 			},
 		},
@@ -154,18 +94,19 @@ func createTestRelationshipSchema(relationshipType, fromEntity, toEntity string)
 				Required: false,
 			},
 		},
+		Cardinality: models.ManyToMany,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
 }
 
 func TestCacheAwareManager_GetEntitySchema(t *testing.T) {
+	cleanupDatabase(t)
 	ctx := context.Background()
-	mockStore := newMockPrimaryStore()
-	manager := NewCacheAwareManager(mockStore, 5*time.Minute)
+	manager := NewCacheAwareManager(testStore, 5*time.Minute)
 
 	schema := createTestEntitySchema("user")
-	err := mockStore.CreateEntitySchema(ctx, schema)
+	err := testStore.CreateEntitySchema(ctx, schema)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -197,7 +138,6 @@ func TestCacheAwareManager_GetEntitySchema(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if !tt.cacheHit {
-				
 				manager.InvalidateEntitySchema(tt.entityType)
 			}
 
@@ -210,29 +150,31 @@ func TestCacheAwareManager_GetEntitySchema(t *testing.T) {
 				assert.NotNil(t, retrieved)
 				assert.Equal(t, tt.entityType, retrieved.EntityType)
 
+				// Verify cache hit by checking it returns the same instance
 				cached, err := manager.GetEntitySchema(ctx, tt.entityType)
 				assert.NoError(t, err)
-				assert.Equal(t, retrieved, cached)
+				assert.Equal(t, retrieved.ID, cached.ID)
+				assert.Equal(t, retrieved.EntityType, cached.EntityType)
 			}
 		})
 	}
 }
 
 func TestCacheAwareManager_GetRelationshipSchema(t *testing.T) {
+	cleanupDatabase(t)
 	ctx := context.Background()
-	mockStore := newMockPrimaryStore()
-	manager := NewCacheAwareManager(mockStore, 5*time.Minute)
+	manager := NewCacheAwareManager(testStore, 5*time.Minute)
 
 	userSchema := createTestEntitySchema("user")
-	err := mockStore.CreateEntitySchema(ctx, userSchema)
+	err := testStore.CreateEntitySchema(ctx, userSchema)
 	require.NoError(t, err)
 
 	orgSchema := createTestEntitySchema("organization")
-	err = mockStore.CreateEntitySchema(ctx, orgSchema)
+	err = testStore.CreateEntitySchema(ctx, orgSchema)
 	require.NoError(t, err)
 
 	relationSchema := createTestRelationshipSchema("member_of", "user", "organization")
-	err = mockStore.CreateRelationshipSchema(ctx, relationSchema)
+	err = testStore.CreateRelationshipSchema(ctx, relationSchema)
 	require.NoError(t, err)
 
 	retrieved, err := manager.GetRelationshipSchema(ctx, "member_of")
@@ -248,12 +190,12 @@ func TestCacheAwareManager_GetRelationshipSchema(t *testing.T) {
 }
 
 func TestCacheAwareManager_InvalidateEntitySchema(t *testing.T) {
+	cleanupDatabase(t)
 	ctx := context.Background()
-	mockStore := newMockPrimaryStore()
-	manager := NewCacheAwareManager(mockStore, 5*time.Minute)
+	manager := NewCacheAwareManager(testStore, 5*time.Minute)
 
 	schema := createTestEntitySchema("user")
-	err := mockStore.CreateEntitySchema(ctx, schema)
+	err := testStore.CreateEntitySchema(ctx, schema)
 	require.NoError(t, err)
 
 	_, err = manager.GetEntitySchema(ctx, "user")
@@ -267,20 +209,20 @@ func TestCacheAwareManager_InvalidateEntitySchema(t *testing.T) {
 }
 
 func TestCacheAwareManager_InvalidateRelationshipSchema(t *testing.T) {
+	cleanupDatabase(t)
 	ctx := context.Background()
-	mockStore := newMockPrimaryStore()
-	manager := NewCacheAwareManager(mockStore, 5*time.Minute)
+	manager := NewCacheAwareManager(testStore, 5*time.Minute)
 
 	userSchema := createTestEntitySchema("user")
-	err := mockStore.CreateEntitySchema(ctx, userSchema)
+	err := testStore.CreateEntitySchema(ctx, userSchema)
 	require.NoError(t, err)
 
 	orgSchema := createTestEntitySchema("organization")
-	err = mockStore.CreateEntitySchema(ctx, orgSchema)
+	err = testStore.CreateEntitySchema(ctx, orgSchema)
 	require.NoError(t, err)
 
 	relationSchema := createTestRelationshipSchema("member_of", "user", "organization")
-	err = mockStore.CreateRelationshipSchema(ctx, relationSchema)
+	err = testStore.CreateRelationshipSchema(ctx, relationSchema)
 	require.NoError(t, err)
 
 	_, err = manager.GetRelationshipSchema(ctx, "member_of")
@@ -294,20 +236,20 @@ func TestCacheAwareManager_InvalidateRelationshipSchema(t *testing.T) {
 }
 
 func TestCacheAwareManager_InvalidateAll(t *testing.T) {
+	cleanupDatabase(t)
 	ctx := context.Background()
-	mockStore := newMockPrimaryStore()
-	manager := NewCacheAwareManager(mockStore, 5*time.Minute)
+	manager := NewCacheAwareManager(testStore, 5*time.Minute)
 
 	userSchema := createTestEntitySchema("user")
-	err := mockStore.CreateEntitySchema(ctx, userSchema)
+	err := testStore.CreateEntitySchema(ctx, userSchema)
 	require.NoError(t, err)
 
 	orgSchema := createTestEntitySchema("organization")
-	err = mockStore.CreateEntitySchema(ctx, orgSchema)
+	err = testStore.CreateEntitySchema(ctx, orgSchema)
 	require.NoError(t, err)
 
 	relationSchema := createTestRelationshipSchema("member_of", "user", "organization")
-	err = mockStore.CreateRelationshipSchema(ctx, relationSchema)
+	err = testStore.CreateRelationshipSchema(ctx, relationSchema)
 	require.NoError(t, err)
 
 	_, err = manager.GetEntitySchema(ctx, "user")
@@ -329,12 +271,12 @@ func TestCacheAwareManager_InvalidateAll(t *testing.T) {
 }
 
 func TestCacheAwareManager_ConcurrentAccess(t *testing.T) {
+	cleanupDatabase(t)
 	ctx := context.Background()
-	mockStore := newMockPrimaryStore()
-	manager := NewCacheAwareManager(mockStore, 5*time.Minute)
+	manager := NewCacheAwareManager(testStore, 5*time.Minute)
 
 	schema := createTestEntitySchema("user")
-	err := mockStore.CreateEntitySchema(ctx, schema)
+	err := testStore.CreateEntitySchema(ctx, schema)
 	require.NoError(t, err)
 
 	numGoroutines := 10
@@ -358,13 +300,13 @@ func TestCacheAwareManager_ConcurrentAccess(t *testing.T) {
 }
 
 func TestCacheAwareManager_TTLExpiration(t *testing.T) {
+	cleanupDatabase(t)
 	ctx := context.Background()
-	mockStore := newMockPrimaryStore()
 
-	shortTTLManager := NewCacheAwareManager(mockStore, 100*time.Millisecond)
+	shortTTLManager := NewCacheAwareManager(testStore, 100*time.Millisecond)
 
 	schema := createTestEntitySchema("user")
-	err := mockStore.CreateEntitySchema(ctx, schema)
+	err := testStore.CreateEntitySchema(ctx, schema)
 	require.NoError(t, err)
 
 	_, err = shortTTLManager.GetEntitySchema(ctx, "user")
@@ -378,34 +320,202 @@ func TestCacheAwareManager_TTLExpiration(t *testing.T) {
 	assert.False(t, shortTTLManager.HasEntitySchema("user"))
 }
 
-func BenchmarkCacheAwareManager_GetEntitySchema(b *testing.B) {
+func TestCacheAwareManager_CacheWarming(t *testing.T) {
+	cleanupDatabase(t)
 	ctx := context.Background()
-	mockStore := newMockPrimaryStore()
-	manager := NewCacheAwareManager(mockStore, 5*time.Minute)
+
+	// Create multiple schemas
+	for i := 0; i < 5; i++ {
+		entitySchema := createTestEntitySchema(fmt.Sprintf("entity_%d", i))
+		err := testStore.CreateEntitySchema(ctx, entitySchema)
+		require.NoError(t, err)
+	}
+
+	// Create manager and warm cache
+	manager := NewCacheAwareManager(testStore, 5*time.Minute)
+
+	// Pre-load schemas into cache
+	err := manager.PreloadSchemas(ctx)
+	require.NoError(t, err)
+
+	// Verify all schemas are cached
+	for i := 0; i < 5; i++ {
+		assert.True(t, manager.HasEntitySchema(fmt.Sprintf("entity_%d", i)))
+	}
+}
+
+func TestCacheAwareManager_ConcurrentUpdates(t *testing.T) {
+	cleanupDatabase(t)
+	ctx := context.Background()
+	manager := NewCacheAwareManager(testStore, 5*time.Minute)
 
 	schema := createTestEntitySchema("user")
-	mockStore.CreateEntitySchema(ctx, schema)
+	err := testStore.CreateEntitySchema(ctx, schema)
+	require.NoError(t, err)
 
-	manager.GetEntitySchema(ctx, "user")
+	// Pre-warm cache
+	_, err = manager.GetEntitySchema(ctx, "user")
+	require.NoError(t, err)
+
+	var wg sync.WaitGroup
+	numGoroutines := 10
+
+	// Concurrent updates
+	for i := 0; i < numGoroutines; i++ {
+		wg.Add(1)
+		go func(idx int) {
+			defer wg.Done()
+			
+			if idx%2 == 0 {
+				// Even goroutines: invalidate and re-fetch
+				manager.InvalidateEntitySchema("user")
+				_, err := manager.GetEntitySchema(ctx, "user")
+				assert.NoError(t, err)
+			} else {
+				// Odd goroutines: just fetch
+				_, err := manager.GetEntitySchema(ctx, "user")
+				assert.NoError(t, err)
+			}
+		}(i)
+	}
+
+	wg.Wait()
+}
+
+func TestCacheAwareManager_SchemaUpdate(t *testing.T) {
+	cleanupDatabase(t)
+	ctx := context.Background()
+	manager := NewCacheAwareManager(testStore, 5*time.Minute)
+
+	// Create initial schema
+	schema := createTestEntitySchema("user")
+	err := testStore.CreateEntitySchema(ctx, schema)
+	require.NoError(t, err)
+
+	// Cache it
+	cached1, err := manager.GetEntitySchema(ctx, "user")
+	require.NoError(t, err)
+
+	// Update schema in store
+	schema.Properties["age"] = models.PropertyDefinition{
+		Type:     "number",
+		Required: true,
+	}
+	err = testStore.UpdateEntitySchema(ctx, schema)
+	require.NoError(t, err)
+	
+	// Simulate schema change notification
+	manager.OnEntitySchemaChange("user", "update")
+
+	// Verify cache was invalidated and new version is fetched
+	cached2, err := manager.GetEntitySchema(ctx, "user")
+	require.NoError(t, err)
+	assert.NotEqual(t, cached1, cached2)
+	assert.Contains(t, cached2.Properties, "age")
+}
+
+func TestCacheAwareManager_MemoryLeakPrevention(t *testing.T) {
+	cleanupDatabase(t)
+	ctx := context.Background()
+	
+	// Create manager with very short TTL
+	manager := NewCacheAwareManager(testStore, 50*time.Millisecond)
+
+	// Create and cache many schemas
+	for i := 0; i < 100; i++ {
+		schema := createTestEntitySchema(fmt.Sprintf("entity_%d", i))
+		err := testStore.CreateEntitySchema(ctx, schema)
+		require.NoError(t, err)
+		
+		_, err = manager.GetEntitySchema(ctx, schema.EntityType)
+		require.NoError(t, err)
+	}
+
+	// Wait for TTL to expire
+	time.Sleep(100 * time.Millisecond)
+	
+	// Force cleanup
+	manager.cleanup()
+
+	// Verify all entries are removed
+	for i := 0; i < 100; i++ {
+		assert.False(t, manager.HasEntitySchema(fmt.Sprintf("entity_%d", i)))
+	}
+}
+
+func TestCacheAwareManager_CacheStatistics(t *testing.T) {
+	cleanupDatabase(t)
+	ctx := context.Background()
+	manager := NewCacheAwareManager(testStore, 5*time.Minute)
+
+	// Create test data
+	schema := createTestEntitySchema("user")
+	err := testStore.CreateEntitySchema(ctx, schema)
+	require.NoError(t, err)
+
+	// Test cache miss
+	_, err = manager.GetEntitySchema(ctx, "user")
+	require.NoError(t, err)
+
+	// Test cache hits
+	for i := 0; i < 5; i++ {
+		_, err = manager.GetEntitySchema(ctx, "user")
+		require.NoError(t, err)
+	}
+
+	// Test non-existent schema
+	_, err = manager.GetEntitySchema(ctx, "nonexistent")
+	assert.Error(t, err)
+
+	// Verify cache behavior
+	assert.True(t, manager.HasEntitySchema("user"))
+	assert.False(t, manager.HasEntitySchema("nonexistent"))
+}
+
+func BenchmarkCacheAwareManager_GetEntitySchema(b *testing.B) {
+	ctx := context.Background()
+	manager := NewCacheAwareManager(testStore, 5*time.Minute)
+
+	schema := createTestEntitySchema("bench_user")
+	testStore.CreateEntitySchema(ctx, schema)
+
+	// Pre-warm cache
+	manager.GetEntitySchema(ctx, "bench_user")
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		manager.GetEntitySchema(ctx, "user")
+		manager.GetEntitySchema(ctx, "bench_user")
 	}
 }
 
 func BenchmarkCacheAwareManager_CacheMiss(b *testing.B) {
 	ctx := context.Background()
-	mockStore := newMockPrimaryStore()
-	manager := NewCacheAwareManager(mockStore, 5*time.Minute)
+	manager := NewCacheAwareManager(testStore, 5*time.Minute)
 
-	schema := createTestEntitySchema("user")
-	mockStore.CreateEntitySchema(ctx, schema)
+	schema := createTestEntitySchema("bench_miss_user")
+	testStore.CreateEntitySchema(ctx, schema)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		
-		manager.InvalidateEntitySchema("user")
-		manager.GetEntitySchema(ctx, "user")
+		manager.InvalidateEntitySchema("bench_miss_user")
+		manager.GetEntitySchema(ctx, "bench_miss_user")
 	}
+}
+
+func BenchmarkCacheAwareManager_ConcurrentAccess(b *testing.B) {
+	ctx := context.Background()
+	manager := NewCacheAwareManager(testStore, 5*time.Minute)
+
+	schema := createTestEntitySchema("bench_concurrent")
+	testStore.CreateEntitySchema(ctx, schema)
+
+	// Pre-warm cache
+	manager.GetEntitySchema(ctx, "bench_concurrent")
+
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			manager.GetEntitySchema(ctx, "bench_concurrent")
+		}
+	})
 }

@@ -3,6 +3,7 @@ package typesense
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -19,27 +20,40 @@ var (
 )
 
 func TestMain(m *testing.M) {
-
 	var err error
+	var code int
+	
+	// Ensure cleanup happens even if we panic
+	defer func() {
+		if testStore != nil {
+			testStore.Close()
+		}
+		if testContainer != nil {
+			if cleanupErr := testContainer.Cleanup(); cleanupErr != nil {
+				fmt.Printf("Warning: failed to cleanup container: %v\n", cleanupErr)
+			}
+		}
+		
+		// Exit with the test result code
+		os.Exit(code)
+	}()
+
 	testContainer, err = testutils.SetupTestTypesense()
 	if err != nil {
-		panic(err)
+		fmt.Printf("Failed to setup test Typesense: %v\n", err)
+		code = 1
+		return
 	}
 
 	testStore, err = NewTypesenseStore(testContainer.URL, testContainer.APIKey)
 	if err != nil {
-		testContainer.Cleanup()
-		panic(err)
+		fmt.Printf("Failed to create Typesense store: %v\n", err)
+		code = 1
+		return
 	}
 
-	code := m.Run()
-
-	testStore.Close()
-	testContainer.Cleanup()
-
-	if code != 0 {
-		panic("tests failed")
-	}
+	// Run the tests
+	code = m.Run()
 }
 
 func TestTypesenseStore_IndexEntity(t *testing.T) {

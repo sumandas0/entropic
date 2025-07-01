@@ -125,6 +125,14 @@ func (imdl *InMemoryDistributedLock) IsHeld(resource string) bool {
 	return imdl.Manager.IsLocked(resource)
 }
 
+func (imdl *InMemoryDistributedLock) TryLock(resource string, ttl time.Duration) error {
+	return imdl.Manager.TryLock(resource, ttl)
+}
+
+func (imdl *InMemoryDistributedLock) Unlock(resource string) error {
+	return imdl.Manager.Unlock(resource)
+}
+
 type LockManager struct {
 	distributedLock DistributedLock
 	entityLock      *EntityLockManager
@@ -211,6 +219,10 @@ func (lm *LockManager) Close() error {
 }
 
 func (lm *LockManager) Lock(ctx context.Context, resource string, timeout time.Duration) error {
+	// If using InMemoryDistributedLock, use context-aware locking
+	if imdl, ok := lm.distributedLock.(*InMemoryDistributedLock); ok {
+		return imdl.LockWithContext(ctx, resource, timeout)
+	}
 	_, err := lm.distributedLock.Acquire(ctx, resource, timeout)
 	return err
 }
